@@ -1,0 +1,919 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import api from '../../api';
+import { 
+  ArrowLeft, Calendar, MapPin, Building2, Download, 
+  Edit3, Paperclip, Image as ImageIcon, UserCheck, 
+  ExternalLink, Sun, Users, Wrench, ListTodo, Trash2, FileSpreadsheet, 
+  Plus, UploadCloud, AlertTriangle, CheckCircle2, Save, X, Loader2, Copy, Clock, ShieldAlert
+} from 'lucide-react';
+
+// FUNGSI BANTUAN UNTUK FORMAT TAMPILAN KOORDINAT
+const formatKoordTampil = (staString) => {
+  if (!staString) return null;
+  if (staString.includes(',')) {
+    const [lat, long] = staString.split(',');
+    return `Lat: ${lat.trim()} | Long: ${long.trim()}`;
+  }
+  return staString;
+};
+
+// FUNGSI BANTUAN UNTUK MEMECAH STRING KE INPUT FORM
+const parseInitKoord = (staString) => {
+  if (!staString) return { lat: '', long: '' };
+  if (staString.includes(',')) {
+    const [lat, long] = staString.split(',');
+    return { lat: lat.trim(), long: long.trim() };
+  }
+  return { lat: staString, long: '' };
+};
+
+export default function LaporanData() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { id } = useParams(); 
+
+  const initialData = location.state?.laporan;
+  const reportId = id || initialData?.id || initialData?.originalData?.id;
+
+  const [reportData, setReportData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // STATE DRAFT MODE
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    tanggal: '', pengawas: '', lokasi: '',
+    cuaca: '', 
+    activities: [], personnels: [], equipments: []
+  });
+  
+  // STATE EXPORT LOADING
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  // STATE MODALS
+  const [showActModal, setShowActModal] = useState(false);
+  const [actItem, setActItem] = useState({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null });
+
+  const [showPerModal, setShowPerModal] = useState(false);
+  const [perItem, setPerItem] = useState({ index: null, peran: '', jumlah: '' });
+
+  const [showEqModal, setShowEqModal] = useState(false);
+  const [eqItem, setEqItem] = useState({ index: null, nama_alat: '', jumlah: '' });
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  const [userRole, setUserRole] = useState('Tamu');
+
+  useEffect(() => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
+      try {
+        const user = JSON.parse(userDataStr);
+        setUserRole(user.role || 'Tamu');
+      } catch (error) {
+        console.error("Gagal membaca data user:", error);
+      }
+    }
+  }, []);
+
+  // Definisi Hak Akses
+  const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
+  const canVerify = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
+  const isGuest = userRole === 'Tamu';
+
+  const fetchReport = async () => {
+    try {
+      const res = await api.get(`/daily-reports/${reportId}`);
+      setReportData(res.data.data);
+    } catch (error) {
+      console.error("Gagal memuat laporan:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (reportId) fetchReport();
+  }, [reportId]);
+
+  const toggleEditMode = () => {
+    if (!isEditMode) {
+      // DEEP COPY data ke Draft
+      setEditForm({
+        tanggal: reportData.tanggal,
+        pengawas: reportData.pengawas,
+        lokasi: reportData.lokasi,
+        cuaca: reportData.cuaca || '', 
+        activities: JSON.parse(JSON.stringify(reportData.activities || [])),
+        personnels: JSON.parse(JSON.stringify(reportData.personnels || [])),
+        equipments: JSON.parse(JSON.stringify(reportData.equipments || [])),
+      });
+      setIsEditMode(true);
+    } else {
+      setIsEditMode(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        tanggal: editForm.tanggal,
+        pengawas: editForm.pengawas,
+        lokasi: editForm.lokasi,
+        cuaca: editForm.cuaca, 
+        kegiatan: JSON.stringify(editForm.activities),
+        personil: JSON.stringify(editForm.personnels),
+        peralatan: JSON.stringify(editForm.equipments),
+      };
+
+      await api.put(`/daily-reports/${reportId}`, payload);
+      setIsEditMode(false);
+      fetchReport(); 
+      alert("Draf Perubahan berhasil disimpan! (Status laporan kembali menjadi Pending)");
+    } catch (error) {
+      alert("Gagal menyimpan perubahan. Periksa koneksi.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleVerifyLaporan = async () => {
+    const confirmVerif = window.confirm(
+      "Apakah Anda yakin ingin menyetujui laporan ini? \n\nData volume yang disetujui akan permanen dan langsung masuk ke hitungan realisasi Kurva S."
+    );
+    if (!confirmVerif) return;
+    try {
+      await api.put(`/daily-reports/${reportId}/verify`);
+      alert("Laporan berhasil disetujui!");
+      fetchReport(); 
+    } catch (error) {
+      console.error("Gagal verifikasi:", error);
+      alert("Terjadi kesalahan saat memverifikasi laporan.");
+    }
+  };
+
+  // Upload/Delete File
+  const handleUploadFile = async (e, type) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    const formData = new FormData();
+    files.forEach(f => {
+      if (type === 'foto') formData.append('foto[]', f);
+      else formData.append('lampiran[]', f);
+    });
+    e.target.value = null;
+    try {
+      await api.post(`/daily-reports/${reportId}/attachments`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      fetchReport();
+    } catch (error) {
+      alert("Gagal mengunggah file.");
+    }
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    if (!window.confirm("Yakin ingin menghapus file ini?")) return;
+    try {
+      await api.delete(`/daily-report-attachments/${fileId}`);
+      fetchReport();
+    } catch (error) {
+      alert("Gagal menghapus file.");
+    }
+  };
+
+  const handleDeleteReport = async () => {
+    try {
+      await api.delete(`/daily-reports/${reportId}`);
+      alert("Laporan berhasil dihapus permanen.");
+      navigate('/laporan');
+    } catch (error) {
+      alert("Gagal menghapus laporan.");
+    }
+  };
+
+  // --- HANDLER COPY TO CLIPBOARD ---
+  const handleCopyText = () => {
+    if (!reportData) return;
+
+    const dateObj = new Date(reportData.tanggal);
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDate = dateObj.toLocaleDateString('id-ID', options);
+
+    let pekerjaanText = "";
+    if (reportData.activities && reportData.activities.length > 0) {
+      pekerjaanText = reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan})`).join('\n');
+    } else {
+      pekerjaanText = "1. Tidak Ada Pekerjaan";
+    }
+
+    let manpowerText = "";
+    if (reportData.personnels && reportData.personnels.length > 0) {
+      manpowerText = reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n');
+    } else {
+      manpowerText = "1. Tidak Ada Pekerja = -";
+    }
+
+    let alatText = "";
+    if (reportData.equipments && reportData.equipments.length > 0) {
+      alatText = reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n');
+    } else {
+      alatText = "1. Tidak Ada Alat = -";
+    }
+
+    const textToCopy = `*Daily Report ${formattedDate}*
+
+*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*
+
+Pekerjaan :
+${pekerjaanText}
+
+MANPOWER :
+${manpowerText}
+
+Alat : 
+${alatText}
+
+Cuaca Harian : 
+${reportData.cuaca || '-'}
+           
+Jam Kerja : -
+ 
+Catatan : 
+* -`;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.");
+    }).catch(err => {
+      console.error("Gagal menyalin text: ", err);
+      alert("Gagal menyalin text.");
+    });
+  };
+
+  // --- HANDLER EXPORT EXCEL ---
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const response = await api.get(`/daily-reports/${reportId}/export/excel`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Gagal export Excel:", error);
+      alert("Gagal mengunduh file Excel.");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // --- HANDLER EXPORT PDF ---
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const response = await api.get(`/daily-reports/${reportId}/export/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Gagal export PDF:", error);
+      alert("Gagal mengunduh file PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const getDocUrl = (path) => {
+    if (!path) return '#';
+    return path.startsWith('http') ? path : `http://127.0.0.1:8000/${path}`;
+  };
+
+  if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /></div>;
+  if (!reportData) return <div className="p-10 text-center dark:text-white">Data Tidak Ditemukan.</div>;
+
+  const fotoDokumentasi = (reportData.attachments || []).filter(a => a.tipe === 'foto');
+  const lampiranFiles = (reportData.attachments || []).filter(a => a.tipe === 'dokumen');
+
+  const activeActivities = isEditMode ? editForm.activities : reportData.activities;
+  const activePersonnels = isEditMode ? editForm.personnels : reportData.personnels;
+  const activeEquipments = isEditMode ? editForm.equipments : reportData.equipments;
+
+  // PENYAMARAN STATUS UNTUK TAMU
+  const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
+
+  return (
+    <div className="w-full space-y-5 relative pb-20">
+      
+      {/* --- TOP HEADER / ACTION BAR --- */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
+        <div className="flex items-start lg:items-center gap-3 shrink-0">
+          <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all cursor-pointer shadow-sm">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
+                Detail Laporan Harian
+                {isEditMode && <span className="px-2 py-0.5 ml-1 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 font-mono font-bold">LAP/{reportData.tanggal.replace(/-/g, '/')}/00{reportData.id}</p>
+              
+              {/* STATUS BADGE */}
+              {!isEditMode && (
+                displayStatus === 'approved' ? (
+                  <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
+                ) : displayStatus === 'rejected' ? (
+                  <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
+                ) : (
+                  <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* CONTAINER ACTION BUTTONS (DISEMBUNYIKAN SEPENUHNYA UNTUK TAMU) */}
+        {!isGuest && (
+          <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto">
+            <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar transition-all duration-300">
+              
+              {isEditMode ? (
+                <>
+                  <button onClick={toggleEditMode} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600">
+                    <X className="w-3.5 h-3.5" /> Batal
+                  </button>
+                  <button onClick={handleSaveChanges} disabled={isSaving} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-50">
+                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Simpan Perubahan
+                  </button>
+                </>
+              ) : (
+                <>
+                  {canVerify && displayStatus === 'pending' ? (
+                    <button onClick={handleVerifyLaporan} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Verifikasi Laporan</span>
+                    </button>
+                  ) : displayStatus === 'approved' ? (
+                    <div className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-bold rounded-lg cursor-default">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Telah Disetujui</span>
+                    </div>
+                  ) : displayStatus === 'rejected' ? (
+                    <div className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[11px] font-bold rounded-lg cursor-default">
+                      <X className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Telah Ditolak</span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[11px] font-bold rounded-lg cursor-default">
+                      <Clock className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Menunggu Verifikasi</span>
+                    </div>
+                  )}
+
+                  <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+
+                  {/* TOMBOL EDIT & HAPUS HANYA UNTUK ROLE TERTENTU */}
+                  {canCreateData && (
+                    <>
+                      <button onClick={toggleEditMode} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
+                        <Edit3 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Mode Edit Draf</span>
+                      </button>
+                      <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-bold rounded-lg transition-all">
+                        <Trash2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Hapus</span>
+                      </button>
+                      <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+                    </>
+                  )}
+                  
+                  <button onClick={handleCopyText} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-bold rounded-lg transition-all">
+                    <Copy className="w-3.5 h-3.5 text-blue-500" /> <span className="hidden lg:inline">Copy Text</span>
+                  </button>
+
+                  <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-bold rounded-lg transition-all disabled:opacity-50">
+                    {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} 
+                    <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
+                  </button>
+                  <button onClick={handleExportPdf} disabled={isExportingPdf} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-bold rounded-lg transition-all disabled:opacity-50">
+                    {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 
+                    <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
+                  </button>
+                </>
+              )}
+
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Grid Informasi Utama */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Info Proyek & Pengawas */}
+        <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative`}>
+          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-amber-500" /> Nama Projek</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug">{reportData.project?.nama_proyek}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-amber-500" /> Lokasi Pengawasan</p>
+                {isEditMode ? (
+                  <input type="text" value={editForm.lokasi} onChange={e => setEditForm({...editForm, lokasi: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                ) : (
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{reportData.lokasi}</p>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Tanggal Pengawasan</p>
+                {isEditMode ? (
+                  <input type="date" value={editForm.tanggal} onChange={e => setEditForm({...editForm, tanggal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 [color-scheme:light_dark] transition-colors" />
+                ) : (
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{reportData.tanggal}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> Nama Pengawas</p>
+                {isEditMode ? (
+                  <input type="text" value={editForm.pengawas} onChange={e => setEditForm({...editForm, pengawas: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                ) : (
+                  <p className="text-xs font-semibold text-slate-800 dark:text-white">{reportData.pengawas}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Info Cuaca Tunggal */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative`}>
+          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+          
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <Sun className="w-4 h-4"/> Kondisi Cuaca Lapangan
+            </h3>
+          </div>
+          
+          <div className="pt-4 flex-1 flex flex-col">
+             {isEditMode ? (
+                 <textarea 
+                   name="cuaca" 
+                   rows="4" 
+                   value={editForm.cuaca} 
+                   onChange={e => setEditForm({...editForm, cuaca: e.target.value})} 
+                   placeholder="Rangkuman cuaca harian..." 
+                   className="w-full flex-1 bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none shadow-inner" 
+                 />
+             ) : (
+                 <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1">
+                     {reportData.cuaca || 'Tidak ada catatan cuaca harian.'}
+                 </div>
+             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Rincian Kegiatan */}
+      <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative`}>
+        {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+        
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 pr-8 gap-2">
+          <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
+            <ListTodo className="w-4 h-4 text-amber-500" /> Kegiatan & Posisi Geografis
+          </h3>
+          {isEditMode && (
+            <button onClick={() => { setActItem({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null }); setShowActModal(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in shrink-0 z-20">
+              <Plus className="w-3.5 h-3.5" /> Tambah Kegiatan
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 text-xs pt-1">
+          {activeActivities.length === 0 ? (
+            <p className="text-slate-500 dark:text-slate-400 text-center col-span-1 py-4 italic">Tidak ada kegiatan harian yang terdaftar.</p>
+          ) : (
+            activeActivities.map((keg, idx) => (
+              <div key={idx} className="flex flex-col p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-colors hover:border-slate-300 dark:hover:border-slate-600 relative">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 pr-16">
+                    <span className="flex-shrink-0 w-6 h-6 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center font-mono text-[10px] font-bold shadow-sm">
+                      {idx + 1}
+                    </span>
+                    <p className="text-slate-700 dark:text-slate-200 mt-0.5 leading-relaxed font-bold text-[13px]">{keg.uraian}</p>
+                  </div>
+                  {isEditMode && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 animate-fade-in z-20">
+                       <button onClick={() => { 
+                         setActItem({...keg, index: idx, sta_awal: keg.sta_awal || '', sta_akhir: keg.sta_akhir || '' }); 
+                         setShowActModal(true); 
+                       }} className="w-7 h-7 flex items-center justify-center bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-500 rounded-lg cursor-pointer transition-colors border border-blue-200 dark:border-blue-500/20"><Edit3 className="w-3.5 h-3.5" /></button>
+                       <button onClick={() => { const newA = [...editForm.activities]; newA.splice(idx,1); setEditForm({...editForm, activities: newA}); }} className="w-7 h-7 flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 rounded-lg cursor-pointer transition-colors border border-rose-200 dark:border-rose-500/20"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
+                </div>
+                
+                {/* --- MENAMPILKAN TITIK KOORDINAT TUNGGAL --- */}
+                <div className="ml-9 mt-3 flex flex-wrap items-center gap-3">
+                  {(keg.sta_awal || keg.sta_akhir) && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-sm text-[10px] w-full sm:w-auto">
+                      {keg.sta_awal && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> 
+                          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Awal:</span> 
+                          <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_awal)}</span>
+                        </div>
+                      )}
+                      {keg.sta_awal && keg.sta_akhir && <div className="hidden sm:block w-px h-3 bg-slate-300 dark:bg-slate-600"></div>}
+                      {keg.sta_akhir && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> 
+                          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Akhir:</span> 
+                          <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_akhir)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {keg.volume && (
+                    <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 px-3 py-2 rounded-lg text-[10px]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold uppercase">Tercapai:</span> 
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{Number(keg.volume)} {keg.satuan}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Personil & Peralatan */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        
+        {/* Personil */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
+          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+          
+          <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
+            <h3 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2">
+              <Users className="w-4 h-4" /> Personil Lapangan
+            </h3>
+            {isEditMode && (
+              <button onClick={() => { setPerItem({ index: null, peran: '', jumlah: '' }); setShowPerModal(true); }} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 text-[10px] font-bold rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all animate-fade-in z-20">
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            )}
+          </div>
+          <div className="p-4 overflow-x-auto flex-1 max-h-[300px] overflow-y-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="text-[10px] uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                <tr>
+                  <th className="pb-2 font-semibold">Kategori Personil</th>
+                  <th className="pb-2 text-center font-semibold w-24">Jumlah</th>
+                  {isEditMode && <th className="pb-2 text-right font-semibold w-16 animate-fade-in">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-xs">
+                {activePersonnels.map((p, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                    <td className="py-2.5 text-slate-700 dark:text-slate-300 font-medium">{p.peran}</td>
+                    <td className="py-2.5 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="bg-emerald-50 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-900/30">
+                        {p.jumlah} <span className="text-[9px] text-emerald-600/70 dark:text-emerald-500/70 font-sans font-normal ml-0.5">Org</span>
+                      </span>
+                    </td>
+                    {isEditMode && (
+                      <td className="py-2.5 text-right animate-fade-in">
+                        <div className="flex justify-end gap-2">
+                          <Edit3 onClick={() => { setPerItem({...p, index: idx}); setShowPerModal(true); }} className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 cursor-pointer" />
+                          <Trash2 onClick={() => { const newP = [...editForm.personnels]; newP.splice(idx,1); setEditForm({...editForm, personnels: newP}); }} className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 cursor-pointer" />
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        {/* Peralatan */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
+          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+
+          <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
+            <h3 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
+              <Wrench className="w-4 h-4" /> Pemakaian Alat
+            </h3>
+            {isEditMode && (
+              <button onClick={() => { setEqItem({ index: null, nama_alat: '', jumlah: '' }); setShowEqModal(true); }} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in z-20">
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            )}
+          </div>
+          <div className="p-4 overflow-x-auto flex-1 max-h-[300px] overflow-y-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="text-[10px] uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                <tr>
+                  <th className="pb-2 font-semibold">Nama Alat / Mesin</th>
+                  <th className="pb-2 text-center font-semibold w-24">Jumlah</th>
+                  {isEditMode && <th className="pb-2 text-right font-semibold w-16 animate-fade-in">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-xs">
+                {activeEquipments.map((alat, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                    <td className="py-2.5 text-slate-700 dark:text-slate-300 font-medium">{alat.nama_alat}</td>
+                    <td className="py-2.5 text-center font-mono font-bold text-blue-600 dark:text-blue-400">
+                      <span className="bg-blue-50 dark:bg-blue-950/20 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/30">
+                        {alat.jumlah} <span className="text-[9px] text-blue-600/70 dark:text-blue-500/70 font-sans font-normal ml-0.5">Unit</span>
+                      </span>
+                    </td>
+                    {isEditMode && (
+                      <td className="py-2.5 text-right animate-fade-in">
+                        <div className="flex justify-end gap-2">
+                          <Edit3 onClick={() => { setEqItem({...alat, index: idx}); setShowEqModal(true); }} className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 cursor-pointer" />
+                          <Trash2 onClick={() => { const newE = [...editForm.equipments]; newE.splice(idx,1); setEditForm({...editForm, equipments: newE}); }} className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 cursor-pointer" />
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      {/* SECTION 5: Upload Foto & Lampiran */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
+            </h2>
+            {isEditMode && (
+              <>
+                <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={(e) => handleUploadFile(e, 'foto')} />
+                <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-medium rounded-lg border border-amber-200 dark:border-amber-500/20 transition-all">
+                  <UploadCloud className="w-3.5 h-3.5" /> Upload Foto
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
+            {fotoDokumentasi.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
+                 <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                 <p className="text-slate-500 font-medium">Belum ada foto terlampir</p>
+               </div>
+            ) : (
+              fotoDokumentasi.map((foto, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-all">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="font-medium text-slate-800 dark:text-white truncate">{foto.nama_file}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Telah Diunggah</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {!isEditMode && (
+                      <button 
+                        type="button"
+                        onClick={() => window.open(getDocUrl(foto.path_file), '_blank')} 
+                        title="Lihat Foto" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                    {isEditMode && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteFile(foto.id)} 
+                        title="Hapus Foto" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
+            </h2>
+            {isEditMode && (
+              <>
+                <input type="file" id="docUploadAdd" className="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => handleUploadFile(e, 'dokumen')} />
+                <button type="button" onClick={() => document.getElementById('docUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all">
+                  <UploadCloud className="w-3.5 h-3.5" /> Upload File
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
+            {lampiranFiles.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
+                 <FileSpreadsheet className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                 <p className="text-slate-500 font-medium">Belum ada berkas terlampir</p>
+               </div>
+            ) : (
+              lampiranFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-all">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="font-medium text-slate-800 dark:text-white truncate">{file.nama_file}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Telah Diunggah</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {!isEditMode && (
+                      <button 
+                        type="button"
+                        onClick={() => window.open(getDocUrl(file.path_file), '_blank')} 
+                        title="Download / Buka File" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
+                        <Download className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                    {isEditMode && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteFile(file.id)} 
+                        title="Hapus File" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH KEGIATAN                  */}
+      {/* ========================================== */}
+      {showActModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><ListTodo className="w-4 h-4 text-amber-500"/> Form Kegiatan Draf</h3>
+              <button onClick={() => setShowActModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Uraian Pekerjaan <span className="text-rose-500">*</span></label>
+                <textarea rows="2" required value={actItem.uraian} onChange={(e) => setActItem({...actItem, uraian: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none transition-colors" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="font-bold text-[10px] text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Koordinat Awal (Opsional)</label>
+                    <input type="text" placeholder="-3.3191, 114.5911" value={actItem.sta_awal} onChange={(e) => setActItem({...actItem, sta_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-[11px]" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="font-bold text-[10px] text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> Koordinat Akhir (Opsional)</label>
+                    <input type="text" placeholder="-3.3215, 114.6102" value={actItem.sta_akhir} onChange={(e) => setActItem({...actItem, sta_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-[11px]" />
+                </div>
+                
+                <div>
+                  <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Volume Tercapai <span className="text-rose-500">*</span></label>
+                  <input type="number" step="any" required value={actItem.volume} onChange={(e) => setActItem({...actItem, volume: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-emerald-600 dark:text-emerald-400 rounded-lg px-3 py-2 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Satuan (M3/Ls dll)</label>
+                  <input type="text" value={actItem.satuan} onChange={(e) => setActItem({...actItem, satuan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowActModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!actItem.uraian || !actItem.volume) return alert("Uraian dan Volume wajib diisi!");
+                const updatedItem = { ...actItem };
+                const newArr = [...editForm.activities];
+                if(actItem.index !== null) newArr[actItem.index] = updatedItem; else newArr.push(updatedItem);
+                
+                setEditForm({...editForm, activities: newArr});
+                setShowActModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH PERSONIL                  */}
+      {/* ========================================== */}
+      {showPerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> Form Personil Draf</h3>
+              <button onClick={() => setShowPerModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Peran / Jabatan <span className="text-rose-500">*</span></label>
+                <input type="text" required value={perItem.peran} onChange={(e) => setPerItem({...perItem, peran: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Orang <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={perItem.jumlah} onChange={(e) => setPerItem({...perItem, jumlah: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowPerModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!perItem.peran || !perItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.personnels];
+                if(perItem.index !== null) newArr[perItem.index] = perItem; else newArr.push(perItem);
+                setEditForm({...editForm, personnels: newArr});
+                setShowPerModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH PERALATAN                 */}
+      {/* ========================================== */}
+      {showEqModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> Form Peralatan Draf</h3>
+              <button onClick={() => setShowEqModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Nama Alat <span className="text-rose-500">*</span></label>
+                <input type="text" required value={eqItem.nama_alat} onChange={(e) => setEqItem({...eqItem, nama_alat: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Unit <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={eqItem.jumlah} onChange={(e) => setEqItem({...eqItem, jumlah: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowEqModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!eqItem.nama_alat || !eqItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.equipments];
+                if(eqItem.index !== null) newArr[eqItem.index] = eqItem; else newArr.push(eqItem);
+                setEditForm({...editForm, equipments: newArr});
+                setShowEqModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL: KONFIRMASI HAPUS LAPORAN FULL         */}
+      {/* ========================================== */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
+            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/20 animate-pulse">
+              <AlertTriangle className="w-6 h-6 text-rose-500 dark:text-rose-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan Harian?</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Tindakan ini permanen. Semua data, foto, dan lampiran di dalam laporan ini akan hilang dan tidak dapat dikembalikan.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
+              <button onClick={handleDeleteReport} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-xs transition-colors shadow-md shadow-rose-500/20 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Ya, Hapus</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
