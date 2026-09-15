@@ -1,11 +1,8 @@
 import axios from 'axios';
 
+// Contoh konfigurasi axios yang benar
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api', 
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api', 
 });
 
 // Interceptor: Menempelkan Token ke setiap request secara otomatis
