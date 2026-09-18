@@ -9,9 +9,9 @@ class RabCategory extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'nama_kategori'];
+    // TAMBAHKAN 'kode_divisi' di sini
+    protected $fillable = ['project_id', 'kode_divisi', 'nama_kategori'];
 
-    // Relasi: 1 Kategori memiliki Banyak Item
     public function items()
     {
         return $this->hasMany(RabItem::class, 'rab_category_id');

@@ -9,7 +9,8 @@ class RabItem extends Model
 {
     use HasFactory;
 
+    // TAMBAHKAN 'kode_pekerjaan' di sini
     protected $fillable = [
-        'rab_category_id', 'uraian_pekerjaan', 'is_subheader', 'satuan', 'volume', 'harga_satuan', 'total_harga'
+        'rab_category_id', 'kode_pekerjaan', 'uraian_pekerjaan', 'is_subheader', 'satuan', 'volume', 'harga_satuan', 'total_harga'
     ];
 }

@@ -5,7 +5,7 @@ import {
   DollarSign, ArrowLeft, Info, FileSpreadsheet, 
   TrendingUp, Compass, Plus, Edit3, Trash2, ListPlus, 
   Download, Loader2, AlertTriangle, X, Type, Activity, TrendingDown, CheckCircle2,
-  UploadCloud, ShieldAlert, Clock
+  UploadCloud, ShieldAlert
 } from 'lucide-react';
 
 export default function ProjectRAB() {
@@ -46,11 +46,11 @@ export default function ProjectRAB() {
 
   // --- STATE MODAL & FORM ---
   const [showCatModal, setShowCatModal] = useState(false);
-  const [catForm, setCatForm] = useState({ id: null, nama_kategori: '' });
+  const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
 
   const [showItemModal, setShowItemModal] = useState(false);
   const [itemForm, setItemForm] = useState({
-    id: null, rab_category_id: null, uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: false
+    id: null, rab_category_id: null, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: false
   });
 
   const [deleteConfig, setDeleteConfig] = useState({ show: false, type: '', id: null, name: '' });
@@ -138,8 +138,8 @@ export default function ProjectRAB() {
   };
 
   const openCatModal = (cat = null) => {
-    if (cat) setCatForm({ id: cat.id, nama_kategori: cat.nama_kategori });
-    else setCatForm({ id: null, nama_kategori: '' });
+    if (cat) setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori });
+    else setCatForm({ id: null, kode_divisi: '', nama_kategori: '' });
     setShowCatModal(true);
   };
 
@@ -148,10 +148,11 @@ export default function ProjectRAB() {
     let updated = [...localRabs];
     if (catForm.id) {
       const idx = updated.findIndex(c => c.id === catForm.id);
-      if (idx > -1) updated[idx] = { ...updated[idx], nama_kategori: catForm.nama_kategori };
+      if (idx > -1) updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori };
     } else {
       updated.push({
         id: `temp-cat-${Date.now()}`,
+        kode_divisi: catForm.kode_divisi,
         nama_kategori: catForm.nama_kategori,
         items: []
       });
@@ -161,8 +162,8 @@ export default function ProjectRAB() {
   };
 
   const openItemModal = (categoryId, isSubheader = false, item = null) => {
-    if (item) setItemForm({ id: item.id, rab_category_id: categoryId, uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
-    else setItemForm({ id: null, rab_category_id: categoryId, uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSubheader });
+    if (item) setItemForm({ id: item.id, rab_category_id: categoryId, kode_pekerjaan: item.kode_pekerjaan || '', uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
+    else setItemForm({ id: null, rab_category_id: categoryId, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSubheader });
     setShowItemModal(true);
   };
 
@@ -178,6 +179,7 @@ export default function ProjectRAB() {
     const newItem = {
       id: itemForm.id || `temp-item-${Date.now()}`,
       rab_category_id: itemForm.rab_category_id,
+      kode_pekerjaan: itemForm.kode_pekerjaan,
       uraian_pekerjaan: itemForm.uraian_pekerjaan,
       satuan: itemForm.satuan,
       volume: vol,
@@ -230,16 +232,23 @@ export default function ProjectRAB() {
         let realCatId = cat.id;
 
         if (String(cat.id).startsWith('temp-')) {
-          const res = await api.post(`/projects/${id}/rabs/categories`, { nama_kategori: cat.nama_kategori });
+          const res = await api.post(`/projects/${id}/rabs/categories`, { 
+            kode_divisi: cat.kode_divisi, 
+            nama_kategori: cat.nama_kategori 
+          });
           const newCat = res.data?.data || res.data;
           realCatId = newCat.id;
         } else {
-          await api.put(`/rabs/categories/${cat.id}`, { nama_kategori: cat.nama_kategori });
+          await api.put(`/rabs/categories/${cat.id}`, { 
+            kode_divisi: cat.kode_divisi, 
+            nama_kategori: cat.nama_kategori 
+          });
         }
 
         const itemPromises = cat.items.map(item => {
           const itemPayload = {
             rab_category_id: realCatId,
+            kode_pekerjaan: item.kode_pekerjaan,
             uraian_pekerjaan: item.uraian_pekerjaan,
             satuan: item.satuan,
             volume: item.volume,
@@ -365,38 +374,6 @@ export default function ProjectRAB() {
   const pctRealisasiCSS = Math.min(pctRealisasiRaw, 100);
   const isRencanaBigger = pctRencanaCSS > pctRealisasiCSS;
 
-  // ==============================================
-  // LOGIKA TIMESTAMP PEMBUATAN & PEMBARUAN RAB
-  // ==============================================
-  let createdTimestamp = null;
-  let updatedTimestamp = null;
-
-  if (rabs.length > 0) {
-    let maxUpdated = 0;
-    let minCreated = Infinity;
-
-    rabs.forEach(cat => {
-      if (cat.updated_at) maxUpdated = Math.max(maxUpdated, new Date(cat.updated_at).getTime());
-      if (cat.created_at) minCreated = Math.min(minCreated, new Date(cat.created_at).getTime());
-
-      if (cat.items && cat.items.length > 0) {
-        cat.items.forEach(item => {
-          if (item.updated_at) maxUpdated = Math.max(maxUpdated, new Date(item.updated_at).getTime());
-          if (item.created_at) minCreated = Math.min(minCreated, new Date(item.created_at).getTime());
-        });
-      }
-    });
-
-    if (minCreated !== Infinity) createdTimestamp = minCreated;
-    if (maxUpdated !== 0) updatedTimestamp = maxUpdated;
-  }
-
-  const formatTimestamp = (timeMs) => {
-    if (!timeMs) return '-';
-    return new Date(timeMs).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WITA';
-  };
-  // ==============================================
-
   return (
     <div className="w-full space-y-5 relative pb-20">
       
@@ -439,6 +416,7 @@ export default function ProjectRAB() {
               </>
             ) : (
               <>
+                {/* HANYA TAMPILKAN TOMBOL EDIT/IMPORT JIKA PUNYA HAK AKSES */}
                 {canCreateData && (
                   <>
                     <button onClick={handleToggleEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
@@ -540,25 +518,26 @@ export default function ProjectRAB() {
       ) : (
         <div className="space-y-6">
 
-          {/* --- INFO TIMESTAMP DITAMBAHKAN DI SINI --- */}
-          <div className="flex flex-wrap items-center justify-end gap-4 px-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-blue-500" /> Dibuat: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(createdTimestamp)}</span></span>
-              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-emerald-500" /> Diupdate: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(updatedTimestamp)}</span></span>
-          </div>
-          {/* ------------------------------------------ */}
-
           {rabsWithRealization.map((divisi) => (
             <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
               
               {/* Card Header Divisi */}
               <div className="bg-slate-50 dark:bg-slate-900/80 px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                 <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-400 tracking-wide uppercase flex items-center gap-2">
-                  <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> {divisi.nama_kategori}
+                  <div className="w-1.5 h-4 bg-amber-500 rounded-full shrink-0"></div> 
+                  <span>
+                    {divisi.kode_divisi && (
+                      <span className="mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-500 rounded font-mono text-[11px] border border-amber-200 dark:border-amber-500/30">
+                        {divisi.kode_divisi}
+                      </span>
+                    )}
+                    {divisi.nama_kategori}
+                  </span>
                   {isEditMode && String(divisi.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200">BARU (Draf)</span>}
                 </h3>
                 
                 {isEditMode && (
-                  <div className="flex flex-wrap items-center gap-2 animate-fade-in w-full xl:w-auto">
+                  <div className="flex flex-wrap items-center gap-2 animate-fade-in w-full xl:w-auto shrink-0">
                     <button onClick={() => openItemModal(divisi.id, false)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-slate-700/80 transition-all">
                       <ListPlus className="w-3.5 h-3.5" /> Tambah Item
                     </button>
@@ -581,9 +560,13 @@ export default function ProjectRAB() {
                   <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Belum ada item di divisi ini.</div>
                 ) : (
                   divisi.items.map((item) => (
-                    <div key={item.id} className="p-4 bg-white dark:bg-transparent">
+                    <div key={item.id} className={`p-4 ${item.is_subheader ? 'bg-slate-50 dark:bg-slate-800/40' : 'bg-white dark:bg-transparent'}`}>
                       <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-3 leading-snug">
-                        {item.uraian_pekerjaan}
+                        {item.kode_pekerjaan && (
+                          <span className="text-amber-600 dark:text-amber-500 mr-2 font-mono text-xs">[{item.kode_pekerjaan}]</span>
+                        )}
+                        <span className={item.is_subheader ? 'uppercase tracking-wide' : ''}>{item.uraian_pekerjaan}</span>
+                        
                         {isEditMode && String(item.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200 inline-block align-middle">BARU</span>}
                       </h4>
                       
@@ -621,10 +604,11 @@ export default function ProjectRAB() {
 
               {/* TAMPILAN DESKTOP: TABEL */}
               <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
+                <table className="w-full table-fixed text-left border-collapse min-w-[900px]">
                   <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
                     <tr>
-                      <th className="px-4 py-2.5 w-[35%] border-r border-slate-200 dark:border-slate-700/40 font-semibold">Uraian Pekerjaan</th>
+                      <th className="px-4 py-2.5 w-[10%] border-r border-slate-200 dark:border-slate-700/40 font-semibold">Kode</th>
+                      <th className="px-3 py-2.5 w-[25%] border-r border-slate-200 dark:border-slate-700/40 font-semibold">Uraian Pekerjaan</th>
                       <th className="px-2 py-2.5 w-[6%] border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold">SAT</th>
                       <th className="px-2 py-2.5 w-[7%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Vol (R)</th>
                       <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>
@@ -635,14 +619,17 @@ export default function ProjectRAB() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-[11px] text-slate-700 dark:text-slate-300">
                     {divisi.items.length === 0 ? (
-                      <tr><td colSpan={7} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
+                      <tr><td colSpan={8} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
                     ) : (
                       divisi.items.map((item) => {
                         // Jika Sub-Header
                         if (item.is_subheader) {
                           return (
                             <tr key={item.id} className="bg-slate-100 dark:bg-slate-800/40 group">
-                              <td colSpan={7} className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40">
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40 font-mono text-amber-600 dark:text-amber-500 font-bold">
+                                {item.kode_pekerjaan}
+                              </td>
+                              <td colSpan={7} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
                                 <div className="flex items-center justify-between">
                                   <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
                                     {item.uraian_pekerjaan}
@@ -663,7 +650,10 @@ export default function ProjectRAB() {
                         // Jika Item Biasa
                         return (
                           <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                            <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" title={item.uraian_pekerjaan}>
+                            <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 font-mono text-slate-500 dark:text-slate-400">
+                              {item.kode_pekerjaan}
+                            </td>
+                            <td className="px-3 py-3 border-r border-slate-200 dark:border-slate-700/40 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" title={item.uraian_pekerjaan}>
                               <div className="flex items-center justify-between">
                                 <span className="truncate pr-2 font-medium">
                                   {item.uraian_pekerjaan}
@@ -727,12 +717,22 @@ export default function ProjectRAB() {
             <form onSubmit={saveCategory}>
               <div className="p-5 space-y-4">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Kode Divisi <span className="text-slate-400 font-normal">(Opsional)</span></label>
+                  <input 
+                    type="text" 
+                    value={catForm.kode_divisi}
+                    onChange={(e) => setCatForm({...catForm, kode_divisi: e.target.value})}
+                    placeholder="Contoh: I atau A" 
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 font-mono" 
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Divisi / Kategori <span className="text-rose-500">*</span></label>
                   <input 
                     type="text" required
                     value={catForm.nama_kategori}
                     onChange={(e) => setCatForm({...catForm, nama_kategori: e.target.value})}
-                    placeholder="Contoh: DIVISI 1. UMUM" 
+                    placeholder="Contoh: UMUM" 
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" 
                   />
                 </div>
@@ -765,17 +765,29 @@ export default function ProjectRAB() {
             
             <form onSubmit={saveItem}>
               <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    {itemForm.is_subheader ? 'Nama Sub-Header / Kelompok Pekerjaan' : 'Uraian Pekerjaan'} <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea 
-                    required rows="2"
-                    value={itemForm.uraian_pekerjaan}
-                    onChange={(e) => setItemForm({...itemForm, uraian_pekerjaan: e.target.value})}
-                    placeholder={itemForm.is_subheader ? "Contoh: Mobilisasi & Peralatan" : "Contoh: Sewa Excavator 80-140 HP"} 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none" 
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="sm:col-span-1 space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Kode <span className="text-slate-400 font-normal">(Ops)</span></label>
+                    <input 
+                      type="text" 
+                      value={itemForm.kode_pekerjaan}
+                      onChange={(e) => setItemForm({...itemForm, kode_pekerjaan: e.target.value})}
+                      placeholder="Contoh: 1.2" 
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 font-mono" 
+                    />
+                  </div>
+                  <div className="sm:col-span-3 space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {itemForm.is_subheader ? 'Nama Sub-Header / Kelompok Pekerjaan' : 'Uraian Pekerjaan'} <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea 
+                      required rows="2"
+                      value={itemForm.uraian_pekerjaan}
+                      onChange={(e) => setItemForm({...itemForm, uraian_pekerjaan: e.target.value})}
+                      placeholder={itemForm.is_subheader ? "Contoh: Mobilisasi & Peralatan" : "Contoh: Sewa Excavator 80-140 HP"} 
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none" 
+                    />
+                  </div>
                 </div>
                 
                 {!itemForm.is_subheader && (
