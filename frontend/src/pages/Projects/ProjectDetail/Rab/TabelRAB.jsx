@@ -18,7 +18,7 @@ export default function TabelRAB({
           </button>
         ) : (
           <p className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-lg font-medium border border-blue-200 dark:border-blue-500/20">
-            Aktifkan "Mode Edit Draf" di atas untuk mulai memasukkan data.
+            Aktifkan "Mode Edit" di atas untuk mulai memasukkan data.
           </p>
         )}
       </div>
@@ -54,7 +54,6 @@ export default function TabelRAB({
                 )}
                 {divisi.nama_kategori}
               </span>
-              {isEditMode && String(divisi.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200">BARU (Draf)</span>}
             </h3>
             
             {isEditMode && (
@@ -86,7 +85,6 @@ export default function TabelRAB({
                       <span className="text-amber-600 dark:text-amber-500 mr-2 font-mono text-xs">[{item.kode_pekerjaan}]</span>
                     )}
                     <span className={item.is_subheader ? 'uppercase tracking-wide' : ''}>{item.uraian_pekerjaan}</span>
-                    {isEditMode && String(item.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200 inline-block align-middle">BARU</span>}
                   </h4>
                   
                   {!item.is_subheader && (
@@ -150,7 +148,6 @@ export default function TabelRAB({
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
                                 {item.uraian_pekerjaan}
-                                {isEditMode && String(item.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200 font-bold inline-block align-middle">BARU (Draf)</span>}
                               </span>
                               {isEditMode && (
                                 <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 animate-fade-in shrink-0">
@@ -163,6 +160,7 @@ export default function TabelRAB({
                         </tr>
                       );
                     }
+
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
                         <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 font-mono text-slate-500 dark:text-slate-400">
@@ -172,7 +170,6 @@ export default function TabelRAB({
                           <div className="flex items-center justify-between">
                             <span className="truncate pr-2 font-medium">
                               {item.uraian_pekerjaan}
-                              {isEditMode && String(item.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200 font-bold inline-block align-middle">BARU (Draf)</span>}
                             </span>
                             {isEditMode && (
                               <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 animate-fade-in shrink-0">

@@ -1,10 +1,9 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Info, FileSpreadsheet, TrendingUp, Compass, Plus, Edit3, Download, Loader2, CheckCircle2, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, Info, FileSpreadsheet, TrendingUp, Compass, Plus, Edit3, Download, CheckCircle2, UploadCloud, X } from 'lucide-react';
 
 export default function NavigasiRAB({ 
-  id, projectData, isEditMode, canCreateData, isGuest, isSavingEdit, 
-  handleBatalEdit, handleToggleEdit, handleSelesaiEdit, 
+  id, projectData, isEditMode, setIsEditMode, canCreateData, 
   openCatModal, setShowImportModal, setExportModal 
 }) {
   const navigate = useNavigate();
@@ -29,7 +28,6 @@ export default function NavigasiRAB({
         <div className="flex-1 min-w-0">
           <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-start lg:items-center gap-1.5 flex-wrap">
             <span>Rencana Anggaran Biaya (RAB)</span>
-            {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200">DRAFT MODE</span>}
           </h1>
           <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             <span className="truncate font-medium">{projectData?.nama_proyek}</span>
@@ -45,23 +43,19 @@ export default function NavigasiRAB({
         <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar transition-all duration-300">
           {isEditMode ? (
             <>
-              <button onClick={handleBatalEdit} disabled={isSavingEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap border border-slate-300 dark:border-slate-600">
-                <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal
-              </button>
-              <button onClick={() => openCatModal()} disabled={isSavingEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
+              <button onClick={() => openCatModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap border border-blue-200 dark:border-blue-500/30">
                 <Plus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Divisi Baru</span>
               </button>
-              <button onClick={handleSelesaiEdit} disabled={isSavingEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm">
-                {isSavingEdit ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />} 
-                <span className="hidden lg:inline">{isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              <button onClick={() => setIsEditMode(false)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm">
+                <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Selesai Edit</span>
               </button>
             </>
           ) : (
             <>
               {canCreateData && (
                 <>
-                  <button onClick={handleToggleEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
-                    <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Mode Edit Draf</span>
+                  <button onClick={() => setIsEditMode(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
+                    <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Mode Edit</span>
                   </button>
                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                   <button onClick={() => setShowImportModal(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
@@ -80,7 +74,7 @@ export default function NavigasiRAB({
         </div>
 
         <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar z-0">
-          <button onClick={() => navigate(`/projects/${id}/data`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+          <button onClick={() => navigate(`/projects/${id}/data`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
             <Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span>
           </button>
           <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap">

@@ -12,7 +12,7 @@ export default function SummaryRAB({
         <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate font-mono" title={formatRupiah(paguKontrak)}>{formatRupiah(paguKontrak)}</p>
       </div>
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/50 bg-blue-50/20 dark:bg-blue-900/10' : 'border-slate-200 dark:border-slate-700/60'} rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center transition-colors`}>
-        <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 mb-1.5 uppercase tracking-wider"><FileSpreadsheet className="w-4 h-4 text-blue-500" /> Total Rencana {isEditMode && '(Draft)'}</span>
+        <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 mb-1.5 uppercase tracking-wider"><FileSpreadsheet className="w-4 h-4 text-blue-500" /> Total Rencana</span>
         <p className="text-lg md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate font-mono" title={formatRupiah(grandTotalRencana)}>{formatRupiah(grandTotalRencana)}</p>
       </div>
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center">

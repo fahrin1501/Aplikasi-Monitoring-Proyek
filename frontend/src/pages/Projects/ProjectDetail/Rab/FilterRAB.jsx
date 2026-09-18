@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, Filter } from 'lucide-react';
 
-export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, searchQuery, setSearchQuery }) {
+export default function FilterRAB({ rabs, activeDivisi, setActiveDivisi, searchQuery, setSearchQuery }) {
   const [showFilter, setShowFilter] = useState(false);
   const filterRef = useRef(null);
 
-  // Menutup popup saat user klik di luar area popup
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
@@ -16,14 +15,11 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (currentRabs.length === 0) return null;
+  if (rabs.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      {/* BAR PENCARIAN DAN TOMBOL FILTER */}
       <div className="flex flex-col md:flex-row gap-3 justify-between items-start md:items-center w-full transition-all">
-        
-        {/* Kolom Pencarian */}
         <div className="relative w-full md:flex-1 shadow-sm">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
@@ -40,7 +36,6 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
           )}
         </div>
 
-        {/* Tombol & Pop-up Filter */}
         <div className="relative w-full md:w-auto" ref={filterRef}>
           <button 
             onClick={() => setShowFilter(!showFilter)} 
@@ -53,11 +48,9 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
             <Filter className="w-4 h-4" /> <span>Filter Divisi</span>
           </button>
 
-          {/* Isi Pop-up Filter */}
           {showFilter && (
             <div className="absolute right-0 top-full mt-2 w-full md:w-[350px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
               <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Divisi Pekerjaan</h4>
-              
               <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 hide-scrollbar">
                 <button
                     onClick={() => { setActiveDivisi('Semua'); setShowFilter(false); }}
@@ -69,7 +62,7 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
                   >
                     Tampilkan Semua Divisi
                 </button>
-                {currentRabs.map(d => d.nama_kategori).map(opt => (
+                {rabs.map(d => d.nama_kategori).map(opt => (
                   <button
                     key={opt}
                     onClick={() => { setActiveDivisi(opt); setShowFilter(false); }}
@@ -83,7 +76,6 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
                   </button>
                 ))}
               </div>
-
               <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex justify-end">
                 <button onClick={() => { setActiveDivisi('Semua'); setShowFilter(false); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors">Reset Filter</button>
               </div>
@@ -92,7 +84,6 @@ export default function FilterRAB({ currentRabs, activeDivisi, setActiveDivisi, 
         </div>
       </div>
 
-      {/* TAGS FILTER AKTIF (Muncul jika ada filter yang dipilih) */}
       {activeDivisi !== 'Semua' && (
         <div className="flex flex-wrap gap-2 animate-fade-in">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[10px] font-bold rounded-lg border border-amber-200 dark:border-amber-500/20 shadow-sm">
