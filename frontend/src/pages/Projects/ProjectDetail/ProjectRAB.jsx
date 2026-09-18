@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import api from '../../../api'; 
+import { useParams, useNavigate } from 'react-router-dom';
+import api from '../../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
@@ -11,7 +11,9 @@ import ModalRAB from './Rab/ModalRAB';
 
 export default function ProjectRAB() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -23,20 +25,32 @@ export default function ProjectRAB() {
     }
   }, []);
 
-  const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
+  // 1. HANYA Administrator yang bisa mengedit & mengimport data
+  const canEditData = userRole === 'Administrator';
+  
+  // 2. HANYA Administrator & Direktur yang bisa melihat uang/harga
+  const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
+  
+  // 3. HANYA Administrator & Direktur yang bisa export data
+  const canExportData = ['Administrator', 'Direktur'].includes(userRole);
+
   const isGuest = userRole === 'Tamu';
 
+  // --- STATE UTAMA ---
   const [projectData, setProjectData] = useState(null);
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // Loading saat hit API satuan
+  const [isSaving, setIsSaving] = useState(false); 
 
+  // --- STATE FILTER ---
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDivisi, setActiveDivisi] = useState('Semua');
 
+  // --- STATE EDIT MODE ---
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // --- STATE MODAL ---
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
 
@@ -53,6 +67,7 @@ export default function ProjectRAB() {
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
+  // --- FETCH DATA ---
   const fetchData = async () => {
     if (isGuest) { setIsLoading(false); return; }
     try {
@@ -88,7 +103,7 @@ export default function ProjectRAB() {
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka || 0);
 
   // ======================================================================
-  // DIRECT SAVE LOGIC (LANGSUNG TEMBAK KE DATABASE)
+  // ACTION HANDLERS (DIRECT EDIT)
   // ======================================================================
   const saveCategory = async (e) => {
     e.preventDefault();
@@ -101,11 +116,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setShowCatModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan kategori. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menyimpan divisi."); } 
+    finally { setIsSaving(false); }
   };
 
   const saveItem = async (e) => {
@@ -129,11 +141,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setShowItemModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan item. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menyimpan item."); } 
+    finally { setIsSaving(false); }
   };
 
   const executeDelete = async () => {
@@ -146,11 +155,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setDeleteConfig({ show: false, type: '', id: null, name: '' });
-    } catch (error) {
-      alert("Gagal menghapus data. Data mungkin terikat dengan laporan harian.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menghapus data. Data terikat dengan laporan harian."); } 
+    finally { setIsSaving(false); }
   };
 
   const executeExport = async () => {
@@ -183,7 +189,7 @@ export default function ProjectRAB() {
   const { rabsWithRealization, filteredRabsView, grandTotalRencana, grandTotalRealisasi } = useMemo(() => {
     if (!projectData) return { rabsWithRealization: [], filteredRabsView: [], grandTotalRencana: 0, grandTotalRealisasi: 0 };
     let gRencana = 0, gRealisasi = 0;
-
+    
     const rabsWithRealization = rabs.map(divisi => {
       let tRencana = 0, tRealisasi = 0;
       const items = divisi.items.map(item => {
@@ -208,7 +214,7 @@ export default function ProjectRAB() {
     }).filter(Boolean);
 
     return { rabsWithRealization, filteredRabsView, grandTotalRencana: gRencana, grandTotalRealisasi: gRealisasi };
-  }, [rabs, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
+  }, [rabs, isEditMode, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
 
   if (isGuest) {
     return (
@@ -232,19 +238,25 @@ export default function ProjectRAB() {
   return (
     <div className="w-full space-y-5 relative pb-20">
       <NavigasiRAB 
-        id={id} projectData={projectData} isEditMode={isEditMode} setIsEditMode={setIsEditMode} canCreateData={canCreateData} 
+        id={id} projectData={projectData} isEditMode={isEditMode} setIsEditMode={setIsEditMode} 
+        canEditData={canEditData} canExportData={canExportData} 
         openCatModal={() => { setCatForm({ id: null, kode_divisi: '', nama_kategori: '' }); setShowCatModal(true); }} 
         setShowImportModal={setShowImportModal} setExportModal={setExportModal}
       />
-      <SummaryRAB 
-        paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
-        pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
-        pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
-      />
+      
+      {canViewPrices && (
+        <SummaryRAB 
+          paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
+          pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
+          pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
+        />
+      )}
+
       <FilterRAB 
-        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+        currentRabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
       />
+      
       <TabelRAB 
         rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
         openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
@@ -255,13 +267,16 @@ export default function ProjectRAB() {
         }}
         confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
         setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
+        canViewPrices={canViewPrices}
       />
+      
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
         deleteConfig={deleteConfig} setDeleteConfig={setDeleteConfig} executeDelete={executeDelete} isSaving={isSaving}
         exportModal={exportModal} setExportModal={setExportModal} isExporting={isExporting} executeExport={executeExport}
         showImportModal={showImportModal} setShowImportModal={setShowImportModal} importFile={importFile} setImportFile={setImportFile} isImporting={isImporting} handleImportRAB={handleImportRAB}
+        canViewPrices={canViewPrices}
       />
     </div>
   );

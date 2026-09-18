@@ -6,7 +6,8 @@ export default function ModalRAB({
   showItemModal, setShowItemModal, itemForm, setItemForm, saveItem, formatRupiah,
   deleteConfig, setDeleteConfig, executeDelete, isSaving,
   exportModal, setExportModal, isExporting, executeExport,
-  showImportModal, setShowImportModal, importFile, setImportFile, isImporting, handleImportRAB
+  showImportModal, setShowImportModal, importFile, setImportFile, isImporting, handleImportRAB,
+  canViewPrices
 }) {
 
   return (
@@ -76,7 +77,7 @@ export default function ModalRAB({
                   </div>
                 </div>
                 {!itemForm.is_subheader && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-fade-in">
+                  <div className={`grid grid-cols-2 ${canViewPrices ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4 animate-fade-in`}>
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Satuan <span className="text-rose-500">*</span></label>
                       <input type="text" required value={itemForm.satuan} onChange={(e) => setItemForm({...itemForm, satuan: e.target.value})} placeholder="Ls / m3" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 text-center" />
@@ -85,13 +86,15 @@ export default function ModalRAB({
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Volume <span className="text-rose-500">*</span></label>
                       <input type="number" step="any" required min="0" value={itemForm.volume} onChange={(e) => setItemForm({...itemForm, volume: e.target.value})} placeholder="0.00" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 text-center font-mono" />
                     </div>
-                    <div className="col-span-2 sm:col-span-1 space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Harga Satuan <span className="text-rose-500">*</span></label>
-                      <input type="number" step="any" required min="0" value={itemForm.harga_satuan} onChange={(e) => setItemForm({...itemForm, harga_satuan: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 text-right font-mono" />
-                    </div>
+                    {canViewPrices && (
+                      <div className="col-span-2 sm:col-span-1 space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Harga Satuan <span className="text-rose-500">*</span></label>
+                        <input type="number" step="any" required min="0" value={itemForm.harga_satuan} onChange={(e) => setItemForm({...itemForm, harga_satuan: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 text-right font-mono" />
+                      </div>
+                    )}
                   </div>
                 )}
-                {(!itemForm.is_subheader && itemForm.volume && itemForm.harga_satuan) ? (
+                {(canViewPrices && !itemForm.is_subheader && itemForm.volume && itemForm.harga_satuan) ? (
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-xl flex items-center justify-between mt-2 animate-fade-in">
                     <span className="text-xs font-bold text-blue-700 dark:text-blue-400">Total Harga Otomatis:</span>
                     <span className="text-sm font-bold text-blue-700 dark:text-blue-400 font-mono">{formatRupiah(Number(itemForm.volume) * Number(itemForm.harga_satuan))}</span>
@@ -130,7 +133,7 @@ export default function ModalRAB({
         </div>
       )}
 
-      {/* MODAL EXPORT IMPORT TETAP SAMA */}
+      {/* MODAL EXPORT IMPORT */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
