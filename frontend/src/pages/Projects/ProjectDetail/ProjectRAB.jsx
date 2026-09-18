@@ -155,29 +155,77 @@ export default function ProjectRAB() {
     setLocalRabs(updated); setDeleteConfig({ show: false, type: '', id: null, name: '' });
   };
 
+  // ======================================================================
+  // MENGIRIM SELURUH PERUBAHAN DRAF KE DATABASE SECARA BATCHING (ANTI-STUCK)
+  // ======================================================================
   const handleSelesaiEdit = async () => {
     setIsSavingEdit(true);
     try {
-      await Promise.all([...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)), ...deletedCatIds.map(cId => api.delete(`/rabs/categories/${cId}`))]);
+      // 1. Eksekusi Hapus yang tertunda
+      if (deletedItemIds.length > 0 || deletedCatIds.length > 0) {
+        await Promise.all([
+          ...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)),
+          ...deletedCatIds.map(cId => api.delete(`/rabs/categories/${cId}`))
+        ]);
+      }
+
+      // 2. Eksekusi Create / Update secara berurutan
       for (const cat of localRabs) {
         let realCatId = cat.id;
+
+        // Simpan Divisi
         if (String(cat.id).startsWith('temp-')) {
-          const res = await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
+          const res = await api.post(`/projects/${id}/rabs/categories`, { 
+            kode_divisi: cat.kode_divisi, 
+            nama_kategori: cat.nama_kategori 
+          });
           realCatId = res.data?.data?.id || res.data?.id;
         } else {
-          await api.put(`/rabs/categories/${cat.id}`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
+          await api.put(`/rabs/categories/${cat.id}`, { 
+            kode_divisi: cat.kode_divisi, 
+            nama_kategori: cat.nama_kategori 
+          });
         }
-        const itemPromises = cat.items.map(item => {
-          const itemPayload = { rab_category_id: realCatId, kode_pekerjaan: item.kode_pekerjaan, uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan, volume: item.volume, harga_satuan: item.harga_satuan, is_subheader: item.is_subheader };
-          if (String(item.id).startsWith('temp-')) return api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
-          else return api.put(`/rab-items/${item.id}`, itemPayload);
-        });
-        await Promise.all(itemPromises);
+
+        // 3. TEKNIK CHUNKING: Kirim request Item per 10 data agar tidak macet/stuck
+        const chunkSize = 10; 
+        for (let i = 0; i < cat.items.length; i += chunkSize) {
+          const chunk = cat.items.slice(i, i + chunkSize);
+          
+          const chunkPromises = chunk.map(item => {
+            const itemPayload = {
+              rab_category_id: realCatId,
+              kode_pekerjaan: item.kode_pekerjaan,
+              uraian_pekerjaan: item.uraian_pekerjaan,
+              satuan: item.satuan,
+              volume: item.volume,
+              harga_satuan: item.harga_satuan,
+              is_subheader: item.is_subheader
+            };
+
+            if (String(item.id).startsWith('temp-')) {
+              return api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
+            } else {
+              return api.put(`/rab-items/${item.id}`, itemPayload);
+            }
+          });
+
+          // Tunggu 10 request ini selesai dulu, baru lanjut ke 10 berikutnya
+          await Promise.all(chunkPromises);
+        }
       }
-      await fetchData(); setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(false);
-      alert("Draf perubahan RAB berhasil disimpan secara permanen!");
-    } catch (error) { alert("Gagal menyimpan perubahan. Pastikan koneksi stabil."); } 
-    finally { setIsSavingEdit(false); }
+
+      await fetchData();
+      setDeletedCatIds([]);
+      setDeletedItemIds([]);
+      setIsEditMode(false);
+      alert("Seluruh draf perubahan RAB berhasil disimpan secara permanen!");
+    } catch (error) {
+      console.error(error);
+      alert("Gagal menyimpan beberapa perubahan. Pastikan koneksi server Anda stabil.");
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const executeExport = async () => {
