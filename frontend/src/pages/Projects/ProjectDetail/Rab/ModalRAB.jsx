@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Loader2, UploadCloud, FileSpreadsheet, Trash2, X, Type, ListPlus, AlertTriangle } from 'lucide-react';
 
 export default function ModalRAB({
@@ -6,9 +6,18 @@ export default function ModalRAB({
   showItemModal, setShowItemModal, itemForm, setItemForm, saveItem, formatRupiah,
   deleteConfig, setDeleteConfig, executeDelete, isSaving,
   exportModal, setExportModal, isExporting, executeExport,
-  showImportModal, setShowImportModal, importFile, setImportFile, isImporting, handleImportRAB,
-  canViewPrices
+  showImportModal, setShowImportModal, importFile, setImportFile, isImporting, handleImportRAB
 }) {
+
+  // --- CEK HAK AKSES MANDIRI ---
+  const [userRole, setUserRole] = useState('Tamu');
+  useEffect(() => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
+  }, []);
+
+  const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
+  // -----------------------------
 
   return (
     <>
@@ -133,7 +142,7 @@ export default function ModalRAB({
         </div>
       )}
 
-      {/* MODAL EXPORT IMPORT */}
+      {/* MODAL EXPORT */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
@@ -152,6 +161,7 @@ export default function ModalRAB({
         </div>
       )}
 
+      {/* MODAL IMPORT */}
       {showImportModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">

@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Info, FileSpreadsheet, TrendingUp, Compass, Plus, Edit3, Download, CheckCircle2, UploadCloud } from 'lucide-react';
 
 export default function NavigasiRAB({ 
   id, projectData, isEditMode, setIsEditMode, 
-  canEditData, canExportData, 
   openCatModal, setShowImportModal, setExportModal 
 }) {
   const navigate = useNavigate();
+
+  // --- CEK HAK AKSES MANDIRI ---
+  const [userRole, setUserRole] = useState('Tamu');
+  useEffect(() => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
+  }, []);
+
+  const canEditData = userRole === 'Administrator';
+  const canExportData = ['Administrator', 'Direktur'].includes(userRole);
+  // -----------------------------
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -85,10 +95,10 @@ export default function NavigasiRAB({
           <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap">
             <FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">RAB</span>
           </button>
-          <button onClick={() => navigate(`/projects/${id}/kurva-s`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+          <button onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
             <TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S</span>
           </button>
-          <button onClick={() => navigate(`/projects/${id}/peta-gis`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+          <button onClick={() => navigate(`/projects/${id}/peta-gis`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
             <Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span>
           </button>
         </div>

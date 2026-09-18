@@ -1,10 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, FileSpreadsheet, Activity, TrendingDown } from 'lucide-react';
 
 export default function SummaryRAB({ 
   paguKontrak, grandTotalRencana, grandTotalRealisasi, 
   pctRencanaRaw, pctRealisasiRaw, pctRencanaCSS, pctRealisasiCSS, isRencanaBigger, isEditMode, formatRupiah 
 }) {
+  
+  // --- CEK HAK AKSES MANDIRI ---
+  const [userRole, setUserRole] = useState('Tamu');
+  useEffect(() => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
+  }, []);
+
+  const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
+  // -----------------------------
+
+  if (!canViewPrices) return null; // Sembunyikan seluruh summary jika bukan Admin/Direktur
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center">
@@ -36,14 +49,6 @@ export default function SummaryRAB({
                <div className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${pctRencanaCSS}%`, zIndex: 20 }}></div>
              </>
           )}
-          <div className="absolute flex flex-col items-center group cursor-pointer z-30 transition-all duration-700" style={{ left: `${pctRealisasiCSS}%`, bottom: 'calc(100% + 2px)', transform: 'translateX(-50%)' }}>
-            <div className="absolute bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 dark:bg-slate-950 text-white text-[9px] px-2 py-1 rounded shadow-md whitespace-nowrap border border-slate-700 pointer-events-none">Realisasi: {pctRealisasiRaw.toFixed(2)}%</div>
-            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-emerald-500 transition-transform group-hover:scale-110"></div>
-          </div>
-          <div className="absolute flex flex-col items-center group cursor-pointer z-30 transition-all duration-700" style={{ left: `${pctRencanaCSS}%`, top: 'calc(100% + 2px)', transform: 'translateX(-50%)' }}>
-            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[5px] border-b-blue-500 transition-transform group-hover:scale-110"></div>
-            <div className="absolute top-full mt-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 dark:bg-slate-950 text-white text-[9px] px-2 py-1 rounded shadow-md whitespace-nowrap border border-slate-700 pointer-events-none">Rencana: {pctRencanaRaw.toFixed(2)}%</div>
-          </div>
         </div>
       </div>
     </div>

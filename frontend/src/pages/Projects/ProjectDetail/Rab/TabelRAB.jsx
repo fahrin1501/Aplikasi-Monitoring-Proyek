@@ -1,11 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Search, FileSpreadsheet, ListPlus, Type, Edit3, Trash2 } from 'lucide-react';
 
 export default function TabelRAB({ 
   rabsWithRealization, filteredRabsView, isEditMode, formatRupiah,
-  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi,
-  canViewPrices
+  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi
 }) {
+
+  // --- CEK HAK AKSES MANDIRI ---
+  const [userRole, setUserRole] = useState('Tamu');
+  useEffect(() => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
+  }, []);
+
+  const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
+  // -----------------------------
 
   if (rabsWithRealization.length === 0) {
     return (
@@ -120,7 +129,6 @@ export default function TabelRAB({
             )}
           </div>
 
-          {/* DESKTOP TABLE */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
               <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
