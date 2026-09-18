@@ -257,7 +257,7 @@ export default function ProjectRAB() {
       )}
 
       <FilterRAB 
-        currentRabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
       />
       
@@ -273,7 +273,7 @@ export default function ProjectRAB() {
         setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
         canViewPrices={canViewPrices}
       />
-      s
+      
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
