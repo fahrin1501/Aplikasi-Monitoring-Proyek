@@ -5,7 +5,7 @@ import {
   DollarSign, ArrowLeft, Info, FileSpreadsheet, 
   TrendingUp, Compass, Plus, Edit3, Trash2, ListPlus, 
   Download, Loader2, AlertTriangle, X, Type, Activity, TrendingDown, CheckCircle2,
-  UploadCloud, ShieldAlert
+  UploadCloud, ShieldAlert, Clock, Search
 } from 'lucide-react';
 
 export default function ProjectRAB() {
@@ -36,6 +36,10 @@ export default function ProjectRAB() {
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+
+  // --- STATE FILTER & PENCARIAN ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeDivisi, setActiveDivisi] = useState('Semua');
 
   // --- STATE DRAFT MODE (IN-MEMORY UPDATE) ---
   const [isEditMode, setIsEditMode] = useState(false);
@@ -374,6 +378,69 @@ export default function ProjectRAB() {
   const pctRealisasiCSS = Math.min(pctRealisasiRaw, 100);
   const isRencanaBigger = pctRencanaCSS > pctRealisasiCSS;
 
+  // ==============================================
+  // LOGIKA FILTER SEARCH & KATEGORI DIVISI
+  // ==============================================
+  const filteredRabsView = rabsWithRealization.map(divisi => {
+    // 1. Cek Filter Tag Kategori
+    if (activeDivisi !== 'Semua' && divisi.nama_kategori !== activeDivisi) {
+      return null;
+    }
+    
+    // 2. Cek Filter Text Pencarian
+    const query = searchQuery.toLowerCase();
+    
+    const filteredItems = divisi.items.filter(item => 
+      (item.uraian_pekerjaan && item.uraian_pekerjaan.toLowerCase().includes(query)) ||
+      (item.kode_pekerjaan && item.kode_pekerjaan.toLowerCase().includes(query))
+    );
+
+    const matchDivisiName = divisi.nama_kategori && divisi.nama_kategori.toLowerCase().includes(query);
+    const matchDivisiKode = divisi.kode_divisi && divisi.kode_divisi.toLowerCase().includes(query);
+
+    // Jika sedang melakukan pencarian dan item-nya kosong (dan nama divisinya tidak cocok dengan pencarian), sembunyikan.
+    if (query && filteredItems.length === 0 && !matchDivisiName && !matchDivisiKode) {
+      return null;
+    }
+
+    return {
+      ...divisi,
+      items: query ? filteredItems : divisi.items 
+    };
+  }).filter(Boolean); // Hapus elemen null
+
+  // ==============================================
+  // LOGIKA TIMESTAMP PEMBUATAN & PEMBARUAN RAB
+  // ==============================================
+  let createdTimestamp = null;
+  let updatedTimestamp = null;
+
+  if (rabs.length > 0) {
+    let maxUpdated = 0;
+    let minCreated = Infinity;
+
+    rabs.forEach(cat => {
+      if (cat.updated_at) maxUpdated = Math.max(maxUpdated, new Date(cat.updated_at).getTime());
+      if (cat.created_at) minCreated = Math.min(minCreated, new Date(cat.created_at).getTime());
+
+      if (cat.items && cat.items.length > 0) {
+        cat.items.forEach(item => {
+          if (item.updated_at) maxUpdated = Math.max(maxUpdated, new Date(item.updated_at).getTime());
+          if (item.created_at) minCreated = Math.min(minCreated, new Date(item.created_at).getTime());
+        });
+      }
+    });
+
+    if (minCreated !== Infinity) createdTimestamp = minCreated;
+    if (maxUpdated !== 0) updatedTimestamp = maxUpdated;
+  }
+
+  const formatTimestamp = (timeMs) => {
+    if (!timeMs) return '-';
+    return new Date(timeMs).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WITA';
+  };
+  // ==============================================
+
   return (
     <div className="w-full space-y-5 relative pb-20">
       
@@ -499,6 +566,45 @@ export default function ProjectRAB() {
         </div>
       </div>
 
+      {/* --- FILTER & SEARCH BAR --- */}
+      {rabsWithRealization.length > 0 && (
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
+          <div className="flex-1 w-full overflow-x-auto hide-scrollbar flex gap-2 items-center">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-2 shrink-0">Filter Divisi:</span>
+            <button
+                onClick={() => setActiveDivisi('Semua')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shrink-0 border ${activeDivisi === 'Semua' ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                Semua
+            </button>
+            {currentRabs.map(d => d.nama_kategori).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setActiveDivisi(opt)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shrink-0 border ${activeDivisi === opt ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+          <div className="relative w-full md:w-64 shrink-0">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Cari uraian / kode..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* --- RENDER DATA RAB PER DIVISI --- */}
       {rabsWithRealization.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
@@ -515,10 +621,26 @@ export default function ProjectRAB() {
             </p>
           )}
         </div>
+      ) : filteredRabsView.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+          <Search className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+          <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">Item Tidak Ditemukan</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Coba ubah kata kunci pencarian atau ganti filter divisi.</p>
+          <button onClick={() => { setSearchQuery(''); setActiveDivisi('Semua'); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors">
+            Reset Filter
+          </button>
+        </div>
       ) : (
         <div className="space-y-6">
 
-          {rabsWithRealization.map((divisi) => (
+          {/* --- INFO TIMESTAMP DITAMBAHKAN DI SINI --- */}
+          <div className="flex flex-wrap items-center justify-end gap-4 px-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-blue-500" /> Dibuat: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(createdTimestamp)}</span></span>
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-emerald-500" /> Diupdate: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(updatedTimestamp)}</span></span>
+          </div>
+          {/* ------------------------------------------ */}
+
+          {filteredRabsView.map((divisi) => (
             <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
               
               {/* Card Header Divisi */}
