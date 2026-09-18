@@ -62,9 +62,8 @@ export default function ProjectData() {
   useEffect(() => { fetchProjectDetail(); }, [id]);
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
-
+  
   // --- MENGAMBIL BASE URL OTOMATIS DARI KONFIGURASI API ---
-  // (Membaca link Railway dari api.js dan membuang tulisan '/api' di belakangnya)
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : 'http://127.0.0.1:8000';
 
   const getImageUrl = (filename) => { 
@@ -183,7 +182,6 @@ export default function ProjectData() {
     else calculatedStatus = 'On Track';
   }
   
-  // (Penyembunyian teks Kritis akan di-handle sendiri oleh AdministrasiData)
   const isActuallyDelayed = calculatedStatus === 'Kritis' || calculatedStatus === 'Terlambat';
 
   return (
