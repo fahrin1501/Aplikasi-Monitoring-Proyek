@@ -3,8 +3,7 @@ import { Plus, Search, FileSpreadsheet, ListPlus, Type, Edit3, Trash2 } from 'lu
 
 export default function TabelRAB({ 
   rabsWithRealization, filteredRabsView, isEditMode, formatRupiah,
-  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi,
-  canViewPrices
+  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi
 }) {
 
   if (rabsWithRealization.length === 0) {
@@ -87,7 +86,6 @@ export default function TabelRAB({
                       <span className="text-amber-600 dark:text-amber-500 mr-2 font-mono text-xs">[{item.kode_pekerjaan}]</span>
                     )}
                     <span className={item.is_subheader ? 'uppercase tracking-wide' : ''}>{item.uraian_pekerjaan}</span>
-                    
                     {isEditMode && String(item.id).startsWith('temp-') && <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] rounded border border-emerald-200 inline-block align-middle">BARU</span>}
                   </h4>
                   
@@ -97,8 +95,8 @@ export default function TabelRAB({
                         <span className="block text-[9px] font-bold text-blue-600 dark:text-blue-400 mb-1.5 tracking-wider uppercase">Rencana</span>
                         <div className="space-y-1">
                           <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Vol</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{Number(item.volume)} {item.satuan}</span></p>
-                          {canViewPrices && <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Harga</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{formatRupiah(item.harga_satuan)}</span></p>}
-                          {canViewPrices && <div className="border-t border-blue-200 dark:border-blue-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-blue-700 dark:text-blue-400">{formatRupiah(item.total_harga)}</p></div>}
+                          <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Harga</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{formatRupiah(item.harga_satuan)}</span></p>
+                          <div className="border-t border-blue-200 dark:border-blue-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-blue-700 dark:text-blue-400">{formatRupiah(item.total_harga)}</p></div>
                         </div>
                       </div>
                       <div className="bg-emerald-50/50 dark:bg-emerald-950/10 rounded-xl p-3 border border-emerald-100 dark:border-emerald-900/30">
@@ -106,7 +104,7 @@ export default function TabelRAB({
                         <div className="space-y-1">
                           <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Vol</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{item.actualVol} {item.satuan}</span></p>
                           <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Progres</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{item.volume > 0 ? ((item.actualVol / item.volume) * 100).toFixed(1) : 0}%</span></p>
-                          {canViewPrices && <div className="border-t border-emerald-200 dark:border-emerald-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{formatRupiah(item.actualTotal)}</p></div>}
+                          <div className="border-t border-emerald-200 dark:border-emerald-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{formatRupiah(item.actualTotal)}</p></div>
                         </div>
                       </div>
                     </div>
@@ -123,24 +121,23 @@ export default function TabelRAB({
             )}
           </div>
 
-          {/* TAMPILAN DESKTOP: TABEL */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
+            <table className="w-full table-fixed text-left border-collapse min-w-[900px]">
               <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
                 <tr>
-                  <th className={`px-4 py-2.5 ${canViewPrices ? 'w-[10%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Kode</th>
-                  <th className={`px-3 py-2.5 ${canViewPrices ? 'w-[25%]' : 'w-[40%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Uraian Pekerjaan</th>
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[6%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold`}>SAT</th>
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10`}>Vol (R)</th>
-                  {canViewPrices && <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>}
-                  {canViewPrices && <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jumlah (R)</th>}
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10`}>Vol (A)</th>
-                  {canViewPrices && <th className="px-3 py-2.5 w-[17%] text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jumlah Realisasi (A)</th>}
+                  <th className="px-4 py-2.5 w-[10%] border-r border-slate-200 dark:border-slate-700/40 font-semibold">Kode</th>
+                  <th className="px-3 py-2.5 w-[25%] border-r border-slate-200 dark:border-slate-700/40 font-semibold">Uraian Pekerjaan</th>
+                  <th className="px-2 py-2.5 w-[6%] border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold">SAT</th>
+                  <th className="px-2 py-2.5 w-[7%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Vol (R)</th>
+                  <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>
+                  <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jumlah (R)</th>
+                  <th className="px-2 py-2.5 w-[7%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Vol (A)</th>
+                  <th className="px-3 py-2.5 w-[17%] text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jumlah Realisasi (A)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-[11px] text-slate-700 dark:text-slate-300">
                 {divisi.items.length === 0 ? (
-                  <tr><td colSpan={canViewPrices ? 8 : 5} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
+                  <tr><td colSpan={8} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
                 ) : (
                   divisi.items.map((item) => {
                     if (item.is_subheader) {
@@ -149,7 +146,7 @@ export default function TabelRAB({
                           <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40 font-mono text-amber-600 dark:text-amber-500 font-bold">
                             {item.kode_pekerjaan}
                           </td>
-                          <td colSpan={canViewPrices ? 7 : 4} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
+                          <td colSpan={7} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
                                 {item.uraian_pekerjaan}
@@ -166,7 +163,6 @@ export default function TabelRAB({
                         </tr>
                       );
                     }
-
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
                         <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 font-mono text-slate-500 dark:text-slate-400">
@@ -188,10 +184,10 @@ export default function TabelRAB({
                         </td>
                         <td className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700/40 text-slate-500 dark:text-slate-400 font-mono text-[10px]">{item.satuan}</td>
                         <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
-                        {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>}
-                        {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>}
+                        <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>
+                        <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>
                         <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{item.actualVol}</td>
-                        {canViewPrices && <td className="px-3 py-3 text-right font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>}
+                        <td className="px-3 py-3 text-right font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>
                       </tr>
                     );
                   })
@@ -200,23 +196,19 @@ export default function TabelRAB({
             </table>
           </div>
 
-          {/* Card Footer Total per Divisi */}
-          {canViewPrices && (
-            <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
-              <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>
-              <div className="flex items-center justify-between md:justify-end gap-6 font-mono font-bold w-full md:w-auto">
-                <div className="flex flex-col items-start md:items-end">
-                  <span className="text-[9px] text-slate-500 uppercase">Rencana (Plan)</span>
-                  <span className="text-blue-600 dark:text-blue-400 text-sm">{formatRupiah(divisi.totalRencanaDivisi)}</span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[9px] text-slate-500 uppercase">Realisasi (Actual)</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 text-sm">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
-                </div>
+          <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
+            <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>
+            <div className="flex items-center justify-between md:justify-end gap-6 font-mono font-bold w-full md:w-auto">
+              <div className="flex flex-col items-start md:items-end">
+                <span className="text-[9px] text-slate-500 uppercase">Rencana (Plan)</span>
+                <span className="text-blue-600 dark:text-blue-400 text-sm">{formatRupiah(divisi.totalRencanaDivisi)}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] text-slate-500 uppercase">Realisasi (Actual)</span>
+                <span className="text-emerald-600 dark:text-emerald-400 text-sm">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
               </div>
             </div>
-          )}
-
+          </div>
         </div>
       ))}
     </div>
