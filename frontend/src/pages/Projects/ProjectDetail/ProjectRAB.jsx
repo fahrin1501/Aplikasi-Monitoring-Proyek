@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
@@ -11,6 +11,7 @@ import ModalRAB from './Rab/ModalRAB';
 
 export default function ProjectRAB() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
@@ -26,8 +27,6 @@ export default function ProjectRAB() {
 
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
-  
-  // HAK AKSES BARU: Hanya Admin & Direktur yang bisa melihat Harga & Jumlah Uang
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
 
   // --- STATE UTAMA ---
@@ -114,9 +113,11 @@ export default function ProjectRAB() {
     let updated = [...localRabs];
     if (catForm.id) {
       const idx = updated.findIndex(c => c.id === catForm.id);
-      if (idx > -1) updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori };
+      if (idx > -1) {
+        updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, is_modified: true };
+      }
     } else {
-      updated.push({ id: `temp-cat-${Date.now()}`, kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, items: [] });
+      updated.push({ id: `temp-cat-${Date.now()}`, kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, items: [], is_modified: true });
     }
     setLocalRabs(updated);
     setShowCatModal(false);
@@ -131,18 +132,28 @@ export default function ProjectRAB() {
     const vol = parseFloat(itemForm.volume) || 0;
     const hrg = parseFloat(itemForm.harga_satuan) || 0;
     const newItem = {
-      id: itemForm.id || `temp-item-${Date.now()}`, rab_category_id: itemForm.rab_category_id,
-      kode_pekerjaan: itemForm.kode_pekerjaan, uraian_pekerjaan: itemForm.uraian_pekerjaan,
-      satuan: itemForm.satuan, volume: vol, harga_satuan: hrg, total_harga: vol * hrg, is_subheader: itemForm.is_subheader
+      id: itemForm.id || `temp-item-${Date.now()}`, 
+      rab_category_id: itemForm.rab_category_id,
+      kode_pekerjaan: itemForm.kode_pekerjaan, 
+      uraian_pekerjaan: itemForm.uraian_pekerjaan,
+      satuan: itemForm.satuan, 
+      volume: vol, 
+      harga_satuan: hrg, 
+      total_harga: vol * hrg, 
+      is_subheader: itemForm.is_subheader,
+      is_modified: true
     };
 
     if (itemForm.id) {
       const itemIdx = updated[catIdx].items.findIndex(i => i.id === itemForm.id);
-      if (itemIdx > -1) updated[catIdx] = { ...updated[catIdx], items: updated[catIdx].items.map(i => i.id === itemForm.id ? newItem : i) };
+      if (itemIdx > -1) {
+        updated[catIdx].items[itemIdx] = newItem;
+      }
     } else {
-      updated[catIdx] = { ...updated[catIdx], items: [...updated[catIdx].items, newItem] };
+      updated[catIdx].items.push(newItem);
     }
-    setLocalRabs(updated); setShowItemModal(false);
+    setLocalRabs(updated); 
+    setShowItemModal(false);
   };
 
   const executeDeleteDraft = () => {
@@ -160,26 +171,55 @@ export default function ProjectRAB() {
   const handleSelesaiEdit = async () => {
     setIsSavingEdit(true);
     try {
-      await Promise.all([...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)), ...deletedCatIds.map(cId => api.delete(`/rabs/categories/${cId}`))]);
+      if (deletedItemIds.length > 0 || deletedCatIds.length > 0) {
+        await Promise.all([
+          ...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)),
+          ...deletedCatIds.map(cId => api.delete(`/rabs/categories/${cId}`))
+        ]);
+      }
+
       for (const cat of localRabs) {
         let realCatId = cat.id;
         if (String(cat.id).startsWith('temp-')) {
           const res = await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
           realCatId = res.data?.data?.id || res.data?.id;
-        } else {
+        } 
+        else if (cat.is_modified) {
           await api.put(`/rabs/categories/${cat.id}`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
         }
-        const itemPromises = cat.items.map(item => {
-          const itemPayload = { rab_category_id: realCatId, kode_pekerjaan: item.kode_pekerjaan, uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan, volume: item.volume, harga_satuan: item.harga_satuan, is_subheader: item.is_subheader };
-          if (String(item.id).startsWith('temp-')) return api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
-          else return api.put(`/rab-items/${item.id}`, itemPayload);
-        });
-        await Promise.all(itemPromises);
+
+        for (const item of cat.items) {
+          if (!String(item.id).startsWith('temp-') && !item.is_modified) continue;
+
+          const itemPayload = { 
+            rab_category_id: realCatId, 
+            kode_pekerjaan: item.kode_pekerjaan, 
+            uraian_pekerjaan: item.uraian_pekerjaan, 
+            satuan: item.satuan, 
+            volume: item.volume, 
+            harga_satuan: item.harga_satuan, 
+            is_subheader: item.is_subheader 
+          };
+
+          if (String(item.id).startsWith('temp-')) {
+            await api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
+          } else {
+            await api.put(`/rab-items/${item.id}`, itemPayload);
+          }
+        }
       }
-      await fetchData(); setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(false);
-      alert("Draf perubahan RAB berhasil disimpan secara permanen!");
-    } catch (error) { alert("Gagal menyimpan perubahan. Pastikan koneksi stabil."); } 
-    finally { setIsSavingEdit(false); }
+
+      await fetchData(); 
+      setDeletedCatIds([]); 
+      setDeletedItemIds([]); 
+      setIsEditMode(false);
+      alert("Perubahan draf RAB berhasil disimpan dengan cepat!");
+    } catch (error) { 
+      console.error(error);
+      alert("Gagal menyimpan perubahan. Pastikan koneksi stabil."); 
+    } finally { 
+      setIsSavingEdit(false); 
+    }
   };
 
   const executeExport = async () => {
@@ -266,12 +306,11 @@ export default function ProjectRAB() {
         setShowImportModal={setShowImportModal} setExportModal={setExportModal}
       />
       
-      {/* MENYEMBUNYIKAN SUMMARY BOX JIKA ROLE BUKAN ADMIN/DIREKTUR */}
       {canViewPrices && (
         <SummaryRAB 
           paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
           pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
-          pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} isEditMode={isEditMode} formatRupiah={formatRupiah} 
+          pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
         />
       )}
 
@@ -290,16 +329,16 @@ export default function ProjectRAB() {
         }}
         confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
         setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
-        canViewPrices={canViewPrices} /* Diteruskan ke Tabel */
+        canViewPrices={canViewPrices}
       />
       
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
-        deleteConfig={deleteConfig} setDeleteConfig={setDeleteConfig} executeDeleteDraft={executeDeleteDraft}
+        deleteConfig={deleteConfig} setDeleteConfig={setDeleteConfig} executeDeleteDraft={executeDeleteDraft} isSaving={isSavingEdit}
         exportModal={exportModal} setExportModal={setExportModal} isExporting={isExporting} executeExport={executeExport}
         showImportModal={showImportModal} setShowImportModal={setShowImportModal} importFile={importFile} setImportFile={setImportFile} isImporting={isImporting} handleImportRAB={handleImportRAB}
-        canViewPrices={canViewPrices} /* Diteruskan ke Modal */
+        canViewPrices={canViewPrices}
       />
     </div>
   );
