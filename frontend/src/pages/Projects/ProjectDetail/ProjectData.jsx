@@ -62,8 +62,21 @@ export default function ProjectData() {
   useEffect(() => { fetchProjectDetail(); }, [id]);
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
-  const getImageUrl = (filename) => { if (!filename) return null; return filename.startsWith('http') ? filename : `http://127.0.0.1:8000/storage/foto_proyek/${filename}`; };
-  const getDocUrl = (path) => { if (!path) return '#'; return path.startsWith('http') ? path : `http://127.0.0.1:8000/${path}`; };
+
+  // --- MENGAMBIL BASE URL OTOMATIS DARI KONFIGURASI API ---
+  // (Membaca link Railway dari api.js dan membuang tulisan '/api' di belakangnya)
+  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : 'http://127.0.0.1:8000';
+
+  const getImageUrl = (filename) => { 
+    if (!filename) return null; 
+    return filename.startsWith('http') ? filename : `${BASE_URL}/storage/foto_proyek/${filename}`; 
+  };
+  
+  const getDocUrl = (path) => { 
+    if (!path) return '#'; 
+    return path.startsWith('http') ? path : `${BASE_URL}/${path.replace(/^\//, '')}`; 
+  };
+
   const formatDateForInput = (val) => val ? String(val).substring(0, 10) : '';
 
   const handleMainChange = (e) => setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
