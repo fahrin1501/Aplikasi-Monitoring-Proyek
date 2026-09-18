@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../../../api'; 
+import api from '../../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
@@ -12,6 +12,7 @@ import ModalRAB from './Rab/ModalRAB';
 export default function ProjectRAB() {
   const { id } = useParams();
 
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -25,18 +26,28 @@ export default function ProjectRAB() {
 
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
+  
+  // HAK AKSES BARU: Hanya Admin & Direktur yang bisa melihat Harga & Jumlah Uang
+  const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
 
+  // --- STATE UTAMA ---
   const [projectData, setProjectData] = useState(null);
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // Loading saat hit API satuan
 
+  // --- STATE FILTER & PENCARIAN ---
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDivisi, setActiveDivisi] = useState('Semua');
 
+  // --- STATE DRAFT MODE ---
   const [isEditMode, setIsEditMode] = useState(false);
+  const [localRabs, setLocalRabs] = useState([]);
+  const [deletedCatIds, setDeletedCatIds] = useState([]);
+  const [deletedItemIds, setDeletedItemIds] = useState([]);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // --- STATE MODAL & FORM ---
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
 
@@ -53,6 +64,7 @@ export default function ProjectRAB() {
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
+  // --- FETCH DATA ---
   const fetchData = async () => {
     if (isGuest) { setIsLoading(false); return; }
     try {
@@ -87,70 +99,87 @@ export default function ProjectRAB() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka || 0);
 
-  // ======================================================================
-  // DIRECT SAVE LOGIC (LANGSUNG TEMBAK KE DATABASE)
-  // ======================================================================
-  const saveCategory = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      if (catForm.id) {
-        await api.put(`/rabs/categories/${catForm.id}`, { kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori });
-      } else {
-        await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori });
-      }
-      await fetchData();
-      setShowCatModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan kategori. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+  // --- ACTION HANDLERS ---
+  const handleToggleEdit = () => {
+    setLocalRabs(JSON.parse(JSON.stringify(rabs))); 
+    setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(true);
   };
 
-  const saveItem = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      const payload = {
-        rab_category_id: itemForm.rab_category_id,
-        kode_pekerjaan: itemForm.kode_pekerjaan,
-        uraian_pekerjaan: itemForm.uraian_pekerjaan,
-        satuan: itemForm.satuan,
-        volume: parseFloat(itemForm.volume) || 0,
-        harga_satuan: parseFloat(itemForm.harga_satuan) || 0,
-        is_subheader: itemForm.is_subheader
-      };
-
-      if (itemForm.id) {
-        await api.put(`/rab-items/${itemForm.id}`, payload);
-      } else {
-        await api.post(`/rabs/categories/${itemForm.rab_category_id}/items`, payload);
-      }
-      await fetchData();
-      setShowItemModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan item. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+  const handleBatalEdit = () => {
+    setLocalRabs([]); setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(false);
   };
 
-  const executeDelete = async () => {
-    setIsSaving(true);
-    try {
-      if (deleteConfig.type === 'category') {
-        await api.delete(`/rabs/categories/${deleteConfig.id}`);
-      } else if (deleteConfig.type === 'item') {
-        await api.delete(`/rab-items/${deleteConfig.id}`);
-      }
-      await fetchData();
-      setDeleteConfig({ show: false, type: '', id: null, name: '' });
-    } catch (error) {
-      alert("Gagal menghapus data. Data mungkin terikat dengan laporan harian.");
-    } finally {
-      setIsSaving(false);
+  const saveCategory = (e) => {
+    e.preventDefault();
+    let updated = [...localRabs];
+    if (catForm.id) {
+      const idx = updated.findIndex(c => c.id === catForm.id);
+      if (idx > -1) updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori };
+    } else {
+      updated.push({ id: `temp-cat-${Date.now()}`, kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, items: [] });
     }
+    setLocalRabs(updated);
+    setShowCatModal(false);
+  };
+
+  const saveItem = (e) => {
+    e.preventDefault();
+    let updated = [...localRabs];
+    const catIdx = updated.findIndex(c => c.id === itemForm.rab_category_id);
+    if (catIdx === -1) return;
+
+    const vol = parseFloat(itemForm.volume) || 0;
+    const hrg = parseFloat(itemForm.harga_satuan) || 0;
+    const newItem = {
+      id: itemForm.id || `temp-item-${Date.now()}`, rab_category_id: itemForm.rab_category_id,
+      kode_pekerjaan: itemForm.kode_pekerjaan, uraian_pekerjaan: itemForm.uraian_pekerjaan,
+      satuan: itemForm.satuan, volume: vol, harga_satuan: hrg, total_harga: vol * hrg, is_subheader: itemForm.is_subheader
+    };
+
+    if (itemForm.id) {
+      const itemIdx = updated[catIdx].items.findIndex(i => i.id === itemForm.id);
+      if (itemIdx > -1) updated[catIdx] = { ...updated[catIdx], items: updated[catIdx].items.map(i => i.id === itemForm.id ? newItem : i) };
+    } else {
+      updated[catIdx] = { ...updated[catIdx], items: [...updated[catIdx].items, newItem] };
+    }
+    setLocalRabs(updated); setShowItemModal(false);
+  };
+
+  const executeDeleteDraft = () => {
+    let updated = [...localRabs];
+    if (deleteConfig.type === 'category') {
+      if (!String(deleteConfig.id).startsWith('temp-')) setDeletedCatIds(prev => [...prev, deleteConfig.id]);
+      updated = updated.filter(c => c.id !== deleteConfig.id);
+    } else if (deleteConfig.type === 'item') {
+      if (!String(deleteConfig.id).startsWith('temp-')) setDeletedItemIds(prev => [...prev, deleteConfig.id]);
+      updated = updated.map(c => ({ ...c, items: c.items.filter(item => item.id !== deleteConfig.id) }));
+    }
+    setLocalRabs(updated); setDeleteConfig({ show: false, type: '', id: null, name: '' });
+  };
+
+  const handleSelesaiEdit = async () => {
+    setIsSavingEdit(true);
+    try {
+      await Promise.all([...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)), ...deletedCatIds.map(cId => api.delete(`/rabs/categories/${cId}`))]);
+      for (const cat of localRabs) {
+        let realCatId = cat.id;
+        if (String(cat.id).startsWith('temp-')) {
+          const res = await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
+          realCatId = res.data?.data?.id || res.data?.id;
+        } else {
+          await api.put(`/rabs/categories/${cat.id}`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
+        }
+        const itemPromises = cat.items.map(item => {
+          const itemPayload = { rab_category_id: realCatId, kode_pekerjaan: item.kode_pekerjaan, uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan, volume: item.volume, harga_satuan: item.harga_satuan, is_subheader: item.is_subheader };
+          if (String(item.id).startsWith('temp-')) return api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
+          else return api.put(`/rab-items/${item.id}`, itemPayload);
+        });
+        await Promise.all(itemPromises);
+      }
+      await fetchData(); setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(false);
+      alert("Draf perubahan RAB berhasil disimpan secara permanen!");
+    } catch (error) { alert("Gagal menyimpan perubahan. Pastikan koneksi stabil."); } 
+    finally { setIsSavingEdit(false); }
   };
 
   const executeExport = async () => {
@@ -179,12 +208,12 @@ export default function ProjectRAB() {
     finally { setIsImporting(false); }
   };
 
-  // --- MEMOIZED CALCULATIONS ---
   const { rabsWithRealization, filteredRabsView, grandTotalRencana, grandTotalRealisasi } = useMemo(() => {
     if (!projectData) return { rabsWithRealization: [], filteredRabsView: [], grandTotalRencana: 0, grandTotalRealisasi: 0 };
     let gRencana = 0, gRealisasi = 0;
+    const currentRabs = isEditMode ? localRabs : rabs;
 
-    const rabsWithRealization = rabs.map(divisi => {
+    const rabsWithRealization = currentRabs.map(divisi => {
       let tRencana = 0, tRealisasi = 0;
       const items = divisi.items.map(item => {
         let actualVol = 0, actualTotal = 0;
@@ -208,7 +237,7 @@ export default function ProjectRAB() {
     }).filter(Boolean);
 
     return { rabsWithRealization, filteredRabsView, grandTotalRencana: gRencana, grandTotalRealisasi: gRealisasi };
-  }, [rabs, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
+  }, [rabs, localRabs, isEditMode, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
 
   if (isGuest) {
     return (
@@ -236,15 +265,21 @@ export default function ProjectRAB() {
         openCatModal={() => { setCatForm({ id: null, kode_divisi: '', nama_kategori: '' }); setShowCatModal(true); }} 
         setShowImportModal={setShowImportModal} setExportModal={setExportModal}
       />
-      <SummaryRAB 
-        paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
-        pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
-        pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
-      />
+      
+      {/* MENYEMBUNYIKAN SUMMARY BOX JIKA ROLE BUKAN ADMIN/DIREKTUR */}
+      {canViewPrices && (
+        <SummaryRAB 
+          paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
+          pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
+          pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} isEditMode={isEditMode} formatRupiah={formatRupiah} 
+        />
+      )}
+
       <FilterRAB 
-        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+        currentRabs={isEditMode ? localRabs : rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
       />
+      
       <TabelRAB 
         rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
         openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
@@ -255,13 +290,16 @@ export default function ProjectRAB() {
         }}
         confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
         setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
+        canViewPrices={canViewPrices} /* Diteruskan ke Tabel */
       />
+      
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
-        deleteConfig={deleteConfig} setDeleteConfig={setDeleteConfig} executeDelete={executeDelete} isSaving={isSaving}
+        deleteConfig={deleteConfig} setDeleteConfig={setDeleteConfig} executeDeleteDraft={executeDeleteDraft}
         exportModal={exportModal} setExportModal={setExportModal} isExporting={isExporting} executeExport={executeExport}
         showImportModal={showImportModal} setShowImportModal={setShowImportModal} importFile={importFile} setImportFile={setImportFile} isImporting={isImporting} handleImportRAB={handleImportRAB}
+        canViewPrices={canViewPrices} /* Diteruskan ke Modal */
       />
     </div>
   );
