@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-
-import api from '../../../api'; 
+import api from '../../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
@@ -13,7 +12,6 @@ import ModalRAB from './Rab/ModalRAB';
 export default function ProjectRAB() {
   const { id } = useParams();
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -28,24 +26,20 @@ export default function ProjectRAB() {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- STATE UTAMA ---
   const [projectData, setProjectData] = useState(null);
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- STATE FILTER & PENCARIAN ---
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDivisi, setActiveDivisi] = useState('Semua');
 
-  // --- STATE DRAFT MODE ---
   const [isEditMode, setIsEditMode] = useState(false);
   const [localRabs, setLocalRabs] = useState([]);
   const [deletedCatIds, setDeletedCatIds] = useState([]);
   const [deletedItemIds, setDeletedItemIds] = useState([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // --- STATE MODAL & FORM ---
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
 
@@ -62,7 +56,6 @@ export default function ProjectRAB() {
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
-  // --- FETCH DATA ---
   const fetchData = async () => {
     if (isGuest) { setIsLoading(false); return; }
     try {
@@ -97,7 +90,6 @@ export default function ProjectRAB() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka || 0);
 
-  // --- ACTION HANDLERS ---
   const handleToggleEdit = () => {
     setLocalRabs(JSON.parse(JSON.stringify(rabs))); 
     setDeletedCatIds([]); setDeletedItemIds([]); setIsEditMode(true);
@@ -112,9 +104,12 @@ export default function ProjectRAB() {
     let updated = [...localRabs];
     if (catForm.id) {
       const idx = updated.findIndex(c => c.id === catForm.id);
-      if (idx > -1) updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori };
+      if (idx > -1) {
+        // TANDAI BAHWA DIVISI INI DIEDIT
+        updated[idx] = { ...updated[idx], kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, is_modified: true };
+      }
     } else {
-      updated.push({ id: `temp-cat-${Date.now()}`, kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, items: [] });
+      updated.push({ id: `temp-cat-${Date.now()}`, kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori, items: [], is_modified: true });
     }
     setLocalRabs(updated);
     setShowCatModal(false);
@@ -129,18 +124,28 @@ export default function ProjectRAB() {
     const vol = parseFloat(itemForm.volume) || 0;
     const hrg = parseFloat(itemForm.harga_satuan) || 0;
     const newItem = {
-      id: itemForm.id || `temp-item-${Date.now()}`, rab_category_id: itemForm.rab_category_id,
-      kode_pekerjaan: itemForm.kode_pekerjaan, uraian_pekerjaan: itemForm.uraian_pekerjaan,
-      satuan: itemForm.satuan, volume: vol, harga_satuan: hrg, total_harga: vol * hrg, is_subheader: itemForm.is_subheader
+      id: itemForm.id || `temp-item-${Date.now()}`, 
+      rab_category_id: itemForm.rab_category_id,
+      kode_pekerjaan: itemForm.kode_pekerjaan, 
+      uraian_pekerjaan: itemForm.uraian_pekerjaan,
+      satuan: itemForm.satuan, 
+      volume: vol, 
+      harga_satuan: hrg, 
+      total_harga: vol * hrg, 
+      is_subheader: itemForm.is_subheader,
+      is_modified: true // TANDAI BAHWA ITEM INI DIEDIT
     };
 
     if (itemForm.id) {
       const itemIdx = updated[catIdx].items.findIndex(i => i.id === itemForm.id);
-      if (itemIdx > -1) updated[catIdx] = { ...updated[catIdx], items: updated[catIdx].items.map(i => i.id === itemForm.id ? newItem : i) };
+      if (itemIdx > -1) {
+        updated[catIdx].items[itemIdx] = newItem;
+      }
     } else {
-      updated[catIdx] = { ...updated[catIdx], items: [...updated[catIdx].items, newItem] };
+      updated[catIdx].items.push(newItem);
     }
-    setLocalRabs(updated); setShowItemModal(false);
+    setLocalRabs(updated); 
+    setShowItemModal(false);
   };
 
   const executeDeleteDraft = () => {
@@ -156,12 +161,12 @@ export default function ProjectRAB() {
   };
 
   // ======================================================================
-  // MENGIRIM SELURUH PERUBAHAN DRAF KE DATABASE SECARA BATCHING (ANTI-STUCK)
+  // SISTEM SAVE SUPER CEPAT (HANYA UPDATE YANG DIEDIT SAJA)
   // ======================================================================
   const handleSelesaiEdit = async () => {
     setIsSavingEdit(true);
     try {
-      // 1. Eksekusi Hapus yang tertunda
+      // 1. Eksekusi data yang dihapus (Secara Paralel)
       if (deletedItemIds.length > 0 || deletedCatIds.length > 0) {
         await Promise.all([
           ...deletedItemIds.map(dId => api.delete(`/rab-items/${dId}`)),
@@ -169,62 +174,56 @@ export default function ProjectRAB() {
         ]);
       }
 
-      // 2. Eksekusi Create / Update secara berurutan
+      // 2. Loop kategori dan item satu per satu (Sekuensial agar aman)
       for (const cat of localRabs) {
         let realCatId = cat.id;
 
-        // Simpan Divisi
+        // Jika kategori baru
         if (String(cat.id).startsWith('temp-')) {
-          const res = await api.post(`/projects/${id}/rabs/categories`, { 
-            kode_divisi: cat.kode_divisi, 
-            nama_kategori: cat.nama_kategori 
-          });
+          const res = await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
           realCatId = res.data?.data?.id || res.data?.id;
-        } else {
-          await api.put(`/rabs/categories/${cat.id}`, { 
-            kode_divisi: cat.kode_divisi, 
-            nama_kategori: cat.nama_kategori 
-          });
+        } 
+        // Jika kategori diedit
+        else if (cat.is_modified) {
+          await api.put(`/rabs/categories/${cat.id}`, { kode_divisi: cat.kode_divisi, nama_kategori: cat.nama_kategori });
         }
 
-        // 3. TEKNIK CHUNKING: Kirim request Item per 10 data agar tidak macet/stuck
-        const chunkSize = 10; 
-        for (let i = 0; i < cat.items.length; i += chunkSize) {
-          const chunk = cat.items.slice(i, i + chunkSize);
-          
-          const chunkPromises = chunk.map(item => {
-            const itemPayload = {
-              rab_category_id: realCatId,
-              kode_pekerjaan: item.kode_pekerjaan,
-              uraian_pekerjaan: item.uraian_pekerjaan,
-              satuan: item.satuan,
-              volume: item.volume,
-              harga_satuan: item.harga_satuan,
-              is_subheader: item.is_subheader
-            };
+        // Loop item di dalamnya
+        for (const item of cat.items) {
+          // JIKA BUKAN ITEM BARU DAN BUKAN ITEM YANG DIEDIT, LEWATI (Ini kunci agar tidak ngelag!)
+          if (!String(item.id).startsWith('temp-') && !item.is_modified) {
+            continue;
+          }
 
-            if (String(item.id).startsWith('temp-')) {
-              return api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
-            } else {
-              return api.put(`/rab-items/${item.id}`, itemPayload);
-            }
-          });
+          const itemPayload = { 
+            rab_category_id: realCatId, 
+            kode_pekerjaan: item.kode_pekerjaan, 
+            uraian_pekerjaan: item.uraian_pekerjaan, 
+            satuan: item.satuan, 
+            volume: item.volume, 
+            harga_satuan: item.harga_satuan, 
+            is_subheader: item.is_subheader 
+          };
 
-          // Tunggu 10 request ini selesai dulu, baru lanjut ke 10 berikutnya
-          await Promise.all(chunkPromises);
+          if (String(item.id).startsWith('temp-')) {
+            await api.post(`/rabs/categories/${realCatId}/items`, itemPayload);
+          } else {
+            await api.put(`/rab-items/${item.id}`, itemPayload);
+          }
         }
       }
 
-      await fetchData();
-      setDeletedCatIds([]);
-      setDeletedItemIds([]);
+      // Refresh Data Baru
+      await fetchData(); 
+      setDeletedCatIds([]); 
+      setDeletedItemIds([]); 
       setIsEditMode(false);
-      alert("Seluruh draf perubahan RAB berhasil disimpan secara permanen!");
-    } catch (error) {
+      alert("Perubahan draf RAB berhasil disimpan dengan cepat!");
+    } catch (error) { 
       console.error(error);
-      alert("Gagal menyimpan beberapa perubahan. Pastikan koneksi server Anda stabil.");
-    } finally {
-      setIsSavingEdit(false);
+      alert("Gagal menyimpan perubahan. Pastikan koneksi stabil."); 
+    } finally { 
+      setIsSavingEdit(false); 
     }
   };
 
@@ -254,7 +253,6 @@ export default function ProjectRAB() {
     finally { setIsImporting(false); }
   };
 
-  // --- MEMOIZED CALCULATIONS (Peningkatan Performa Render) ---
   const { rabsWithRealization, filteredRabsView, grandTotalRencana, grandTotalRealisasi } = useMemo(() => {
     if (!projectData) return { rabsWithRealization: [], filteredRabsView: [], grandTotalRencana: 0, grandTotalRealisasi: 0 };
     let gRencana = 0, gRealisasi = 0;
@@ -305,6 +303,29 @@ export default function ProjectRAB() {
   const pctRencanaCSS = Math.min(pctRencanaRaw, 100);
   const pctRealisasiCSS = Math.min(pctRealisasiRaw, 100);
 
+  let createdTimestamp = null;
+  let updatedTimestamp = null;
+
+  if (rabs.length > 0) {
+    let maxUpdated = 0; let minCreated = Infinity;
+    rabs.forEach(cat => {
+      if (cat.updated_at) maxUpdated = Math.max(maxUpdated, new Date(cat.updated_at).getTime());
+      if (cat.created_at) minCreated = Math.min(minCreated, new Date(cat.created_at).getTime());
+      if (cat.items && cat.items.length > 0) {
+        cat.items.forEach(item => {
+          if (item.updated_at) maxUpdated = Math.max(maxUpdated, new Date(item.updated_at).getTime());
+          if (item.created_at) minCreated = Math.min(minCreated, new Date(item.created_at).getTime());
+        });
+      }
+    });
+    if (minCreated !== Infinity) createdTimestamp = minCreated;
+    if (maxUpdated !== 0) updatedTimestamp = maxUpdated;
+  }
+  const formatTimestamp = (timeMs) => {
+    if (!timeMs) return '-';
+    return new Date(timeMs).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WITA';
+  };
+
   return (
     <div className="w-full space-y-5 relative pb-20">
       <NavigasiRAB 
@@ -322,6 +343,15 @@ export default function ProjectRAB() {
         currentRabs={isEditMode ? localRabs : rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
       />
+      
+      {/* TAMPILAN TIMESTAMP */}
+      {rabsWithRealization.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-4 px-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+            <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-blue-500" /> Dibuat: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(createdTimestamp)}</span></span>
+            <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-emerald-500" /> Diupdate: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(updatedTimestamp)}</span></span>
+        </div>
+      )}
+
       <TabelRAB 
         rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
         openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
