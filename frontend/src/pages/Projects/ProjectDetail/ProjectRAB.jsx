@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../../api'; 
+import api from '../../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
@@ -27,8 +27,6 @@ export default function ProjectRAB() {
 
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
-  
-  // HAK AKSES BARU: Hanya Admin & Direktur yang bisa melihat Harga & Jumlah Uang
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
 
   // --- STATE UTAMA ---
@@ -36,16 +34,16 @@ export default function ProjectRAB() {
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // Indikator loading saat simpan API
+  const [isSaving, setIsSaving] = useState(false); // Untuk tombol Simpan
 
-  // --- STATE FILTER & PENCARIAN ---
+  // --- STATE FILTER ---
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDivisi, setActiveDivisi] = useState('Semua');
 
-  // --- STATE EDIT MODE (DIRECT EDIT) ---
+  // --- STATE EDIT MODE ---
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // --- STATE MODAL & FORM ---
+  // --- STATE MODAL ---
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
 
@@ -71,7 +69,6 @@ export default function ProjectRAB() {
         api.get(`/projects/${id}/rabs`),
         api.get(`/daily-reports`).catch(() => ({ data: { data: [] } }))
       ]);
-      
       setProjectData(projRes.data);
       setRabs(rabRes.data.data);
 
@@ -99,7 +96,7 @@ export default function ProjectRAB() {
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka || 0);
 
   // ======================================================================
-  // DIRECT SAVE LOGIC (LANGSUNG TEMBAK KE DATABASE)
+  // ACTION HANDLERS (DIRECT EDIT - LANGSUNG KE API)
   // ======================================================================
   const saveCategory = async (e) => {
     e.preventDefault();
@@ -112,11 +109,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setShowCatModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan kategori. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menyimpan divisi."); } 
+    finally { setIsSaving(false); }
   };
 
   const saveItem = async (e) => {
@@ -140,11 +134,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setShowItemModal(false);
-    } catch (error) {
-      alert("Gagal menyimpan item. Pastikan koneksi stabil.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menyimpan item."); } 
+    finally { setIsSaving(false); }
   };
 
   const executeDelete = async () => {
@@ -157,11 +148,8 @@ export default function ProjectRAB() {
       }
       await fetchData();
       setDeleteConfig({ show: false, type: '', id: null, name: '' });
-    } catch (error) {
-      alert("Gagal menghapus data. Data mungkin terikat dengan laporan harian.");
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) { alert("Gagal menghapus data. Data mungkin terikat dengan laporan harian."); } 
+    finally { setIsSaving(false); }
   };
 
   const executeExport = async () => {
@@ -194,7 +182,8 @@ export default function ProjectRAB() {
   const { rabsWithRealization, filteredRabsView, grandTotalRencana, grandTotalRealisasi } = useMemo(() => {
     if (!projectData) return { rabsWithRealization: [], filteredRabsView: [], grandTotalRencana: 0, grandTotalRealisasi: 0 };
     let gRencana = 0, gRealisasi = 0;
-
+    
+    // MENGGUNAKAN "rabs", tidak ada localRabs lagi
     const rabsWithRealization = rabs.map(divisi => {
       let tRencana = 0, tRealisasi = 0;
       const items = divisi.items.map(item => {
@@ -219,7 +208,7 @@ export default function ProjectRAB() {
     }).filter(Boolean);
 
     return { rabsWithRealization, filteredRabsView, grandTotalRencana: gRencana, grandTotalRealisasi: gRealisasi };
-  }, [rabs, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
+  }, [rabs, isEditMode, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
 
   if (isGuest) {
     return (
@@ -257,7 +246,7 @@ export default function ProjectRAB() {
       )}
 
       <FilterRAB 
-        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+        currentRabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
       />
       
