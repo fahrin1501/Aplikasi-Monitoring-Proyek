@@ -185,8 +185,8 @@ class RabController extends Controller
     public function exportRabExcel($id)
     {
         $data = $this->exportRabData($id);
+        $data['isExcel'] = true; // <--- TAMBAHKAN PENANDA INI
 
-        // PERBAIKAN: Sama seperti PDF
         $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $data['project']->nama_proyek);
         $fileName = $safeName . ' - RAB.xlsx';
 
@@ -246,9 +246,10 @@ class RabController extends Controller
                         'is_subheader' => true
                     ]);
                 } else {
-                    // Ini berarti Item Pekerjaan murni. Bersihkan format Rp. / titik pada harga
-                    $hargaBersih = (float) preg_replace('/[^0-9]/', '', $hargaSatuan);
-                    $volumeBersih = (float) $volume; // Pastikan volume menjadi angka
+                    // Ini berarti Item Pekerjaan murni.
+                    // Jika data asli dari Excel sudah murni angka, pakai langsung. Jika teks ber-titik, bersihkan.
+                    $hargaBersih = is_numeric($hargaSatuan) ? (float) $hargaSatuan : (float) preg_replace('/[^0-9]/', '', $hargaSatuan);
+                    $volumeBersih = is_numeric($volume) ? (float) $volume : (float) str_replace(',', '.', $volume);
 
                     RabItem::create([
                         'rab_category_id' => $currentCategory->id,
@@ -256,7 +257,7 @@ class RabController extends Controller
                         'satuan' => $satuan,
                         'volume' => $volumeBersih,
                         'harga_satuan' => $hargaBersih,
-                        'total_harga' => $volumeBersih * $hargaBersih, // <--- TAMBAHKAN BARIS INI (Kalkulasi Otomatis)
+                        'total_harga' => $volumeBersih * $hargaBersih,
                         'is_subheader' => false
                     ]);
                 }

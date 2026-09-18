@@ -5,7 +5,7 @@ import {
   DollarSign, ArrowLeft, Info, FileSpreadsheet, 
   TrendingUp, Compass, Plus, Edit3, Trash2, ListPlus, 
   Download, Loader2, AlertTriangle, X, Type, Activity, TrendingDown, CheckCircle2,
-  UploadCloud, ShieldAlert
+  UploadCloud, ShieldAlert, Clock
 } from 'lucide-react';
 
 export default function ProjectRAB() {
@@ -64,7 +64,6 @@ export default function ProjectRAB() {
 
   // --- FETCH DATA ---
   const fetchData = async () => {
-    // Jika tamu memaksa masuk ke URL ini, hentikan loading
     if (isGuest) {
       setIsLoading(false);
       return;
@@ -125,7 +124,7 @@ export default function ProjectRAB() {
   // LOGIKA DRAFT MODE (EDIT TANPA BERSENTUHAN DENGAN BACKEND SAMPAI DISIMPAN)
   // ======================================================================
   const handleToggleEdit = () => {
-    setLocalRabs(JSON.parse(JSON.stringify(rabs))); // Deep copy RAB untuk draf
+    setLocalRabs(JSON.parse(JSON.stringify(rabs))); 
     setDeletedCatIds([]);
     setDeletedItemIds([]);
     setIsEditMode(true);
@@ -222,27 +221,22 @@ export default function ProjectRAB() {
   const handleSelesaiEdit = async () => {
     setIsSavingEdit(true);
     try {
-      // 1. Eksekusi Hapus yang tertunda (secara Paralel)
       await Promise.all([
         ...deletedItemIds.map(id => api.delete(`/rab-items/${id}`)),
         ...deletedCatIds.map(id => api.delete(`/rabs/categories/${id}`))
       ]);
 
-      // 2. Eksekusi Create / Update (Berurutan per divisi agar ID Kategori terikat dengan aman)
       for (const cat of localRabs) {
         let realCatId = cat.id;
 
-        // Jika Divisi Baru
         if (String(cat.id).startsWith('temp-')) {
           const res = await api.post(`/projects/${id}/rabs/categories`, { nama_kategori: cat.nama_kategori });
           const newCat = res.data?.data || res.data;
           realCatId = newCat.id;
         } else {
-          // Update Divisi Lama
           await api.put(`/rabs/categories/${cat.id}`, { nama_kategori: cat.nama_kategori });
         }
 
-        // Proses Item di dalam Divisi secara Paralel
         const itemPromises = cat.items.map(item => {
           const itemPayload = {
             rab_category_id: realCatId,
@@ -260,7 +254,6 @@ export default function ProjectRAB() {
         await Promise.all(itemPromises);
       }
 
-      // Bersihkan dan muat ulang data asli
       await fetchData();
       setDeletedCatIds([]);
       setDeletedItemIds([]);
@@ -340,7 +333,6 @@ export default function ProjectRAB() {
   let grandTotalRealisasi = 0;
   const paguKontrak = Number(projectData.nilai_kontrak) || 1; 
   
-  // Jika sedang edit, tampilkan RAB Lokal (Draf). Jika tidak, RAB Server
   const currentRabs = isEditMode ? localRabs : rabs;
 
   const rabsWithRealization = currentRabs.map(divisi => {
@@ -352,7 +344,6 @@ export default function ProjectRAB() {
       let actualTotal = 0;
 
       if (!item.is_subheader) {
-        // Data realisasi selalu diamankan dari ID yang sudah terdaftar di backend
         actualVol = realisasiKegiatan[item.id] || 0; 
         actualTotal = actualVol * Number(item.harga_satuan || 0);
         
@@ -373,6 +364,38 @@ export default function ProjectRAB() {
   const pctRencanaCSS = Math.min(pctRencanaRaw, 100);
   const pctRealisasiCSS = Math.min(pctRealisasiRaw, 100);
   const isRencanaBigger = pctRencanaCSS > pctRealisasiCSS;
+
+  // ==============================================
+  // LOGIKA TIMESTAMP PEMBUATAN & PEMBARUAN RAB
+  // ==============================================
+  let createdTimestamp = null;
+  let updatedTimestamp = null;
+
+  if (rabs.length > 0) {
+    let maxUpdated = 0;
+    let minCreated = Infinity;
+
+    rabs.forEach(cat => {
+      if (cat.updated_at) maxUpdated = Math.max(maxUpdated, new Date(cat.updated_at).getTime());
+      if (cat.created_at) minCreated = Math.min(minCreated, new Date(cat.created_at).getTime());
+
+      if (cat.items && cat.items.length > 0) {
+        cat.items.forEach(item => {
+          if (item.updated_at) maxUpdated = Math.max(maxUpdated, new Date(item.updated_at).getTime());
+          if (item.created_at) minCreated = Math.min(minCreated, new Date(item.created_at).getTime());
+        });
+      }
+    });
+
+    if (minCreated !== Infinity) createdTimestamp = minCreated;
+    if (maxUpdated !== 0) updatedTimestamp = maxUpdated;
+  }
+
+  const formatTimestamp = (timeMs) => {
+    if (!timeMs) return '-';
+    return new Date(timeMs).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WITA';
+  };
+  // ==============================================
 
   return (
     <div className="w-full space-y-5 relative pb-20">
@@ -416,7 +439,6 @@ export default function ProjectRAB() {
               </>
             ) : (
               <>
-                {/* HANYA TAMPILKAN TOMBOL EDIT/IMPORT JIKA PUNYA HAK AKSES */}
                 {canCreateData && (
                   <>
                     <button onClick={handleToggleEdit} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
@@ -517,6 +539,14 @@ export default function ProjectRAB() {
         </div>
       ) : (
         <div className="space-y-6">
+
+          {/* --- INFO TIMESTAMP DITAMBAHKAN DI SINI --- */}
+          <div className="flex flex-wrap items-center justify-end gap-4 px-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-blue-500" /> Dibuat: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(createdTimestamp)}</span></span>
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-emerald-500" /> Diupdate: <span className="font-bold text-slate-700 dark:text-slate-300">{formatTimestamp(updatedTimestamp)}</span></span>
+          </div>
+          {/* ------------------------------------------ */}
+
           {rabsWithRealization.map((divisi) => (
             <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
               
