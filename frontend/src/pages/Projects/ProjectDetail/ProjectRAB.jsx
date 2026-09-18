@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../../../api'; 
+import api from '../../../api'; 
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
