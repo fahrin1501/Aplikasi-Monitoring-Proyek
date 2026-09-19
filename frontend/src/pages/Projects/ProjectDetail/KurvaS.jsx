@@ -4,7 +4,7 @@ import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
-  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock, CalendarDays
+  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -318,7 +318,6 @@ export default function KurvaS({ selectedProject }) {
             <div className="flex flex-col">
               <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
                 <div className="pl-3 py-2 border-r border-slate-200 dark:border-slate-700/60 flex items-center bg-slate-100 dark:bg-slate-800/50 text-slate-500">
-                  <CalendarDays className="w-3.5 h-3.5" />
                 </div>
                 <input 
                   type="date" 
