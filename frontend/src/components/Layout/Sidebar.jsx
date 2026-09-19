@@ -13,7 +13,7 @@ export default function Sidebar() {
 
   // --- SETTING TAB BROWSER OTOMATIS ---
   useEffect(() => {
-    document.title = "prismagroup";
+    document.title = "Prisma Group";
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
