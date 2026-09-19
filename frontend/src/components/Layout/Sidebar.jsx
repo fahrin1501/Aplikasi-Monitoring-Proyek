@@ -1,16 +1,27 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { 
-  HardHat, Map, FolderKanban, ClipboardList, LogOut, Menu, X, 
-  Users, Edit3, Check, UploadCloud, Image as ImageIcon,
-  Sun, Moon, CalendarDays
+  Map, FolderKanban, ClipboardList, LogOut, Menu, X, 
+  Users, Sun, Moon, CalendarDays
 } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // --- SETTING TAB BROWSER OTOMATIS ---
+  useEffect(() => {
+    document.title = "prismagroup";
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = '/PRISMA.PNG';
+  }, []);
 
   // --- STATE TEMA (DARK/LIGHT MODE) ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -33,7 +44,6 @@ export default function Sidebar() {
 
   // --- STATE DATA USER LOGIN & RBAC ---
   const [userData, setUserData] = useState(() => {
-    // Ambil data langsung dari local storage agar tidak menunggu API
     const stored = localStorage.getItem('user_data');
     if (stored) {
       try {
@@ -46,17 +56,14 @@ export default function Sidebar() {
   });
 
   useEffect(() => {
-    // Sinkronisasi data asli dari server
     api.get('/user')
       .then(res => {
         if (res.data) {
           setUserData(res.data);
-          localStorage.setItem('user_data', JSON.stringify(res.data)); // Update local storage
+          localStorage.setItem('user_data', JSON.stringify(res.data));
         }
       })
-      .catch(err => {
-        console.error("Gagal memuat data user:", err);
-      });
+      .catch(err => console.error("Gagal memuat data user:", err));
   }, []);
 
   const getInitials = (name) => {
@@ -64,71 +71,16 @@ export default function Sidebar() {
     return name.charAt(0).toUpperCase();
   };
 
-  // DEFINISI HAK AKSES (RBAC) UNTUK SIDEBAR
+  // DEFINISI HAK AKSES
   const userRole = userData?.role || 'Tamu';
   const isAdmin = userRole === 'Administrator';
-  const canEditCompany = ['Administrator', 'Direktur'].includes(userRole);
 
-  // --- STATE UNTUK CRUD PERUSAHAAN ---
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [companyInfo, setCompanyInfo] = useState({
-    name: 'CONS-MONITORING',
-    subtitle: 'Consultant System',
-    logoUrl: '' 
-  });
-  const [tempInfo, setTempInfo] = useState({ ...companyInfo });
-  const [logoFile, setLogoFile] = useState(null); 
-  const fileInputRef = useRef(null);
-
-  const getDocUrl = (path) => {
-    if (!path) return '';
-    return path.startsWith('http') ? path : `http://127.0.0.1:8000/${path}`;
-  };
-
-  // --- FUNGSI MENGGANTI FAVICON & JUDUL TAB OTOMATIS ---
-  const updateFaviconAndTitle = (name, logoUrl) => {
-    if (name) {
-      document.title = `${name} - Project Monitoring`;
-    }
-    if (logoUrl) {
-      let link = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = logoUrl;
-    }
-  };
-
-  // Fetch Profil Perusahaan saat aplikasi dimuat
-  useEffect(() => {
-    api.get('/company-profile')
-      .then(res => {
-        if (res.data && res.data.data) {
-          const profile = res.data.data;
-          const fetchedData = {
-            name: profile.name || 'CONS-MONITORING',
-            subtitle: profile.subtitle || 'Consultant System',
-            logoUrl: getDocUrl(profile.logo_path)
-          };
-          setCompanyInfo(fetchedData);
-          setTempInfo(fetchedData);
-          
-          updateFaviconAndTitle(fetchedData.name, fetchedData.logoUrl);
-        }
-      })
-      .catch(err => console.error("Gagal memuat profil perusahaan", err));
-  }, []);
-
-  // --- MENU ITEMS (BERDASARKAN ROLE) ---
+  // --- MENU ITEMS ---
   const menuItems = [
     { path: '/', label: 'Dashboard Utama', icon: Map },
     { path: '/projects', label: 'Daftar Project', icon: FolderKanban },
     { path: '/schedules', label: 'Time Schedule', icon: CalendarDays }, 
     { path: '/laporan', label: 'Daftar Laporan', icon: ClipboardList },
-    // Menu "Manajemen Akun" HANYA dirender jika user adalah Administrator
     ...(isAdmin ? [{ path: '/accounts', label: 'Manajemen Akun', icon: Users }] : []),
   ];
 
@@ -141,61 +93,6 @@ export default function Sidebar() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_data');
     handleItemClick();
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setLogoFile(file);
-      const imageUrl = URL.createObjectURL(file);
-      setTempInfo({ ...tempInfo, logoUrl: imageUrl });
-    }
-  };
-
-  const handleSaveCompany = async () => {
-    setIsSaving(true);
-    try {
-      const formData = new FormData();
-      formData.append('name', tempInfo.name);
-      formData.append('subtitle', tempInfo.subtitle);
-      if (logoFile) {
-        formData.append('logo', logoFile);
-      }
-
-      const res = await api.post('/company-profile', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (res.data.status === 'success') {
-        const profile = res.data.data;
-        const finalLogoUrl = profile.logo_path ? getDocUrl(profile.logo_path) : tempInfo.logoUrl;
-        
-        const newData = {
-          name: profile.name,
-          subtitle: profile.subtitle || '',
-          logoUrl: finalLogoUrl
-        };
-
-        setCompanyInfo(newData);
-        setTempInfo(newData);
-        setIsEditMode(false);
-        setLogoFile(null);
-        
-        updateFaviconAndTitle(newData.name, newData.logoUrl);
-      }
-    } catch (error) {
-      console.error("Gagal menyimpan profil:", error);
-      const errorMsg = error.response?.data?.message || error.message;
-      alert(`Gagal menyimpan profil perusahaan: \n${errorMsg}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCancelCompany = () => {
-    setTempInfo(companyInfo);
-    setLogoFile(null);
-    setIsEditMode(false);
   };
 
   return (
@@ -223,15 +120,9 @@ export default function Sidebar() {
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
-        {/* ========================================== */}
-        {/* BAGIAN ATAS: INFO USER & NAVIGASI MENU */}
-        {/* ========================================== */}
         <div className="space-y-4">
           
-          {/* WRAPPER INFO USER DENGAN BORDER BAWAH (GARIS PEMISAH) */}
           <div className="flex flex-col gap-5 pb-5 border-b border-slate-200 dark:border-slate-700/60">
-            
-            {/* Versi App & Tombol Collapse */}
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-1`}>
               {!isCollapsed && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider bg-slate-200 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700/60 shadow-inner">
@@ -247,7 +138,6 @@ export default function Sidebar() {
               </button>
             </div>
 
-            {/* INFO USER LOGIN & AVATAR OTOMATIS */}
             <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? 'justify-center' : 'px-1'}`}>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-extrabold text-lg shadow-sm transition-all ${isCollapsed ? 'bg-amber-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200'}`}>
                 {getInitials(userData.name)}
@@ -263,10 +153,8 @@ export default function Sidebar() {
                 </div>
               )}
             </div>
-            
           </div>
 
-          {/* MENU NAVIGASI */}
           <nav className="space-y-1.5 pt-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -300,105 +188,32 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* ========================================== */}
-        {/* BAGIAN BAWAH: COMPANY INFO & KONTROL */}
-        {/* ========================================== */}
         <div className="flex flex-col mt-8">
           
-          {/* INFO PERUSAHAAN (Dapat Di-Edit) */}
-          <div className={`relative group ${isCollapsed ? 'flex justify-center' : 'px-1'} mb-5`}>
-            
-            {/* TOMBOL EDIT PERUSAHAAN HANYA MUNCUL JIKA MEMILIKI HAK AKSES */}
-            {!isCollapsed && !isEditMode && canEditCompany && (
-              <button 
-                onClick={() => setIsEditMode(true)}
-                className="absolute -top-3 right-0 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-all z-10 bg-white dark:bg-slate-800 text-slate-400 hover:text-amber-500 border border-slate-200 dark:border-slate-700 shadow-sm"
-                title="Edit Profil Perusahaan"
+          {/* IDENTITAS PERUSAHAAN (STATIS / HARDCODED) */}
+          <div className={`relative ${isCollapsed ? 'flex justify-center' : 'px-1'} mb-5`}>
+            <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
+              <div 
+                onClick={handleItemClick}
+                className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all bg-transparent drop-shadow-md"
+                title="PRISMA JASA KONSULINDO"
               >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {isEditMode && !isCollapsed ? (
-              <div className="flex flex-col items-center gap-3 mt-1 animate-fade-in p-3 rounded-xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700/50 shadow-sm">
-                <div 
-                  className={`w-16 h-16 flex items-center justify-center cursor-pointer overflow-hidden relative group/img transition-colors ${
-                    tempInfo.logoUrl 
-                      ? 'bg-transparent border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-amber-500' 
-                      : 'rounded-xl bg-slate-100 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-amber-500'
-                  }`}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {tempInfo.logoUrl ? (
-                    <img src={tempInfo.logoUrl} alt="Logo" className="w-full h-full object-contain" />
-                  ) : (
-                    <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500" />
-                  )}
-                  <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
-                    <UploadCloud className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-                <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
-
-                <div className="space-y-2 w-full">
-                  <input 
-                    type="text" 
-                    value={tempInfo.name} 
-                    onChange={(e) => setTempInfo({...tempInfo, name: e.target.value})}
-                    className="w-full rounded text-xs font-bold px-2 py-1.5 text-center focus:outline-none focus:border-amber-500 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white"
-                    placeholder="Nama Perusahaan"
-                  />
-                  <input 
-                    type="text" 
-                    value={tempInfo.subtitle} 
-                    onChange={(e) => setTempInfo({...tempInfo, subtitle: e.target.value})}
-                    className="w-full rounded text-[10px] px-2 py-1.5 text-center focus:outline-none focus:border-amber-500 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                    placeholder="Sub Judul"
-                  />
-                </div>
-
-                <div className="flex justify-center gap-2 w-full pt-1">
-                  <button onClick={handleCancelCompany} disabled={isSaving} className="flex-1 py-1.5 flex justify-center rounded-md transition-all bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 border border-slate-200 dark:border-slate-700 disabled:opacity-50">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={handleSaveCompany} disabled={isSaving} className="flex-1 py-1.5 flex justify-center rounded-md transition-all bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 disabled:opacity-50">
-                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+                <img src="/PRISMA.PNG" alt="Logo Prisma" className="w-full h-full object-contain" />
               </div>
-            ) : (
-              <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
-                <div 
-                  onClick={handleItemClick}
-                  className={`w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all ${
-                    companyInfo.logoUrl 
-                      ? 'bg-transparent drop-shadow-md' 
-                      : `rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 ${isCollapsed ? '' : 'shadow-sm'}`
-                  }`}
-                  title={companyInfo.name}
-                >
-                  {companyInfo.logoUrl ? (
-                    <img src={companyInfo.logoUrl} alt="Logo" className="w-full h-full object-contain" />
-                  ) : (
-                    <HardHat className="w-5 h-5 text-amber-500" />
-                  )}
-                </div>
 
-                {!isCollapsed && (
-                  <div className="whitespace-nowrap transition-opacity duration-200 flex-1 min-w-0">
-                    <h1 className="text-sm font-bold tracking-wide truncate text-slate-800 dark:text-white">
-                      {companyInfo.name}
-                    </h1>
-                    <p className="text-[10px] truncate text-amber-600 dark:text-amber-500/90 font-medium">
-                      {companyInfo.subtitle}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              {!isCollapsed && (
+                <div className="whitespace-nowrap transition-opacity duration-200 flex-1 min-w-0">
+                  <h1 className="text-sm font-bold tracking-wide truncate text-slate-800 dark:text-white">
+                    PRISMA JASA
+                  </h1>
+                  <p className="text-[10px] truncate text-amber-600 dark:text-amber-500/90 font-bold tracking-widest mt-0.5">
+                    KONSULINDO
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* KONTROL BAWAH (Mode Gelap & Logout) */}
           <div className="border-t border-slate-200 dark:border-slate-700/60 pt-4 flex flex-col gap-2">
             {isCollapsed ? (
               <button
@@ -440,7 +255,6 @@ export default function Sidebar() {
               {!isCollapsed && <span className="whitespace-nowrap">Keluar Akun</span>}
             </Link>
           </div>
-
         </div>
       </aside>
     </>
