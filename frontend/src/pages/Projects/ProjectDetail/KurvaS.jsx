@@ -25,6 +25,7 @@ export default function KurvaS({ selectedProject }) {
   // --- STATE FILTER RENTANG TANGGAL (DATE RANGE) ---
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
+  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); // Batas kalender
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -42,12 +43,26 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
+  // Helper Format Tanggal Indo
+  const formatIndoDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
   useEffect(() => {
     const fetchSchedule = async () => {
       setIsLoading(true);
       try {
         const res = await api.get(`/projects/${projectId}/schedules`);
         setScheduleData(res.data.data);
+
+        // Ekstrak Batas Tanggal Proyek untuk Pembatas Kalender
+        if (res.data.data?.project_info) {
+          setProjectBounds({
+            start: res.data.data.project_info.tanggal_mulai || '',
+            end: res.data.data.project_info.tanggal_selesai || ''
+          });
+        }
       } catch (error) {
         console.error("Gagal menarik data Kurva S:", error);
       } finally {
@@ -84,11 +99,13 @@ export default function KurvaS({ selectedProject }) {
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 
+      // --- PAYLOAD EXPORT DIPERBARUI DENGAN RENTANG TANGGAL PRESISI ---
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
         item_progress: itemProgressData,
         chart_data: filteredChartData, 
-        date_range: `${startDateFilter} to ${endDateFilter}`
+        start_date: startDateFilter,
+        end_date: endDateFilter
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -203,7 +220,7 @@ export default function KurvaS({ selectedProject }) {
 
     setFullChartData(tempChartData);
 
-    // Set Default Filter ke Range Awal dan Akhir Proyek
+    // Set Default Filter ke Range Awal dan Akhir Proyek jika kosong
     if (!startDateFilter && !endDateFilter && tempChartData.length > 0) {
       setStartDateFilter(tempChartData[0].dateString);
       setEndDateFilter(tempChartData[tempChartData.length - 1].dateString);
@@ -297,36 +314,48 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER */}
-            <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
-              <div className="pl-3 py-2 border-r border-slate-200 dark:border-slate-700/60 flex items-center bg-slate-100 dark:bg-slate-800/50 text-slate-500">
-                <CalendarDays className="w-3.5 h-3.5" />
+            {/* KAPSUL DATE RANGE FILTER (DENGAN BOUNDARY MARKING) */}
+            <div className="flex flex-col">
+              <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
+                <div className="pl-3 py-2 border-r border-slate-200 dark:border-slate-700/60 flex items-center bg-slate-100 dark:bg-slate-800/50 text-slate-500">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                </div>
+                <input 
+                  type="date" 
+                  value={startDateFilter} 
+                  min={projectBounds.start}
+                  max={endDateFilter || projectBounds.end}
+                  onChange={e => setStartDateFilter(e.target.value)} 
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  title="Tanggal Mulai Filter"
+                />
+                <span className="text-slate-400 text-[10px] font-bold px-1 bg-slate-100 dark:bg-slate-800/50 py-1.5 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
+                <input 
+                  type="date" 
+                  value={endDateFilter} 
+                  min={startDateFilter || projectBounds.start}
+                  max={projectBounds.end}
+                  onChange={e => setEndDateFilter(e.target.value)} 
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  title="Tanggal Akhir Filter"
+                />
               </div>
-              <input 
-                type="date" 
-                value={startDateFilter} 
-                onChange={e => setStartDateFilter(e.target.value)} 
-                className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-2 cursor-pointer [color-scheme:light_dark]" 
-                title="Tanggal Mulai Filter"
-              />
-              <span className="text-slate-400 text-[10px] font-bold px-1 bg-slate-100 dark:bg-slate-800/50 py-2 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
-              <input 
-                type="date" 
-                value={endDateFilter} 
-                onChange={e => setEndDateFilter(e.target.value)} 
-                className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-2 cursor-pointer [color-scheme:light_dark]" 
-                title="Tanggal Akhir Filter"
-              />
+              {/* TEKS BANTUAN RENTANG PROYEK ASLI */}
+              {projectBounds.start && projectBounds.end && (
+                <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-1 ml-1 font-medium tracking-wide">
+                  Batas Info: {formatIndoDate(projectBounds.start)} - {formatIndoDate(projectBounds.end)}
+                </span>
+              )}
             </div>
 
             {/* TOMBOL EXPORT HANYA UNTUK ROLE SELAIN TAMU */}
             {!isGuest && (
               <>
-                <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-start mt-2"></div>
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
                 </button>
               </>
@@ -518,7 +547,7 @@ export default function KurvaS({ selectedProject }) {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Sistem akan memotret grafik di rentang <strong>{startDateFilter} s/d {endDateFilter}</strong> dan menggabungkannya bersama <strong>Tabel Progress</strong> dan <strong>Evaluasi Deviasi</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>. 
+              Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Progress</strong> dan <strong>Evaluasi Deviasi</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>. 
             </p>
             <div className="flex gap-3">
               <button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
