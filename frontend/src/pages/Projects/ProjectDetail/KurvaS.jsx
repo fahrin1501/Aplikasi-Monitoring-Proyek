@@ -25,7 +25,7 @@ export default function KurvaS({ selectedProject }) {
   // --- STATE FILTER RENTANG TANGGAL (DATE RANGE) ---
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
-  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); // Batas kalender
+  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' });
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -43,7 +43,6 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
-  // Helper Format Tanggal Indo
   const formatIndoDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -56,7 +55,6 @@ export default function KurvaS({ selectedProject }) {
         const res = await api.get(`/projects/${projectId}/schedules`);
         setScheduleData(res.data.data);
 
-        // Ekstrak Batas Tanggal Proyek untuk Pembatas Kalender
         if (res.data.data?.project_info) {
           setProjectBounds({
             start: res.data.data.project_info.tanggal_mulai || '',
@@ -94,18 +92,20 @@ export default function KurvaS({ selectedProject }) {
     else setIsExportingPdf(true);
 
     try {
-      const canvas = await html2canvas(chartElement, { scale: 2, backgroundColor: '#ffffff' });
+      // PENYELESAIAN ERROR 500: Scale diturunkan menjadi 1 agar string Base64 lebih kecil
+      // Hal ini mencegah memori backend Laravel jebol saat membuat file PDF.
+      const canvas = await html2canvas(chartElement, { scale: 1, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/png');
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 
-      // --- PAYLOAD EXPORT DIPERBARUI DENGAN RENTANG TANGGAL PRESISI ---
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
         item_progress: itemProgressData,
         chart_data: filteredChartData, 
         start_date: startDateFilter,
-        end_date: endDateFilter
+        end_date: endDateFilter,
+        view_mode: 'rentang_tanggal' // Menjaga kompabilitas validasi backend
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -116,14 +116,13 @@ export default function KurvaS({ selectedProject }) {
       link.click();
       link.remove();
     } catch (error) {
-      alert(`Gagal mengunduh ${type}. Pastikan server menyala.`);
+      alert(`Gagal mengunduh ${type}. Internal Server Error (500).`);
     } finally {
       setIsExportingExcel(false);
       setIsExportingPdf(false);
     }
   };
 
-  // --- LOGIKA KALKULASI HARIAN ---
   useEffect(() => {
     if (!scheduleData) return;
 
@@ -220,25 +219,17 @@ export default function KurvaS({ selectedProject }) {
 
     setFullChartData(tempChartData);
 
-    // Set Default Filter ke Range Awal dan Akhir Proyek jika kosong
     if (!startDateFilter && !endDateFilter && tempChartData.length > 0) {
       setStartDateFilter(tempChartData[0].dateString);
       setEndDateFilter(tempChartData[tempChartData.length - 1].dateString);
     }
   }, [scheduleData]);
 
-  // --- EFEK FILTER RENTANG TANGGAL ---
   useEffect(() => {
     if (fullChartData.length === 0) return;
     let filtered = fullChartData;
-    
-    if (startDateFilter) {
-      filtered = filtered.filter(d => d.dateString >= startDateFilter);
-    }
-    if (endDateFilter) {
-      filtered = filtered.filter(d => d.dateString <= endDateFilter);
-    }
-    
+    if (startDateFilter) filtered = filtered.filter(d => d.dateString >= startDateFilter);
+    if (endDateFilter) filtered = filtered.filter(d => d.dateString <= endDateFilter);
     setChartData(filtered);
   }, [fullChartData, startDateFilter, endDateFilter]);
 
@@ -281,7 +272,6 @@ export default function KurvaS({ selectedProject }) {
   return (
     <div className="w-full space-y-5 pb-20 relative">
       
-      {/* SUNTIKAN CSS SCROLLBAR ELEGAN & MENYATU DENGAN TEMA */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -314,32 +304,29 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER (DENGAN BOUNDARY MARKING) */}
+            {/* KAPSUL DATE RANGE FILTER (IKON DIHAPUS) */}
             <div className="flex flex-col">
               <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
-                <div className="pl-3 py-2 border-r border-slate-200 dark:border-slate-700/60 flex items-center bg-slate-100 dark:bg-slate-800/50 text-slate-500">
-                </div>
                 <input 
                   type="date" 
                   value={startDateFilter} 
                   min={projectBounds.start}
                   max={endDateFilter || projectBounds.end}
                   onChange={e => setStartDateFilter(e.target.value)} 
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer [color-scheme:light_dark]" 
                   title="Tanggal Mulai Filter"
                 />
-                <span className="text-slate-400 text-[10px] font-bold px-1 bg-slate-100 dark:bg-slate-800/50 py-1.5 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
+                <span className="text-slate-400 text-[10px] font-bold px-1.5 bg-slate-100 dark:bg-slate-800/50 py-1.5 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
                 <input 
                   type="date" 
                   value={endDateFilter} 
                   min={startDateFilter || projectBounds.start}
                   max={projectBounds.end}
                   onChange={e => setEndDateFilter(e.target.value)} 
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer [color-scheme:light_dark]" 
                   title="Tanggal Akhir Filter"
                 />
               </div>
-              {/* TEKS BANTUAN RENTANG PROYEK ASLI */}
               {projectBounds.start && projectBounds.end && (
                 <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-1 ml-1 font-medium tracking-wide">
                   Batas Info: {formatIndoDate(projectBounds.start)} - {formatIndoDate(projectBounds.end)}
@@ -347,7 +334,6 @@ export default function KurvaS({ selectedProject }) {
               )}
             </div>
 
-            {/* TOMBOL EXPORT HANYA UNTUK ROLE SELAIN TAMU */}
             {!isGuest && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-start mt-2"></div>
@@ -361,7 +347,6 @@ export default function KurvaS({ selectedProject }) {
             )}
           </div>
 
-          {/* NAVIGASI MENU UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
             <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
             <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
@@ -386,8 +371,6 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 z-10 relative">
-        
-        {/* GRAFIK KURVA S (KIRI) */}
         <div id="chart-area" className="lg:col-span-7 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
             <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -420,7 +403,6 @@ export default function KurvaS({ selectedProject }) {
           </div>
         </div>
 
-        {/* TABEL PROGRES PER ITEM (KANAN) */}
         <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex flex-col overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
             <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-500" /> Total Progress Pekerjaan</h3>
@@ -465,7 +447,6 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* TABEL EVALUASI DEVIASI DINAMIS */}
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
           <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -535,9 +516,6 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI EXPORT (EXCEL / PDF)       */}
-      {/* ========================================== */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
