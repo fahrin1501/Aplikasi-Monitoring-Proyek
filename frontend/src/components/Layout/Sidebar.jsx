@@ -77,7 +77,7 @@ export default function Sidebar() {
 
   // --- MENU ITEMS ---
   const menuItems = [
-    { path: '/', label: 'Dashboard Utama', icon: Map },
+    { path: '/dashboard', label: 'Dashboard Utama', icon: Map },
     { path: '/projects', label: 'Daftar Project', icon: FolderKanban },
     { path: '/schedules', label: 'Time Schedule', icon: CalendarDays }, 
     { path: '/laporan', label: 'Daftar Laporan', icon: ClipboardList },
