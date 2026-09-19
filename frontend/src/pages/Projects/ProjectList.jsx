@@ -72,6 +72,10 @@ export default function ProjectList() {
   };
 
   useEffect(() => {
+    document.title = "PrismaGroup - Daftar Project";
+  }, []);
+
+  useEffect(() => {
     fetchProjects();
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {

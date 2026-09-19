@@ -71,6 +71,10 @@ export default function PetaGIS() {
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
+    document.title = "PrismaGroup - Peta GIS";
+  }, []);
+
+  useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
     if (userDataStr) {
       try {

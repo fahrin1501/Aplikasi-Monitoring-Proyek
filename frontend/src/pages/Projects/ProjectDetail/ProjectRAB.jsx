@@ -13,6 +13,10 @@ export default function ProjectRAB() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    document.title = "PrismaGroup - RAB";
+  }, []);
+
   // Hanya untuk cek tamu di root file
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {

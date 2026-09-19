@@ -32,6 +32,10 @@ export default function KurvaS({ selectedProject }) {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const filterMenuRef = useRef(null);
 
+  useEffect(() => {
+    document.title = "PrismaGroup - Kurva S";
+  }, []);
+
   // Klik di luar pop-up untuk menutup
   useEffect(() => {
     function handleClickOutside(event) {
