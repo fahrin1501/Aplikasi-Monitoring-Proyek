@@ -87,13 +87,13 @@ export default function ProjectData() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
 
-  // --- MENGAMBIL BASE URL OTOMATIS DARI KONFIGURASI API (UNTUK RAILWAY) ---
-  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : 'http://127.0.0.1:8000';
+  // --- ROUTING URL FILE (BERSIH & LANGSUNG KE RAILWAY) ---
+  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
 
   const getImageUrl = (filename) => {
     if (!filename) return null;
-    if (filename.startsWith('http')) return filename;
-    return `${BASE_URL}/storage/foto_proyek/${filename}`;
+    if (filename.startsWith('http')) return filename; // Jika dari API sudah full HTTPS
+    return `${BASE_URL}/storage/foto_proyek/${filename}`; // Tempel ke URL Railway
   };
 
   const getDocUrl = (path) => {
@@ -101,6 +101,7 @@ export default function ProjectData() {
     if (path.startsWith('http')) return path;
     return `${BASE_URL}/${path.replace(/^\//, '')}`;
   };
+  // ------------------------------------------------------
 
   const formatDateForInput = (val) => val ? String(val).substring(0, 10) : '';
 
