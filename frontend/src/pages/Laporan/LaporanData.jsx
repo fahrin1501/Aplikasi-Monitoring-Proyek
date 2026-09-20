@@ -54,11 +54,11 @@ export default function LaporanData() {
   const [showActModal, setShowActModal] = useState(false);
   const [actItem, setActItem] = useState({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null });
 
-  // STATE MODALS PERSONIL (YANG SEBELUMNYA HILANG)
+  // STATE MODALS PERSONIL
   const [showPersonilModal, setShowPersonilModal] = useState(false);
   const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '', index: null });
 
-  // STATE MODALS PERALATAN (YANG SEBELUMNYA HILANG)
+  // STATE MODALS PERALATAN
   const [showPeralatanModal, setShowPeralatanModal] = useState(false);
   const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '', index: null });
 
@@ -192,7 +192,7 @@ export default function LaporanData() {
     }
   };
 
-  // --- HANDLER MODALS PERSONIL & PERALATAN (YANG BARU DITAMBAHKAN) ---
+  // HANDLER MODALS PERSONIL & PERALATAN
   const openPersonilModal = (item = null, index = null) => {
     if (item) setPersonilForm({ id: item.id || Date.now(), peran: item.peran, jumlah: item.jumlah, index: index });
     else setPersonilForm({ id: Date.now(), peran: '', jumlah: '', index: null });
@@ -424,9 +424,7 @@ export default function LaporanData() {
 
       {/* Grid Informasi Utama */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Info Proyek & Pengawas */}
         <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative backdrop-blur-sm`}>
-          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
             <div className="space-y-3">
@@ -465,9 +463,8 @@ export default function LaporanData() {
           </div>
         </div>
 
-        {/* Info Cuaca Dinamis Multiple */}
+        {/* Info Cuaca (Dropdown Dinamis & Keterangan Mode Draf) */}
         <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative backdrop-blur-sm`}>
-          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
@@ -564,7 +561,6 @@ export default function LaporanData() {
 
       {/* Rincian Kegiatan */}
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
-        {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
         
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 pr-8 gap-2">
           <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
@@ -601,7 +597,6 @@ export default function LaporanData() {
                   )}
                 </div>
                 
-                {/* --- MENAMPILKAN TITIK KOORDINAT TUNGGAL --- */}
                 <div className="ml-9 mt-3 flex flex-wrap items-center gap-3">
                   {(keg.sta_awal || keg.sta_akhir) && (
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-sm text-[10px] w-full sm:w-auto">
@@ -641,7 +636,6 @@ export default function LaporanData() {
         
         {/* Personil */}
         <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
-          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
             <h3 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2">
@@ -688,7 +682,6 @@ export default function LaporanData() {
         
         {/* Peralatan */}
         <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
-          {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
 
           <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
             <h3 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
