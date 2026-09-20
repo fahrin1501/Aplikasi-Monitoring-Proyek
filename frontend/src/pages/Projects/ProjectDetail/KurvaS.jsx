@@ -4,7 +4,7 @@ import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
-  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock
+  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock, CalendarDays
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -25,7 +25,7 @@ export default function KurvaS({ selectedProject }) {
   // --- STATE FILTER RENTANG TANGGAL (DATE RANGE) ---
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
-  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' });
+  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); // Batas kalender
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -43,6 +43,7 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
+  // Helper Format Tanggal Indo
   const formatIndoDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -55,6 +56,7 @@ export default function KurvaS({ selectedProject }) {
         const res = await api.get(`/projects/${projectId}/schedules`);
         setScheduleData(res.data.data);
 
+        // Ekstrak Batas Tanggal Proyek untuk Pembatas Kalender
         if (res.data.data?.project_info) {
           setProjectBounds({
             start: res.data.data.project_info.tanggal_mulai || '',
@@ -79,9 +81,9 @@ export default function KurvaS({ selectedProject }) {
       case 'Preservasi Jalan': return 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
       default: return 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800/50';
     }
-  }
+  };
 
-const executeExport = async () => {
+  const executeExport = async () => {
     const type = exportModal.type;
     setExportModal({ show: false, type: '' }); 
 
@@ -92,25 +94,21 @@ const executeExport = async () => {
     else setIsExportingPdf(true);
 
     try {
-      // Scale 2 dikembalikan agar gambar PDF resolusinya tajam dan tidak blur
-      const canvas = await html2canvas(chartElement, { scale: 2, backgroundColor: '#ffffff' });
-      const base64Image = canvas.toDataURL('image/png');
+      // PERBAIKAN 1: Scale diturunkan ke 1.5, dan format diubah jadi JPEG dengan kompresi 0.8
+      // Ini WAJIB agar string Base64 menjadi sangat ringan dan tidak membuat server Laravel Error 500 karena kehabisan RAM.
+      const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
+      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 
-      // --- PERBAIKAN UTAMA DI SINI ---
+      // PERBAIKAN 2: view_mode: 'harian' diaktifkan kembali agar lolos validasi Laravel
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
         item_progress: itemProgressData,
         chart_data: filteredChartData, 
-        
-        // Kita tetap kirim tanggal untuk info tambahan (jika backend butuh)
         start_date: startDateFilter,
         end_date: endDateFilter,
-        
-        // KUNCI FIX: Paksa kembalikan view_mode menjadi 'harian' agar 
-        // Backend Laravel mengenalinya dan tidak memunculkan Error 500
-        view_mode: 'harian' 
+        view_mode: 'harian' // <--- PENYELAMAT VALIDASI
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -121,13 +119,15 @@ const executeExport = async () => {
       link.click();
       link.remove();
     } catch (error) {
-      alert(`Gagal mengunduh ${type}. Internal Server Error (500).`);
+      console.error("Export failed:", error);
+      alert(`Gagal mengunduh ${type}. Internal Server Error (500). Cek log Railway jika masih terjadi.`);
     } finally {
       setIsExportingExcel(false);
       setIsExportingPdf(false);
     }
   };
 
+  // --- LOGIKA KALKULASI HARIAN ---
   useEffect(() => {
     if (!scheduleData) return;
 
@@ -224,17 +224,25 @@ const executeExport = async () => {
 
     setFullChartData(tempChartData);
 
+    // Set Default Filter ke Range Awal dan Akhir Proyek jika kosong
     if (!startDateFilter && !endDateFilter && tempChartData.length > 0) {
       setStartDateFilter(tempChartData[0].dateString);
       setEndDateFilter(tempChartData[tempChartData.length - 1].dateString);
     }
   }, [scheduleData]);
 
+  // --- EFEK FILTER RENTANG TANGGAL ---
   useEffect(() => {
     if (fullChartData.length === 0) return;
     let filtered = fullChartData;
-    if (startDateFilter) filtered = filtered.filter(d => d.dateString >= startDateFilter);
-    if (endDateFilter) filtered = filtered.filter(d => d.dateString <= endDateFilter);
+    
+    if (startDateFilter) {
+      filtered = filtered.filter(d => d.dateString >= startDateFilter);
+    }
+    if (endDateFilter) {
+      filtered = filtered.filter(d => d.dateString <= endDateFilter);
+    }
+    
     setChartData(filtered);
   }, [fullChartData, startDateFilter, endDateFilter]);
 
@@ -277,6 +285,7 @@ const executeExport = async () => {
   return (
     <div className="w-full space-y-5 pb-20 relative">
       
+      {/* SUNTIKAN CSS SCROLLBAR ELEGAN & MENYATU DENGAN TEMA */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -309,7 +318,7 @@ const executeExport = async () => {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER (IKON DIHAPUS) */}
+            {/* KAPSUL DATE RANGE FILTER (IKON DIHAPUS, ADA BATAS MIN/MAX) */}
             <div className="flex flex-col">
               <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
                 <input 
@@ -332,6 +341,7 @@ const executeExport = async () => {
                   title="Tanggal Akhir Filter"
                 />
               </div>
+              {/* TEKS BANTUAN RENTANG PROYEK ASLI */}
               {projectBounds.start && projectBounds.end && (
                 <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-1 ml-1 font-medium tracking-wide">
                   Batas Info: {formatIndoDate(projectBounds.start)} - {formatIndoDate(projectBounds.end)}
@@ -339,6 +349,7 @@ const executeExport = async () => {
               )}
             </div>
 
+            {/* TOMBOL EXPORT HANYA UNTUK ROLE SELAIN TAMU */}
             {!isGuest && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-start mt-2"></div>
@@ -352,6 +363,7 @@ const executeExport = async () => {
             )}
           </div>
 
+          {/* NAVIGASI MENU UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
             <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
             <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
