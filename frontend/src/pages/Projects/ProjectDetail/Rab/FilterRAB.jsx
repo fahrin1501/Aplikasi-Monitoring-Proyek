@@ -15,7 +15,6 @@ export default function FilterRAB({ rabs, activeDivisi, setActiveDivisi, searchQ
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Jika tidak loading tapi data benar-benar kosong, sembunyikan filter
   if (!isLoading && rabs.length === 0) return null;
 
   return (
@@ -54,6 +53,7 @@ export default function FilterRAB({ rabs, activeDivisi, setActiveDivisi, searchQ
           {showFilter && (
             <div className="absolute right-0 top-full mt-2 w-full md:w-[350px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
               <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Divisi Pekerjaan</h4>
+              {/* Custom Scrollbar Injection */}
               <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
                 <button
                     onClick={() => { setActiveDivisi('Semua'); setShowFilter(false); }}

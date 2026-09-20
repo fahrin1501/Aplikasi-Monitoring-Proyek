@@ -14,7 +14,7 @@ export default function TabelRAB({
 
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
 
-  // MENGISOLASI LOADING HANYA DI DALAM TABEL INI
+  // LOADING TERISOLASI DI AREA TABEL
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
@@ -94,51 +94,7 @@ export default function TabelRAB({
             )}
           </div>
 
-          <div className="block lg:hidden divide-y divide-slate-100 dark:divide-slate-700/50">
-            {divisi.items.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Belum ada item di divisi ini.</div>
-            ) : (
-              divisi.items.map((item) => (
-                <div key={item.id} className={`p-4 ${item.is_subheader ? 'bg-slate-50 dark:bg-slate-800/40' : 'bg-white dark:bg-transparent'}`}>
-                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-3 leading-snug">
-                    {item.kode_pekerjaan && (
-                      <span className="text-amber-600 dark:text-amber-500 mr-2 font-mono text-xs">[{item.kode_pekerjaan}]</span>
-                    )}
-                    <span className={item.is_subheader ? 'uppercase tracking-wide' : ''}>{item.uraian_pekerjaan}</span>
-                  </h4>
-                  
-                  {!item.is_subheader && (
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div className="bg-blue-50/50 dark:bg-blue-950/10 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30">
-                        <span className="block text-[9px] font-bold text-blue-600 dark:text-blue-400 mb-1.5 tracking-wider uppercase">Rencana</span>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Vol</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{Number(item.volume)} {item.satuan}</span></p>
-                          {canViewPrices && <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Harga</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{formatRupiah(item.harga_satuan)}</span></p>}
-                          {canViewPrices && <div className="border-t border-blue-200 dark:border-blue-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-blue-700 dark:text-blue-400">{formatRupiah(item.total_harga)}</p></div>}
-                        </div>
-                      </div>
-                      <div className="bg-emerald-50/50 dark:bg-emerald-950/10 rounded-xl p-3 border border-emerald-100 dark:border-emerald-900/30">
-                        <span className="block text-[9px] font-bold text-emerald-600 dark:text-emerald-400 mb-1.5 tracking-wider uppercase">Realisasi</span>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Vol</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{item.actualVol} {item.satuan}</span></p>
-                          <p className="text-[10px] text-slate-600 dark:text-slate-400 flex justify-between"><span>Progres</span> <span className="font-semibold text-slate-800 dark:text-slate-200">{item.volume > 0 ? ((item.actualVol / item.volume) * 100).toFixed(1) : 0}%</span></p>
-                          {canViewPrices && <div className="border-t border-emerald-200 dark:border-emerald-800/30 my-1.5 pt-1.5"><p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{formatRupiah(item.actualTotal)}</p></div>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {isEditMode && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <button onClick={() => openItemModal(divisi.id, item.is_subheader, item)} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700/80 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-600"><Edit3 className="w-3.5 h-3.5" /> Edit</button>
-                      <button onClick={() => confirmDelete('item', item.id, item.uraian_pekerjaan)} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700/80 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-slate-700 dark:text-rose-400 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-600"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
+          {/* Table Custom Scrollbar Injection */}
           <div className="hidden lg:block overflow-x-auto custom-scrollbar">
             <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
               <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
@@ -213,6 +169,7 @@ export default function TabelRAB({
             </table>
           </div>
 
+          {/* Subtotal View */}
           {canViewPrices && (
             <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
               <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>

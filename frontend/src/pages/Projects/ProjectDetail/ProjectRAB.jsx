@@ -25,7 +25,7 @@ export default function ProjectRAB() {
   }, []);
   const isGuest = userRole === 'Tamu';
 
-  // Mengambil state awal dari navigasi agar data tidak kosong saat pertama kali dirender
+  // Mengambil state awal dari navigasi agar data tidak kosong saat loading
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [projectData, setProjectData] = useState(initialProject);
   
@@ -213,7 +213,7 @@ export default function ProjectRAB() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* SEMUA KOMPONEN SELALU DI RENDER (TIDAK ADA CONDITIONAL HIDING) */}
+      {/* SEMUA KOMPONEN SELALU DI RENDER SECARA BERURUTAN (ISOLASI LOADING DI DALAMNYA) */}
       <NavigasiRAB 
         id={id} 
         projectData={safeProjectData} 
@@ -238,7 +238,6 @@ export default function ProjectRAB() {
         isLoading={isLoading}
       />
       
-      {/* LOADING STATE DI ISOLASI HANYA DI DALAM TABEL */}
       <TabelRAB 
         rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
         openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}

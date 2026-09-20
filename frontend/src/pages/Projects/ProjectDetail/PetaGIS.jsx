@@ -332,7 +332,7 @@ export default function PetaGIS() {
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
           {/* ACTION BUTTONS: Tetap ada, disabled saat loading */}
-          {canCreateData && !isGisEmpty && (
+          {canCreateData && (!isGisEmpty || isLoading) && (
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
               {isEditMode && (
                 <button onClick={cancelEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
@@ -370,7 +370,7 @@ export default function PetaGIS() {
             Memuat Peta & Data Spasial...
           </p>
         </div>
-      ) : errorMsg || !projectData?.tanggal_mulai ? (
+      ) : errorMsg || !projectData?.id ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm text-center animate-fade-in">
           <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
           <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Proyek Tidak Ditemukan</h2>
