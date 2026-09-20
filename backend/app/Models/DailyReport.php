@@ -11,7 +11,7 @@ class DailyReport extends Model
 
     protected $fillable = [
         'project_id', 'tanggal', 'pengawas', 'lokasi',
-        'cuaca', 'status', 'verified_at' // <--- INI TAMBAHANNYA
+        'cuaca', 'kondisi_cuaca', 'status', 'verified_at' // <-- Tambahkan kondisi_cuaca disini
     ];
 
     public function project() {

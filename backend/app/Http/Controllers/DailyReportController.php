@@ -131,6 +131,7 @@ class DailyReportController extends Controller
                 'pengawas' => $request->pengawas,
                 'lokasi' => $request->lokasi,
                 'cuaca' => $request->cuaca,
+                'kondisi_cuaca' => $request->kondisi_cuaca, // <-- Menyimpan JSON array kondisi cuaca
                 'status' => 'pending',
             ]);
 
@@ -227,6 +228,7 @@ class DailyReportController extends Controller
                 'pengawas' => $request->pengawas ?? $report->pengawas,
                 'lokasi' => $request->lokasi ?? $report->lokasi,
                 'cuaca' => $request->cuaca ?? $report->cuaca,
+                'kondisi_cuaca' => $request->kondisi_cuaca ?? $report->kondisi_cuaca, // <-- Update kolom kondisi cuaca
                 'status' => 'pending', // Dikembalikan ke pending (progres turun)
                 'verified_at' => null
             ]);
