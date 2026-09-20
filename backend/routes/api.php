@@ -91,18 +91,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/gis-documents/{id}', [ProjectGisController::class, 'destroyDocument']);
 
     // --- 6. MANAJEMEN LAPORAN HARIAN ---
-    Route::get('/daily-reports', [DailyReportController::class, 'index']); 
-    Route::post('/projects/{projectId}/daily-reports', [DailyReportController::class, 'store']); 
+    Route::get('/daily-reports', [DailyReportController::class, 'index']);
+    Route::post('/projects/{projectId}/daily-reports', [DailyReportController::class, 'store']);
     Route::get('/projects/{projectId}/daily-reports', [DailyReportController::class, 'getByProject']);
-    Route::get('/daily-reports/{id}', [DailyReportController::class, 'show']); 
-    Route::put('/daily-reports/{id}', [DailyReportController::class, 'update']); 
-    Route::delete('/daily-reports/{id}', [DailyReportController::class, 'destroy']); 
+    Route::get('/daily-reports/{id}', [DailyReportController::class, 'show']);
+    Route::put('/daily-reports/{id}', [DailyReportController::class, 'update']);
+    Route::delete('/daily-reports/{id}', [DailyReportController::class, 'destroy']);
 
     Route::get('/daily-reports/{id}/export/pdf', [DailyReportController::class, 'exportPdf']);
     Route::get('/daily-reports/{id}/export/excel', [DailyReportController::class, 'exportExcel']);
-    Route::post('/daily-reports/{id}/attachments', [DailyReportController::class, 'uploadAttachment']); 
-    Route::delete('/daily-report-attachments/{id}', [DailyReportController::class, 'destroyAttachment']); 
-    Route::put('/daily-reports/{id}/verify', [DailyReportController::class, 'verifyReport']); 
+    Route::post('/daily-reports/{id}/attachments', [DailyReportController::class, 'uploadAttachment']);
+    Route::delete('/daily-report-attachments/{id}', [DailyReportController::class, 'destroyAttachment']);
+    Route::put('/daily-reports/{id}/verify', [DailyReportController::class, 'verifyReport']);
 
     // --- MANAJEMEN TIME SCHEDULE (RENCANA KURVA S) ---
     Route::get('/projects/{projectId}/schedules', [ProjectScheduleController::class, 'getSchedules']);
