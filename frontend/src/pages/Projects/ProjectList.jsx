@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { 
-  Search, Plus, Edit3, Trash2, Filter, X, RotateCw,
+  Search, Plus, Edit3, Trash2, Filter, X, 
   MapPin, Calendar, HardHat, 
   Loader2, AlertTriangle, Info, FileBox, CheckCircle2,
   UploadCloud, FileSpreadsheet
@@ -14,7 +14,6 @@ export default function ProjectList() {
   // --- STATE MANAJEMEN ---
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
   // --- SEARCH & FILTER ---
@@ -43,10 +42,9 @@ export default function ProjectList() {
       try {
         const user = JSON.parse(userDataStr);
         setUserRole(user.role || 'Tamu');
-      } catch (error) {
-        console.error("Gagal membaca data user:", error);
-      }
+      } catch (error) {}
     }
+    document.title = "PrismaGroup - Daftar Project";
   }, []);
 
   // Definisi Hak Akses
@@ -54,10 +52,8 @@ export default function ProjectList() {
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  const fetchProjects = async (showMainLoader = true) => {
-    if (showMainLoader) setIsLoading(true);
-    else setIsRefreshing(true);
-    
+  const fetchProjects = async () => {
+    setIsLoading(true);
     setErrorMsg('');
     try {
       const response = await api.get('/projects');
@@ -66,14 +62,9 @@ export default function ProjectList() {
     } catch (error) {
       setErrorMsg('Gagal memuat data proyek. Pastikan server terhubung.');
     } finally {
-      if (showMainLoader) setIsLoading(false);
-      else setIsRefreshing(false);
+      setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    document.title = "PrismaGroup - Daftar Project";
-  }, []);
 
   useEffect(() => {
     fetchProjects();
@@ -85,8 +76,6 @@ export default function ProjectList() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handleRefresh = () => fetchProjects(false);
 
   // --- LOGIKA HAPUS (DRAFT & PERMANENT) ---
   const confirmDelete = (e, id, name) => {
@@ -109,12 +98,12 @@ export default function ProjectList() {
     try {
       await Promise.all(stagedDeletions.map(id => api.delete(`/projects/${id}`)));
       setStagedDeletions([]); 
-      await fetchProjects(false); 
+      await fetchProjects(); 
       setIsEditMode(false); 
     } catch (error) {
       alert('Beberapa proyek gagal dihapus. Pastikan tidak ada data laporan yang masih terikat.');
       setStagedDeletions([]);
-      await fetchProjects(false);
+      await fetchProjects();
       setIsEditMode(false);
     } finally {
       setIsSavingEdit(false);
@@ -141,7 +130,7 @@ export default function ProjectList() {
       alert('Data proyek berhasil di-import!');
       setShowImportModal(false);
       setImportFile(null);
-      fetchProjects(false); 
+      fetchProjects(); 
     } catch (error) {
       const serverMsg = error.response?.data?.message || 'Gagal mengimpor file. Periksa koneksi atau format data.';
       alert(`Gagal Import: ${serverMsg}`);
@@ -150,14 +139,13 @@ export default function ProjectList() {
     }
   };
 
-  // --- PERBAIKAN URL FOTO SAMPUL ---
+  // --- ROUTING URL FOTO ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getImageUrl = (filename) => {
     if (!filename) return null;
-    if (filename.startsWith('http')) return filename; // Jika dari API sudah full URL
-    return `${BASE_URL}/storage/foto_proyek/${filename}`; // Menyambung ke URL Railway dinamis
+    if (filename.startsWith('http')) return filename; 
+    return `${BASE_URL}/storage/foto_proyek/${filename}`; 
   };
-  // ---------------------------------
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -195,7 +183,6 @@ export default function ProjectList() {
   return (
     <div className="space-y-6 w-full relative pb-20">
       
-      {/* Kustomisasi Scrollbar */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -215,24 +202,26 @@ export default function ProjectList() {
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
-          <button onClick={handleRefresh} disabled={isRefreshing || isLoading || isSavingEdit} className="p-2.5 md:p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm">
-            <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
-          </button>
-
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Cari proyek..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            <input 
+              type="text" 
+              placeholder="Cari proyek..." 
+              value={searchQuery} 
+              disabled={isLoading}
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+            />
           </div>
 
           <div className="relative" ref={filterRef}>
-            <button onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+            <button disabled={isLoading} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
               <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
             </button>
 
             {showFilter && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
                 <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Proyek</h4>
-                
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Proyek</label>
@@ -244,7 +233,6 @@ export default function ProjectList() {
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Kategori Proyek</label>
                     <div className="flex flex-wrap gap-2">
@@ -255,7 +243,6 @@ export default function ProjectList() {
                       ))}
                     </div>
                   </div>
-
                   {canViewFinance && (
                     <div>
                       <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Sumber Dana</label>
@@ -269,7 +256,6 @@ export default function ProjectList() {
                     </div>
                   )}
                 </div>
-
                 <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
                   <button onClick={() => { setFilters({ status: 'Semua', kategori: 'Semua', sumber_dana: 'Semua' }); setShowFilter(false); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors">Reset Semua</button>
                 </div>
@@ -281,26 +267,25 @@ export default function ProjectList() {
             <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
               {isEditMode ? (
                 <>
-                  <button onClick={handleBatalEdit} disabled={isSavingEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50">
+                  <button disabled={isLoading || isSavingEdit} onClick={handleBatalEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50">
                     <X className="w-4 h-4" /> Batal
                   </button>
-                  <button onClick={handleSelesaiEdit} disabled={isSavingEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700">
+                  <button disabled={isLoading || isSavingEdit} onClick={handleSelesaiEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700">
                     {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
                     {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
                   </button>
                 </>
               ) : (
-                <button onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap">
+                <button disabled={isLoading} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50">
                   <Edit3 className="w-4 h-4" /> Mode Edit
                 </button>
               )}
 
-              <button onClick={() => setShowImportModal(true)} disabled={isEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <button disabled={isLoading || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
               </button>
 
-              {/* PERBAIKAN: Tombol untuk menambah Proyek Baru diaktifkan kembali */}
-              <button onClick={() => navigate('/projects/tambah')} disabled={isEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <button disabled={isLoading || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
               </button>
             </div>
@@ -338,14 +323,14 @@ export default function ProjectList() {
         </div>
       )}
 
-      {/* --- KONTEN TABEL --- */}
+      {/* --- KONTEN TABEL & LOADING --- */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-          <p className="text-slate-500 font-medium text-sm">Memuat Data Proyek...</p>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data proyek...</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
               <thead>
@@ -358,7 +343,6 @@ export default function ProjectList() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
                 {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
-                  
                   const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
                   const isDelayed = displayStatus === 'Delayed';
 
@@ -367,10 +351,8 @@ export default function ProjectList() {
                       key={proj.id} 
                       className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
                     >
-                    
                       <td className="p-4 align-top flex items-start gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
-                          {/* Gambar sudah menggunakan getImageUrl yang diperbarui */}
                           {proj.foto_sampul ? (
                             <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
                           ) : (
@@ -543,6 +525,7 @@ export default function ProjectList() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

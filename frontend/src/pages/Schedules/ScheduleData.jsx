@@ -5,6 +5,10 @@ import {
   ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, Filter, ListPlus, Clock, Target, CheckCircle2, Trash2, ChevronDown, Plus 
 } from 'lucide-react';
 
+  useEffect(() => {
+    document.title = "PrismaGroup - Data Jadwal";
+  }, []);
+
 export default function ScheduleData() {
   const navigate = useNavigate();
   const location = useLocation();

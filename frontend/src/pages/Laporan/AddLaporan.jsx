@@ -82,6 +82,10 @@ export default function AddLaporan() {
     }
   }, [formData.tanggalPengawasan, selectedProject, projects]);
 
+    useEffect(() => {
+      document.title = "PrismaGroup - Laporan Baru";
+    }, []);
+
   useEffect(() => {
     if (!selectedProjectId) {
       setRabOptions([]);

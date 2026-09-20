@@ -6,6 +6,10 @@ import {
   ChevronDown, Calendar, Layers, Plus, Trash2, ListPlus, Activity
 } from 'lucide-react';
 
+  useEffect(() => {
+    document.title = "PrismaGroup - Buat Jadwal";
+  }, []);
+
 export default function AddSchedule() {
   const navigate = useNavigate();
 

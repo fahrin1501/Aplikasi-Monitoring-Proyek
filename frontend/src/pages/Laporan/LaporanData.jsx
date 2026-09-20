@@ -95,6 +95,10 @@ export default function LaporanData() {
     }
   };
 
+    useEffect(() => {
+      document.title = "PrismaGroup - Data Laporan";
+    }, []);
+
   useEffect(() => {
     if (reportId) fetchReport();
   }, [reportId]);
