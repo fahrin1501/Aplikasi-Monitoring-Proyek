@@ -17,7 +17,6 @@ export default function ProjectRAB() {
     document.title = "PrismaGroup - RAB";
   }, []);
 
-  // Hanya untuk cek tamu di root file
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -191,9 +190,9 @@ export default function ProjectRAB() {
     );
   }
 
-  if (isLoading || !projectData) return <div className="flex justify-center p-20"><Loader2 className="w-10 h-10 text-amber-500 animate-spin" /></div>;
-
-  const paguKontrak = Number(projectData.nilai_kontrak) || 1; 
+  // Parameter dari projectData (Bisa Error jika null saat Loading, makanya default object kosong)
+  const safeProjectData = projectData || {};
+  const paguKontrak = Number(safeProjectData.nilai_kontrak) || 1; 
   const pctRencanaRaw = (grandTotalRencana / paguKontrak) * 100;
   const pctRealisasiRaw = (grandTotalRealisasi / paguKontrak) * 100;
   const pctRencanaCSS = Math.min(pctRencanaRaw, 100);
@@ -201,31 +200,55 @@ export default function ProjectRAB() {
 
   return (
     <div className="w-full space-y-5 relative pb-20">
+      
+      {/* 1. NAVIGASI HEADER SELALU TAMPIL */}
+      {/* Kita lewatkan fallback object agar NavigasiRAB tidak error jika projectData belum load */}
       <NavigasiRAB 
-        id={id} projectData={projectData} isEditMode={isEditMode} setIsEditMode={setIsEditMode}
+        id={id} 
+        projectData={safeProjectData} 
+        isEditMode={isEditMode} 
+        setIsEditMode={setIsEditMode}
         openCatModal={() => { setCatForm({ id: null, kode_divisi: '', nama_kategori: '' }); setShowCatModal(true); }} 
-        setShowImportModal={setShowImportModal} setExportModal={setExportModal}
+        setShowImportModal={setShowImportModal} 
+        setExportModal={setExportModal}
       />
-      <SummaryRAB 
-        paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
-        pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
-        pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
-      />
-      <FilterRAB 
-        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
-        searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
-      />
-      <TabelRAB 
-        rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
-        openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
-        openItemModal={(catId, isSub, item) => {
-          if (item) setItemForm({ id: item.id, rab_category_id: catId, kode_pekerjaan: item.kode_pekerjaan || '', uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
-          else setItemForm({ id: null, rab_category_id: catId, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSub });
-          setShowItemModal(true);
-        }}
-        confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
-        setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
-      />
+
+      {/* 2. LOADING STATE VS MAIN CONTENT */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
+          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            Memuat Rencana Anggaran Biaya (RAB)...
+          </p>
+        </div>
+      ) : (
+        <div className="animate-fade-in space-y-5">
+          <SummaryRAB 
+            paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
+            pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
+            pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
+          />
+          
+          <FilterRAB 
+            rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+            searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
+          />
+          
+          <TabelRAB 
+            rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
+            openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
+            openItemModal={(catId, isSub, item) => {
+              if (item) setItemForm({ id: item.id, rab_category_id: catId, kode_pekerjaan: item.kode_pekerjaan || '', uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
+              else setItemForm({ id: null, rab_category_id: catId, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSub });
+              setShowItemModal(true);
+            }}
+            confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
+            setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
+          />
+        </div>
+      )}
+
+      {/* 3. MODAL SELALU DI RENDER AGAR STATE TIDAK HILANG */}
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
