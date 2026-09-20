@@ -53,6 +53,10 @@ export default function PetaGIS() {
   const location = useLocation();
   const { id } = useParams();
 
+    useEffect(() => {
+    document.title = "Prisma Group - Peta GIS";
+  }, []);
+
   // Gunakan state dari router agar UI langsung memiliki data dasar tanpa menunggu loading
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [projectData, setProjectData] = useState(initialProject);
@@ -77,7 +81,6 @@ export default function PetaGIS() {
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
-    document.title = "PrismaGroup - Peta GIS";
     const userDataStr = localStorage.getItem('user_data');
     if (userDataStr) {
       try {

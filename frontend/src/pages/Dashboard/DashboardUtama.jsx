@@ -17,6 +17,10 @@ export default function DashboardUtama() {
   // --- STATE MANAJEMEN ---
   const [isLoading, setIsLoading] = useState(true);
   const [kpiData, setKpiData] = useState({ totalProyek: 0, nilaiKontrak: '0', rataDeviasi: '0.00', proyekKritis: 0 });
+
+  useEffect(() => {
+      document.title = "Prisma Group - Dashboard";
+    }, []);
   
   const [chartProgressData, setChartProgressData] = useState([]);
   const [proyekAktif, setProyekAktif] = useState([]);

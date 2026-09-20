@@ -13,6 +13,10 @@ export default function KurvaS({ selectedProject }) {
   const location = useLocation();
   const { id } = useParams();
 
+    useEffect(() => {
+    document.title = "Prisma Group - Kurva S";
+  }, []);
+
   const project = selectedProject || location.state || { id: id, nama_proyek: 'Memuat Data...'};
   const projectId = project.id || id;
 
@@ -35,7 +39,6 @@ export default function KurvaS({ selectedProject }) {
   const [exportModal, setExportModal] = useState({ show: false, type: '' });
 
   useEffect(() => {
-    document.title = "PrismaGroup - Kurva S";
     const userDataStr = localStorage.getItem('user_data');
     if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
   }, []);

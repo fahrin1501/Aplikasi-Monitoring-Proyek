@@ -6,16 +6,16 @@ import {
   ChevronDown, Calendar, Layers, Plus, Trash2, ListPlus, Activity
 } from 'lucide-react';
 
-  useEffect(() => {
-    document.title = "PrismaGroup - Buat Jadwal";
-  }, []);
-
 export default function AddSchedule() {
   const navigate = useNavigate();
 
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    document.title = "Prisma Group - Jadwal Baru";
+  }, []);
 
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);

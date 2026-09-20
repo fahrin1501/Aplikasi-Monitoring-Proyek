@@ -12,8 +12,8 @@ export default function CompanyProfile() {
   
   // State untuk menampung identitas perusahaan dari database
   const [companyInfo, setCompanyInfo] = useState({
-    name: 'CONS-MONITORING',
-    subtitle: 'Consultant System',
+    name: 'PRISMA GROUP',
+    subtitle: 'Konsultan Konstruksi',
     logoUrl: ''
   });
 

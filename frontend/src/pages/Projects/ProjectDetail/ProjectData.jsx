@@ -13,6 +13,10 @@ export default function ProjectData() {
   const location = useLocation();
   const { id } = useParams();
 
+    useEffect(() => {
+    document.title = "Prisma Group - Data Utama";
+  }, []);
+
   // State Data Proyek (Bisa ambil sementara dari state router agar UI tidak kosong)
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [project, setProject] = useState(initialProject);
@@ -44,10 +48,6 @@ export default function ProjectData() {
 
   // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
-
-  useEffect(() => {
-    document.title = "PrismaGroup - Data Utama";
-  }, []);
 
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');

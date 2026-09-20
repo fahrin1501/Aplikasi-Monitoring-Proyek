@@ -14,6 +14,10 @@ export default function LaporanList() {
   const [laporanList, setLaporanList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    document.title = "Prisma Group - Daftar Laporan";
+  }, []);
   
   // --- SEARCH & FILTER ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,10 +85,6 @@ export default function LaporanList() {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    document.title = "Prisma Group - Daftar Laporan";
-  }, []);
 
   useEffect(() => {
     fetchLaporan();

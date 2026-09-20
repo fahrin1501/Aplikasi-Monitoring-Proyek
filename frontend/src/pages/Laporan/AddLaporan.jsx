@@ -24,6 +24,10 @@ export default function AddLaporan() {
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+      document.title = "Prisma Group - Laporan Baru";
+    }, []);
   
   const editData = location.state?.editData || null;
 
@@ -81,10 +85,6 @@ export default function AddLaporan() {
       setMingguKe(null);
     }
   }, [formData.tanggalPengawasan, selectedProject, projects]);
-
-    useEffect(() => {
-      document.title = "PrismaGroup - Laporan Baru";
-    }, []);
 
   useEffect(() => {
     if (!selectedProjectId) {

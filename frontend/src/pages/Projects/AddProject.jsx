@@ -14,7 +14,7 @@ export default function AddProject() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    document.title = "PrismaGroup - Proyek Baru";
+    document.title = "Prisma Group - Proyek Baru";
   }, []);
 
   // Form State Utama Proyek

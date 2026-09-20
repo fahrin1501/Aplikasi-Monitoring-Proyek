@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, Mail, Eye, EyeOff, HardHat, ShieldCheck, UserCheck, AlertCircle, User } from 'lucide-react';
 import api from '../../api';
@@ -11,6 +11,10 @@ export default function Login({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(''); 
   const navigate = useNavigate();
+
+  useEffect(() => {
+      document.title = "Prisma Group - Login";
+    }, []);
 
   // --- HANDLER LOGIN UTAMA ---
   const handleSubmit = async (e) => {

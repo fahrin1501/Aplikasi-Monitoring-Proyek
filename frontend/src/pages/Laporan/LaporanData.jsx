@@ -33,6 +33,10 @@ export default function LaporanData() {
   const location = useLocation();
   const { id } = useParams(); 
 
+  useEffect(() => {
+      document.title = "Prisma Group - Data Laporan";
+    }, []);
+
   const initialData = location.state?.laporan;
   const reportId = id || initialData?.id || initialData?.originalData?.id;
 
@@ -94,10 +98,6 @@ export default function LaporanData() {
       setIsLoading(false);
     }
   };
-
-    useEffect(() => {
-      document.title = "PrismaGroup - Data Laporan";
-    }, []);
 
   useEffect(() => {
     if (reportId) fetchReport();

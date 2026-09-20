@@ -15,6 +15,10 @@ export default function ScheduleList() {
   const [errorMsg, setErrorMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  useEffect(() => {
+    document.title = "Prisma Group - Daftar Jadwal";
+  }, []);
+
   // --- STATE EDIT MODE & DELETE ---
   const [isEditMode, setIsEditMode] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState({ show: false, projectId: null, projectName: '' });
@@ -51,11 +55,6 @@ export default function ScheduleList() {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    document.title = "PrismaGroup - Daftar Time Schedule";
-    fetchProjects();
-  }, []);
 
   // --- HANDLER HAPUS DATA JADWAL KE BACKEND ---
   const executeDelete = async () => {

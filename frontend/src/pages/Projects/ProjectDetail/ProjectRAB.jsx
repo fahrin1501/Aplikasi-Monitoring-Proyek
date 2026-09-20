@@ -15,7 +15,7 @@ export default function ProjectRAB() {
   const location = useLocation();
 
   useEffect(() => {
-    document.title = "PrismaGroup - RAB";
+    document.title = "Prisma Group - RAB";
   }, []);
 
   const [userRole, setUserRole] = useState('Tamu');

@@ -12,6 +12,10 @@ export default function AccountList() {
   const [isRefreshing, setIsRefreshing] = useState(false); 
   const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+      document.title = "Prisma Group - Daftar Akun";
+    }, []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('Semua');
 
