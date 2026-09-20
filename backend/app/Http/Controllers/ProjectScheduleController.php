@@ -186,13 +186,17 @@ class ProjectScheduleController extends Controller
         }
     }
 
-// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
+// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART (HANYA UNTUK EXCEL) ---
     private function saveChartImage($base64String)
     {
         if (!$base64String) return null;
-        $imageParts = explode(";base64,", $base64String);
 
-        // FIX ERROR 500: Deteksi otomatis apakah itu jpeg atau png dari header Base64
+        // Pastikan folder temp ada di server Railway
+        if (!Storage::disk('public')->exists('temp')) {
+            Storage::disk('public')->makeDirectory('temp');
+        }
+
+        $imageParts = explode(";base64,", $base64String);
         $extension = 'png';
         if (str_contains($imageParts[0], 'jpeg') || str_contains($imageParts[0], 'jpg')) {
             $extension = 'jpg';
@@ -201,42 +205,53 @@ class ProjectScheduleController extends Controller
         $decoded = base64_decode($imageParts[1]);
         $filename = 'kurva_' . time() . '.' . $extension;
 
-        // Simpan sementara di storage/app/public/temp
         Storage::disk('public')->put('temp/' . $filename, $decoded);
-        return public_path('storage/temp/' . $filename);
+
+        // Gunakan storage_path agar aman dibaca oleh PhpSpreadsheet di Linux
+        return storage_path('app/public/temp/' . $filename);
     }
 
-    // --- EXPORT PDF KURVA S (LENGKAP DENGAN TABEL) ---
+    // --- EXPORT PDF KURVA S ---
     public function exportKurvaPdf(Request $request, $projectId)
     {
-        $project = Project::findOrFail($projectId);
-        $imagePath = $this->saveChartImage($request->chart_image);
+        // 1. Naikkan limit memori server sesaat agar tidak jebol saat merender PDF
+        ini_set('max_execution_time', 300);
+        ini_set('memory_limit', '512M');
 
-        // Tangkap array dari Frontend
+        $project = Project::findOrFail($projectId);
+
+        // 2. KUNCI FIX: Langsung gunakan Base64 dari React!
+        // Jangan simpan ke file agar DomPDF tidak bingung mencari path di Railway.
+        $chartImageBase64 = $request->chart_image;
+
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
         $viewMode = $request->view_mode ?? 'harian';
 
-        // Tangkap Range Tanggal Filter
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        $pdf = Pdf::loadView('exports.kurva-s', compact('project', 'imagePath', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))->setPaper('a4', 'landscape');
+        // Kirim variabel $chartImageBase64 ke blade
+        $pdf = Pdf::loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
+                  ->setPaper('a4', 'landscape');
+
         return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
     }
 
-    // --- EXPORT EXCEL KURVA S (LENGKAP DENGAN TABEL) ---
+    // --- EXPORT EXCEL KURVA S ---
     public function exportKurvaExcel(Request $request, $projectId)
     {
+        ini_set('max_execution_time', 300);
+        ini_set('memory_limit', '512M');
+
         $project = Project::findOrFail($projectId);
+
+        // Excel wajib butuh physical path file
         $imagePath = $this->saveChartImage($request->chart_image);
 
-        // Tangkap array dari Frontend
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
         $viewMode = $request->view_mode ?? 'harian';
-
-        // Tangkap Range Tanggal Filter
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 

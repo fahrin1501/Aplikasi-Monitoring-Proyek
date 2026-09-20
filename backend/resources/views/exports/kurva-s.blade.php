@@ -25,9 +25,10 @@
         @endif
     </div>
 
-    @if(!isset($isExcel) && isset($imagePath) && file_exists($imagePath))
+
+    @if(!isset($isExcel) && isset($chartImageBase64))
         <div style="text-align: center; margin-bottom: 30px;">
-            <img src="{{ $imagePath }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
+            <img src="{{ $chartImageBase64 }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
         </div>
     @endif
 
