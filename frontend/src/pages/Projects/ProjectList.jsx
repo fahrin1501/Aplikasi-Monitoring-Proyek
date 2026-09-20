@@ -150,13 +150,15 @@ export default function ProjectList() {
     }
   };
 
+  // --- PERBAIKAN URL FOTO SAMPUL ---
+  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getImageUrl = (filename) => {
     if (!filename) return null;
-    if (filename.startsWith('http')) return filename;
-    return `http://127.0.0.1:8000/storage/foto_proyek/${filename}`;
+    if (filename.startsWith('http')) return filename; // Jika dari API sudah full URL
+    return `${BASE_URL}/storage/foto_proyek/${filename}`; // Menyambung ke URL Railway dinamis
   };
+  // ---------------------------------
 
-  // --- FUNGSI WARNA DINAMIS KATEGORI PROYEK ---
   const getCategoryStyle = (kat) => {
     switch (kat) {
       case 'Infrastruktur Jalan & Jembatan': return 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600';
@@ -168,7 +170,6 @@ export default function ProjectList() {
     }
   };
 
-  // --- LOGIKA FILTER DINAMIS ---
   const uniqueStatus = ['Semua', ...new Set(projects.map(p => p.status || 'Persiapan'))];
   const uniqueSumber = ['Semua', ...new Set(projects.map(p => p.sumber_dana).filter(Boolean))];
   const uniqueKategori = ['Semua', ...new Set(projects.map(p => p.kategori || 'Belum Ditentukan'))];
@@ -194,6 +195,15 @@ export default function ProjectList() {
   return (
     <div className="space-y-6 w-full relative pb-20">
       
+      {/* Kustomisasi Scrollbar */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+
       {/* --- TOP ACTION BAR --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -246,7 +256,6 @@ export default function ProjectList() {
                     </div>
                   </div>
 
-                  {/* FILTER SUMBER DANA HANYA UNTUK ROLE TERTENTU */}
                   {canViewFinance && (
                     <div>
                       <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Sumber Dana</label>
@@ -268,7 +277,6 @@ export default function ProjectList() {
             )}
           </div>
 
-          {/* TAMPILKAN TOMBOL AKSI HANYA JIKA ROLE MEMILIKI AKSES BIKIN/EDIT DATA */}
           {canCreateData && (
             <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
               {isEditMode ? (
@@ -291,6 +299,7 @@ export default function ProjectList() {
                 <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
               </button>
 
+              {/* PERBAIKAN: Tombol untuk menambah Proyek Baru diaktifkan kembali */}
               <button onClick={() => navigate('/projects/tambah')} disabled={isEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
               </button>
@@ -337,7 +346,7 @@ export default function ProjectList() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -350,7 +359,6 @@ export default function ProjectList() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
                 {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
                   
-                  // MENYAMARKAN STATUS NEGATIF (DELAYED) BAGI TAMU
                   const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
                   const isDelayed = displayStatus === 'Delayed';
 
@@ -362,6 +370,7 @@ export default function ProjectList() {
                     
                       <td className="p-4 align-top flex items-start gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
+                          {/* Gambar sudah menggunakan getImageUrl yang diperbarui */}
                           {proj.foto_sampul ? (
                             <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
                           ) : (
@@ -370,7 +379,6 @@ export default function ProjectList() {
                         </div>
                         
                         <div>
-                          {/* TAG BARIS ATAS: STATUS, TAHUN, DAN KATEGORI */}
                           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                              <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
                                isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
@@ -397,7 +405,6 @@ export default function ProjectList() {
                           <span className="truncate" title={proj.konsultan || 'Belum diset'}>{proj.konsultan || 'Konsultan Belum Diset'}</span>
                         </div>
                         
-                        {/* SUMBER DANA HANYA UNTUK ROLE DENGAN AKSES KEUANGAN */}
                         {canViewFinance && (
                           <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             <span>Sumber : <strong className="text-slate-700 dark:text-slate-300">{proj.sumber_dana || 'N/A'}</strong></span>
@@ -536,7 +543,6 @@ export default function ProjectList() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
