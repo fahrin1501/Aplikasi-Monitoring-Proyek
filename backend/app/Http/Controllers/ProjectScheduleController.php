@@ -186,29 +186,28 @@ class ProjectScheduleController extends Controller
         }
     }
 
-// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
+// ==========================================================
+    // 1. FUNGSI PENYIMPANAN GAMBAR ANTI-ERROR DI LINUX/RAILWAY
+    // ==========================================================
     private function saveChartImage($base64String)
     {
         if (!$base64String) return null;
 
-        if (!Storage::disk('public')->exists('temp')) {
-            Storage::disk('public')->makeDirectory('temp');
-        }
+        $parts = explode(";base64,", $base64String);
+        if (count($parts) < 2) return null;
 
-        $imageParts = explode(";base64,", $base64String);
-        $extension = 'png';
-        if (str_contains($imageParts[0], 'jpeg') || str_contains($imageParts[0], 'jpg')) {
-            $extension = 'jpg';
-        }
+        $decoded = base64_decode($parts[1]);
 
-        $decoded = base64_decode($imageParts[1]);
-        $filename = 'kurva_' . time() . '.' . $extension;
+        // BYPASS STORAGE LARAVEL: Simpan langsung ke sistem OS
+        $tempPath = sys_get_temp_dir() . '/' . uniqid('kurva_') . '.png';
+        file_put_contents($tempPath, $decoded);
 
-        Storage::disk('public')->put('temp/' . $filename, $decoded);
-        return storage_path('app/public/temp/' . $filename);
+        return $tempPath;
     }
 
-    // --- EXPORT PDF KURVA S ---
+    // ==========================================================
+    // 2. EXPORT PDF KURVA S
+    // ==========================================================
     public function exportKurvaPdf(Request $request, $projectId)
     {
         ini_set('max_execution_time', 300);
@@ -216,7 +215,7 @@ class ProjectScheduleController extends Controller
 
         $project = Project::findOrFail($projectId);
 
-        // Baca Base64 langsung agar DomPDF tidak crash
+        // Baca Base64 langsung agar DomPDF tidak perlu mencari file fisik
         $chartImageBase64 = $request->chart_image;
 
         $itemProgress = $request->item_progress ?? [];
@@ -230,13 +229,17 @@ class ProjectScheduleController extends Controller
         return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
     }
 
-    // --- EXPORT EXCEL KURVA S ---
+    // ==========================================================
+    // 3. EXPORT EXCEL KURVA S
+    // ==========================================================
     public function exportKurvaExcel(Request $request, $projectId)
     {
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
+
+        // Excel butuh file fisik, gunakan Temp OS Path yang 100% aman
         $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];

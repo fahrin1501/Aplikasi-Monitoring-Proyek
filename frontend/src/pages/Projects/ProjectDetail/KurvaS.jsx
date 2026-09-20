@@ -86,10 +86,9 @@ export default function KurvaS({ selectedProject }) {
     else setIsExportingPdf(true);
 
     try {
-      // PENYELAMAT ERROR 500 SERVER RAILWAY (KOMPRESI):
-      // Mengubah ke scale 1 dan format JPEG agar sangat ringan dikirim ke Server.
+      // KEMBALI KE FORMAT PNG ASLI DENGAN SCALE 1 (Aman untuk server)
       const canvas = await html2canvas(chartElement, { scale: 1, backgroundColor: '#ffffff' });
-      const base64Image = canvas.toDataURL('image/jpeg', 0.6);
+      const base64Image = canvas.toDataURL('image/png');
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 
@@ -108,7 +107,7 @@ export default function KurvaS({ selectedProject }) {
       link.click();
       link.remove();
     } catch (error) {
-      alert(`Gagal mengunduh ${type}. Terjadi masalah pada jaringan atau server.`);
+      alert(`Gagal mengunduh ${type}. Internal Server Error (500).`);
     } finally {
       setIsExportingExcel(false);
       setIsExportingPdf(false);
