@@ -90,8 +90,8 @@ export default function KurvaS({ selectedProject }) {
     else setIsExportingPdf(true);
 
     try {
-      const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
-      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+      const canvas = await html2canvas(chartElement, { scale: 1, backgroundColor: '#ffffff' });
+      const base64Image = canvas.toDataURL('image/jpeg', 0.6);
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 

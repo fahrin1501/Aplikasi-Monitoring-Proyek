@@ -25,10 +25,10 @@
         @endif
     </div>
 
-
-    @if(!isset($isExcel) && isset($chartImageBase64))
+    @if(!isset($isExcel) && isset($imagePath) && file_exists($imagePath))
         <div style="text-align: center; margin-bottom: 30px;">
-            <img src="{{ $chartImageBase64 }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
+            <!-- TRIK RAHASIA: PHP yang memproses gambar menjadi Base64, mem-bypass error Symlink DomPDF -->
+            <img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents($imagePath)) }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
         </div>
     @endif
 

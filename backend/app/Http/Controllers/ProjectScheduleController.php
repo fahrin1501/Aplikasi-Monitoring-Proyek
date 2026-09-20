@@ -186,12 +186,14 @@ class ProjectScheduleController extends Controller
         }
     }
 
-// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART (HANYA UNTUK EXCEL) ---
+// ==========================================================
+    // --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
+    // ==========================================================
     private function saveChartImage($base64String)
     {
         if (!$base64String) return null;
 
-        // Pastikan folder temp ada di server Railway
+        // Pastikan folder temp ada di server
         if (!Storage::disk('public')->exists('temp')) {
             Storage::disk('public')->makeDirectory('temp');
         }
@@ -211,18 +213,19 @@ class ProjectScheduleController extends Controller
         return storage_path('app/public/temp/' . $filename);
     }
 
+    // ==========================================================
     // --- EXPORT PDF KURVA S ---
+    // ==========================================================
     public function exportKurvaPdf(Request $request, $projectId)
     {
-        // 1. Naikkan limit memori server sesaat agar tidak jebol saat merender PDF
+        // Beri napas panjang untuk server Railway
         ini_set('max_execution_time', 300);
-        ini_set('memory_limit', '512M');
+        ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
 
-        // 2. KUNCI FIX: Langsung gunakan Base64 dari React!
-        // Jangan simpan ke file agar DomPDF tidak bingung mencari path di Railway.
-        $chartImageBase64 = $request->chart_image;
+        // Memanggil fungsi saveChartImage yang ada di atas
+        $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
@@ -231,22 +234,25 @@ class ProjectScheduleController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        // Kirim variabel $chartImageBase64 ke blade
-        $pdf = Pdf::loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
+        // Nyalakan isRemoteEnabled agar DomPDF tidak error saat membaca gambar
+        $pdf = Pdf::setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true])
+                  ->loadView('exports.kurva-s', compact('project', 'imagePath', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
                   ->setPaper('a4', 'landscape');
 
         return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
     }
 
+    // ==========================================================
     // --- EXPORT EXCEL KURVA S ---
+    // ==========================================================
     public function exportKurvaExcel(Request $request, $projectId)
     {
         ini_set('max_execution_time', 300);
-        ini_set('memory_limit', '512M');
+        ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
 
-        // Excel wajib butuh physical path file
+        // Memanggil fungsi saveChartImage yang ada di atas
         $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];
