@@ -4,7 +4,7 @@ import api from '../../api';
 import { 
   Search, Eye, Plus, FileSpreadsheet, Calendar, MapPin, 
   UserCheck, ListTodo, Users, 
-  Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2
+  Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2, FileBox, Info
 } from 'lucide-react';
 
 export default function LaporanList() {
@@ -44,6 +44,7 @@ export default function LaporanList() {
     }
   }, []);
 
+  // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
@@ -94,7 +95,7 @@ export default function LaporanList() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- BATCH DELETE LOGIC ---
+  // --- BATCH DELETE LOGIC (MODE EDIT DRAF) ---
   const confirmDelete = (e, id, name) => {
     e.stopPropagation();
     setDeleteConfig({ show: true, id, name });
@@ -110,6 +111,7 @@ export default function LaporanList() {
       setIsEditMode(false);
       return;
     }
+
     setIsSavingEdit(true);
     try {
       await Promise.all(stagedDeletions.map(id => api.delete(`/daily-reports/${id}`)));
@@ -135,7 +137,7 @@ export default function LaporanList() {
     return arrayData.reduce((total, item) => total + (Number(item.jumlah) || 0), 0);
   };
 
-  // --- LOGIKA FILTER ---
+  // --- LOGIKA FILTER DINAMIS ---
   const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
   const clearFilter = (key) => {
     if (key === 'tanggal') {
@@ -167,11 +169,11 @@ export default function LaporanList() {
 
   const visibleLaporan = filteredLaporan.filter(l => !stagedDeletions.includes(l.id));
 
-  // --- PEWARNAAN STATUS ---
+  // --- FUNGSI PEWARNAAN STATUS KONSISTEN ---
   const getStatusStyles = (status) => {
-    if (status === 'approved') return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400";
-    if (status === 'rejected') return "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400";
-    return "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"; 
+    if (status === 'approved') return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30";
+    if (status === 'rejected') return "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30";
+    return "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30"; 
   };
 
   const getStatusText = (status) => {
@@ -188,219 +190,244 @@ export default function LaporanList() {
   ];
 
   return (
-    <div className="w-full min-h-screen p-4 md:p-6 lg:p-8 font-sans bg-gray-50/50 dark:bg-gray-900/50 flex flex-col">
+    <div className="space-y-6 w-full relative pb-20">
       
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+      {/* GLOBAL STYLE SCROLLBAR UNTUK KONSISTENSI */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+
+      {/* --- TOP ACTION BAR --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
-            <FileSpreadsheet className="text-blue-600 dark:text-blue-400" size={32} />
+          {/* Typografi disamakan dengan ProjectList */}
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Laporan
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Monitor dan kelola entri laporan pengawasan harian.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian Anda.</p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* SEARCH INPUT */}
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+          
+          {/* Search Input */}
+          <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text" 
               placeholder="Cari laporan..." 
+              value={searchQuery} 
               disabled={isLoading}
-              className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none backdrop-blur-sm transition-all text-sm disabled:opacity-50"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
             />
           </div>
 
-          {/* FILTER DROPDOWN */}
+          {/* Filter Dropdown Pop-up */}
           <div className="relative" ref={filterRef}>
             <button 
               disabled={isLoading}
               onClick={() => setShowFilter(!showFilter)} 
-              className={`p-2.5 border rounded-xl flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50 ${
-                showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate 
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600' 
-                  : 'bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
             >
-              <Filter size={20} />
+              <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
             </button>
 
             {showFilter && (
-              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 p-5 z-50">
-                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Filter Laporan</h4>
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Laporan</h4>
                 
-                <div className="space-y-5">
+                <div className="space-y-4">
+                  {/* TAG FILTER: STATUS */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Status Laporan</label>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Laporan</label>
                     <div className="flex flex-wrap gap-2">
-                      {statusOptions.map(opt => (
-                        <button 
-                          key={opt.value}
-                          onClick={() => handleFilterChange('status', opt.value)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                            filters.status === opt.value 
-                              ? 'bg-blue-600 text-white border-blue-600' 
-                              : 'bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                      {statusOptions.map(opt => {
+                        const isActive = filters.status === opt.value;
+                        return (
+                          <button 
+                            key={opt.value}
+                            onClick={() => handleFilterChange('status', opt.value)}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${
+                              isActive 
+                                ? 'bg-amber-500 text-white border-amber-600' 
+                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 
+                  {/* FILTER RENTANG TANGGAL */}
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Rentang Tanggal</label>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Rentang Tanggal</label>
                     <div className="flex items-center gap-2">
                       <input 
                         type="date" 
                         value={filters.startDate} 
                         onChange={(e) => handleFilterChange('startDate', e.target.value)} 
-                        className="flex-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-800 dark:text-white outline-none" 
+                        className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-2 text-[11px] text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none [color-scheme:light_dark]" 
                       />
-                      <span className="text-gray-400 text-xs">s/d</span>
+                      <span className="text-slate-400 text-[10px] font-bold">s/d</span>
                       <input 
                         type="date" 
                         value={filters.endDate} 
                         onChange={(e) => handleFilterChange('endDate', e.target.value)} 
-                        className="flex-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-800 dark:text-white outline-none" 
+                        className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-2 text-[11px] text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none [color-scheme:light_dark]" 
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                  <button onClick={() => { setFilters({ status: 'Semua', startDate: '', endDate: '' }); setShowFilter(false); }} className="text-xs font-bold text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">Reset Filter</button>
+                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+                  <button onClick={() => { setFilters({ status: 'Semua', startDate: '', endDate: '' }); setShowFilter(false); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors">Reset Semua</button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ACTION BUTTONS (RBAC) */}
+          {/* TAMPILKAN TOMBOL AKSI HANYA JIKA PUNYA HAK AKSES CREATE */}
           {canCreateData && (
-            <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
               {isEditMode ? (
                 <>
-                  <button onClick={handleBatalEdit} disabled={isSavingEdit || isLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-xl transition-all border border-gray-300 dark:border-gray-600 disabled:opacity-50">
-                    <X size={18} /> Batal
+                  <button onClick={handleBatalEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <X className="w-4 h-4" /> Batal
                   </button>
-                  <button onClick={handleSelesaiEdit} disabled={isSavingEdit || isLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm border border-rose-700 disabled:opacity-50">
-                    {isSavingEdit ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />} 
-                    {isSavingEdit ? 'Memproses...' : 'Eksekusi'}
+                  <button onClick={handleSelesaiEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700 disabled:cursor-not-allowed">
+                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
+                    {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
                   </button>
                 </>
               ) : (
-                <button onClick={() => setIsEditMode(true)} disabled={isLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white/50 dark:bg-gray-800/50 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-gray-200 dark:border-gray-700 hover:border-rose-300 shadow-sm text-gray-700 dark:text-gray-300 hover:text-rose-600 text-sm font-bold rounded-xl transition-all backdrop-blur-sm disabled:opacity-50">
-                  <Edit3 size={18} /> Mode Edit
+                <button onClick={() => setIsEditMode(true)} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Edit3 className="w-4 h-4" /> Mode Edit
                 </button>
               )}
 
-              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || isLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md disabled:opacity-50">
-                <Plus size={18} /> Buat Laporan
+              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                <Plus className="w-4 h-4" /> <span>Buat Laporan</span>
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* FILTER TAGS AKTIF */}
+      {/* --- TAGS FILTER AKTIF --- */}
       {(filters.status !== 'Semua' || filters.startDate || filters.endDate) && (
-        <div className="flex flex-wrap gap-2 mb-6 -mt-2">
+        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           {filters.status !== 'Semua' && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-600 text-xs font-bold rounded-full border border-amber-500/20">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[10px] font-bold rounded-lg border border-amber-200 dark:border-amber-500/20">
               Status: {getStatusText(filters.status)}
-              <button onClick={() => clearFilter('status')} className="hover:bg-amber-500/20 p-0.5 rounded-full transition-colors"><X size={14}/></button>
+              <button onClick={() => clearFilter('status')} className="hover:bg-amber-200 dark:hover:bg-amber-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
             </span>
           )}
           {(filters.startDate || filters.endDate) && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-600 text-xs font-bold rounded-full border border-blue-500/20">
-              Tanggal: {filters.startDate || 'Awal'} - {filters.endDate || 'Akhir'}
-              <button onClick={() => clearFilter('tanggal')} className="hover:bg-blue-500/20 p-0.5 rounded-full transition-colors"><X size={14}/></button>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20">
+              Tanggal: {filters.startDate || 'Awal'} s/d {filters.endDate || 'Akhir'}
+              <button onClick={() => clearFilter('tanggal')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
             </span>
           )}
         </div>
       )}
 
-      {/* NOTIFIKASI ERROR */}
+      {/* ERROR MESSAGE */}
       {errorMsg && (
-        <div className="p-4 mb-6 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-600 text-sm font-medium">
-          <AlertTriangle size={18} /> {errorMsg}
+        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
+          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
         </div>
       )}
 
-      {/* LOADING STATE */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center flex-1 w-full bg-white/70 dark:bg-gray-800/40 backdrop-blur-md border border-gray-200/60 dark:border-white/10 rounded-2xl shadow-sm min-h-[400px]">
-          <Loader2 size={40} className="text-blue-500 animate-spin mb-4" />
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Memuat data laporan harian...</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
+          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data laporan...</p>
         </div>
       ) : (
         <>
-          {/* MOBILE VIEW (CARD) */}
-          <div className="grid grid-cols-1 gap-4 md:hidden mb-8">
+          {/* ========================================== */}
+          {/* TAMPILAN MOBILE: KUMPULAN KARTU (Diselaraskan dengan ProjectList) */}
+          {/* ========================================== */}
+          <div className="block md:hidden space-y-4">
             {visibleLaporan.length > 0 ? (
               visibleLaporan.map((laporan) => {
                 const totalPersonil = hitungTotal(laporan.personil);
                 const totalAlat = hitungTotal(laporan.peralatan);
+
                 const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
 
                 return (
-                  <div key={laporan.id} className={`p-5 rounded-2xl border bg-white/70 dark:bg-gray-800/40 backdrop-blur-md shadow-sm flex flex-col gap-4 relative overflow-hidden transition-all ${isEditMode ? 'border-rose-500/50 ring-2 ring-rose-500/20' : 'border-gray-200/60 dark:border-white/10'}`}>
-                    
-                    {laporan.isNew && !isEditMode && (
-                      <div className="absolute top-0 right-0 bg-rose-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">New</div>
-                    )}
-
-                    {isEditMode && canCreateData && (
-                      <div className="absolute inset-0 bg-gray-900/10 dark:bg-gray-900/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                        <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="p-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full shadow-lg transition-transform hover:scale-110">
-                          <Trash2 size={24} />
-                        </button>
+                  <div key={laporan.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
+                    <div className="flex items-start gap-3">
+                      {/* Icon Avatar Box yang selaras dengan ProjectList */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
+                        <FileSpreadsheet className="w-6 h-6 text-amber-500" />
+                        {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>}
                       </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">{laporan.nomorLaporan}</p>
-                      <h3 className="font-semibold text-gray-900 dark:text-white leading-tight line-clamp-2">{laporan.namaProyek}</h3>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-y-3 text-sm border-y border-gray-100 dark:border-gray-700/50 py-3">
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1"><UserCheck size={14}/> Pengawas</p>
-                        <p className="font-medium text-gray-800 dark:text-gray-200 mt-1">{laporan.namaPengawas}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1"><Calendar size={14}/> Tanggal</p>
-                        <p className="font-medium text-gray-800 dark:text-gray-200 mt-1">{laporan.tanggalPengawasan}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1"><MapPin size={14}/> Lokasi</p>
-                        <p className="font-medium text-gray-800 dark:text-gray-200 mt-1 line-clamp-1">{laporan.lokasi}</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50/50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
-                      <div className="flex items-start gap-2">
-                        <ListTodo size={16} className="text-amber-500 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-2">{laporan.kegiatan[0] || 'Tidak ada kegiatan'}</p>
-                          {laporan.kegiatan.length > 1 && <p className="text-xs text-blue-500 mt-1 font-semibold">+ {laporan.kegiatan.length - 1} kegiatan lain</p>}
+                      
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
+                            {getStatusText(finalStatus)}
+                          </span>
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                            {laporan.nomorLaporan}
+                          </span>
                         </div>
+                        <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2">{laporan.namaProyek}</div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between mt-2 pt-2">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border uppercase tracking-wide ${getStatusStyles(finalStatus)}`}>
-                        {finalStatus === 'approved' ? <CheckCircle2 size={14}/> : <Clock size={14}/>} {getStatusText(finalStatus)}
-                      </span>
-                      {!isEditMode && (
-                        <button onClick={() => navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } })} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-semibold flex items-center gap-2 text-sm">
-                          <Eye size={18} /> Buka
+                    <div className="flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 shrink-0"/> {laporan.namaPengawas}</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0"/> <span className="line-clamp-1">{laporan.lokasi}</span></span>
+                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {laporan.tanggalPengawasan}</span>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-700/40 flex items-start gap-2">
+                      <ListTodo className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-slate-700 dark:text-slate-200 text-xs leading-relaxed line-clamp-2">
+                          {laporan.kegiatan[0] || 'Tidak ada uraian kegiatan'}
+                        </p>
+                        {laporan.kegiatan.length > 1 && (
+                          <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            + {laporan.kegiatan.length - 1} Kegiatan lainnya
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Total Personil</span>
+                        <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          {totalPersonil} Orang
+                        </span>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                        <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Total Alat</span>
+                        <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                          {totalAlat} Unit
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action buttons selaras dengan ProjectList */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
+                      {isEditMode ? (
+                        <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
+                          <Trash2 className="w-4 h-4" /> Hapus
+                        </button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2.5 w-full justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                          <Eye className="w-4 h-4" /> Buka Data Laporan
                         </button>
                       )}
                     </div>
@@ -408,133 +435,154 @@ export default function LaporanList() {
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-white/70 dark:bg-gray-800/40 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-white/10 shadow-sm">
-                <FileSpreadsheet size={40} className="mx-auto text-gray-400 mb-3" />
-                <p className="font-semibold text-gray-700 dark:text-gray-300">Laporan tidak ditemukan.</p>
-                <p className="text-sm text-gray-500 mt-1">Coba sesuaikan filter atau kata kunci.</p>
+              <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm">
+                <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
               </div>
             )}
           </div>
 
-          {/* DESKTOP VIEW (TABLE) */}
-          <div className="hidden md:block w-full overflow-x-auto rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/70 dark:bg-gray-800/40 backdrop-blur-md shadow-lg mb-8">
-            <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
-              <thead>
-                <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200/60 dark:border-white/10">
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[25%]">Proyek & ID</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[20%]">Pengawas & Waktu</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[25%]">Kegiatan Utama</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[15%]">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-[15%]">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200/60 dark:divide-white/10">
-                {visibleLaporan.length > 0 ? (
-                  visibleLaporan.map((laporan) => {
-                    const totalPersonil = hitungTotal(laporan.personil);
-                    const totalAlat = hitungTotal(laporan.peralatan);
-                    const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
-
-                    return (
-                      <tr key={laporan.id} className={`transition-colors group ${isEditMode ? 'hover:bg-rose-500/10' : 'hover:bg-white/40 dark:hover:bg-white/5'}`}>
-                        <td className="px-6 py-4 align-top">
-                          <div className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm line-clamp-2">{laporan.namaProyek}</span>
-                            {laporan.isNew && <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">New</span>}
-                          </div>
-                          <div className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">{laporan.nomorLaporan}</div>
-                        </td>
-
-                        <td className="px-6 py-4 align-top space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200 font-medium">
-                            <UserCheck size={16} className="text-gray-400" /> <span className="truncate">{laporan.namaPengawas}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <Calendar size={14} /> <span>{laporan.tanggalPengawasan}</span>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 align-top">
-                          <div className="flex items-start gap-2 bg-gray-50/50 dark:bg-gray-900/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700/50">
-                            <ListTodo size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-700 dark:text-gray-200 line-clamp-2">{laporan.kegiatan[0] || 'Tidak ada uraian'}</p>
-                              {laporan.kegiatan.length > 1 && <p className="text-xs text-blue-500 mt-1 font-semibold">+ {laporan.kegiatan.length - 1} kegiatan lain</p>}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 align-top">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border uppercase tracking-wider ${getStatusStyles(finalStatus)}`}>
-                             {finalStatus === 'approved' ? <CheckCircle2 size={14}/> : <Clock size={14}/>} {getStatusText(finalStatus)}
-                          </span>
-                          <div className="mt-3 space-y-1">
-                            <div className="flex justify-between text-xs text-gray-500"><span className="flex items-center gap-1"><Users size={12}/> SDM</span> <span className="font-semibold text-gray-700 dark:text-gray-300">{totalPersonil}</span></div>
-                            <div className="flex justify-between text-xs text-gray-500"><span className="flex items-center gap-1"><Wrench size={12}/> Alat</span> <span className="font-semibold text-gray-700 dark:text-gray-300">{totalAlat}</span></div>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 align-middle text-center">
-                          {isEditMode && canCreateData ? (
-                            <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="w-full py-2 bg-rose-500/10 hover:bg-rose-600 text-rose-600 hover:text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 border border-rose-500/20">
-                              <Trash2 size={16} /> Hapus
-                            </button>
-                          ) : (
-                            <button onClick={() => navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } })} className="w-full py-2 bg-white/50 dark:bg-gray-800/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 hover:text-blue-600 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-700">
-                              <Eye size={16} /> Buka Detail
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                      <FileSpreadsheet size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                      <p className="font-semibold text-gray-700 dark:text-gray-300">Laporan tidak ditemukan.</p>
-                      <p className="text-sm mt-1">Coba sesuaikan filter pencarian.</p>
-                    </td>
+          {/* ========================================== */}
+          {/* TAMPILAN DESKTOP: TABEL STANDAR (Diselaraskan dengan ProjectList) */}
+          {/* ========================================== */}
+          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="p-4 w-[35%]">Info Proyek & Laporan</th>
+                    <th className="p-4 w-[20%]">Pengawas & Tanggal</th>
+                    <th className="p-4 w-[25%]">Kegiatan Lapangan</th>
+                    <th className="p-4 text-center w-[15%]">Aksi</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
+                  {visibleLaporan.length > 0 ? (
+                    visibleLaporan.map((laporan) => {
+                      const totalPersonil = hitungTotal(laporan.personil);
+                      const totalAlat = hitungTotal(laporan.peralatan);
+
+                      const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
+
+                      return (
+                        <tr key={laporan.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                          
+                          <td className="p-4 align-top flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
+                              <FileSpreadsheet className="w-5 h-5 text-amber-500" />
+                              {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-800 animate-pulse"></span>}
+                            </div>
+                            
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
+                                  {getStatusText(finalStatus)}
+                                </span>
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                                  {laporan.nomorLaporan}
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{laporan.namaProyek}</div>
+                              <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/><span className="line-clamp-1">{laporan.lokasi}</span></div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-top space-y-2">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                              <UserCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="truncate" title={laporan.namaPengawas}>{laporan.namaPengawas}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-700/60 pt-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{laporan.tanggalPengawasan}</span>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-top">
+                            <div className="bg-slate-50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-100 dark:border-slate-700/40 flex items-start gap-2 mb-2">
+                              <ListTodo className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-slate-700 dark:text-slate-200 text-[11px] leading-relaxed line-clamp-2">
+                                  {laporan.kegiatan[0] || 'Tidak ada uraian kegiatan'}
+                                </p>
+                                {laporan.kegiatan.length > 1 && (
+                                  <p className="text-[9px] text-sky-600 dark:text-sky-400 mt-1 font-bold">
+                                    + {laporan.kegiatan.length - 1} Kegiatan lainnya
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Gabungkan elemen Personil & Alat di Desktop agar tampilan tabel proporsional */}
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                                <span className="text-[8px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Personil</span>
+                                <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{totalPersonil} Orang</span>
+                              </div>
+                              <div className="bg-blue-50 dark:bg-blue-900/20 p-1.5 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                                <span className="text-[8px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider">Alat</span>
+                                <span className="font-mono text-[10px] font-bold text-blue-700 dark:text-blue-300">{totalAlat} Unit</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-middle">
+                            {isEditMode ? (
+                              <div className="flex flex-col gap-2">
+                                <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
+                                  <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                                <Eye className="w-3.5 h-3.5" /> Buka Data
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
+                        <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau tidak cocok dengan filter pencarian.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
 
-      {/* FOOTER LEGEND */}
-      {!isLoading && visibleLaporan.length > 0 && (
-        <div className="rounded-xl border border-gray-200/60 dark:border-white/10 bg-white/70 dark:bg-gray-800/40 backdrop-blur-sm p-4 mt-auto">
-          <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Keterangan Status & Ikon</h4>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><CheckCircle2 size={16} className="text-emerald-500" /> <span>Valid & Disetujui</span></div>
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><Clock size={16} className="text-amber-500" /> <span>Menunggu Pengecekan</span></div>
-            {!isGuest && <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><AlertTriangle size={16} className="text-rose-500" /> <span>Perlu Revisi / Ditolak</span></div>}
-            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 hidden md:block mx-2"></div>
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><Users size={16} className="text-gray-400" /> <span>Total Personil</span></div>
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><Wrench size={16} className="text-gray-400" /> <span>Total Peralatan</span></div>
-          </div>
+      {/* --- INFO LEGEND (FOOTER) --- */}
+      <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
+        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Status Laporan:</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div> Pending / Menunggu</span>
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Telah Disetujui</span>
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div> Ditolak / Perbaikan</span>
         </div>
-      )}
+      </div>
 
-      {/* MODAL KONFIRMASI DRAFT HAPUS */}
+      {/* --- MODAL KONFIRMASI DRAFT HAPUS --- */}
       {deleteConfig.show && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center border border-gray-200 dark:border-gray-700">
-            <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
-              <Trash2 size={28} className="text-rose-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
+            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/30">
+              <Trash2 className="w-6 h-6 text-rose-600 dark:text-rose-400" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Hapus Laporan Ini?</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-              Laporan <strong>{deleteConfig.name}</strong> akan dihilangkan dari layar.
-              <br/><br/>
-              <span className="text-rose-500 font-medium text-xs">Akan dihapus permanen saat Anda menekan "Eksekusi".</span>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan?</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+              Anda akan menandai laporan <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm">Batal</button>
-              <button onClick={executeDraftDelete} className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-sm transition-colors">
-                <Trash2 size={18}/> Hapus
+              <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
+              <button onClick={executeDraftDelete} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors">
+                Tandai Hapus
               </button>
             </div>
           </div>
