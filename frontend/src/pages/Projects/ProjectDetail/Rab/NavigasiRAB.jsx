@@ -4,11 +4,10 @@ import { ArrowLeft, Info, FileSpreadsheet, TrendingUp, Compass, Plus, Edit3, Dow
 
 export default function NavigasiRAB({ 
   id, projectData, isEditMode, setIsEditMode, 
-  openCatModal, setShowImportModal, setExportModal 
+  openCatModal, setShowImportModal, setExportModal, isLoading 
 }) {
   const navigate = useNavigate();
 
-  // --- CEK HAK AKSES MANDIRI ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -17,7 +16,6 @@ export default function NavigasiRAB({
 
   const canEditData = userRole === 'Administrator';
   const canExportData = ['Administrator', 'Direktur'].includes(userRole);
-  // -----------------------------
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -51,13 +49,13 @@ export default function NavigasiRAB({
       </div>
 
       <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
-        <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar transition-all duration-300">
+        <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar transition-all duration-300">
           {isEditMode ? (
             <>
-              <button onClick={() => openCatModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap border border-blue-200 dark:border-blue-500/30">
+              <button disabled={isLoading} onClick={() => openCatModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap border border-blue-200 dark:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Divisi Baru</span>
               </button>
-              <button onClick={() => setIsEditMode(false)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm">
+              <button disabled={isLoading} onClick={() => setIsEditMode(false)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Selesai Edit</span>
               </button>
             </>
@@ -65,21 +63,21 @@ export default function NavigasiRAB({
             <>
               {canEditData && (
                 <>
-                  <button onClick={() => setIsEditMode(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
+                  <button disabled={isLoading} onClick={() => setIsEditMode(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                     <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Mode Edit</span>
                   </button>
                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                  <button onClick={() => setShowImportModal(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+                  <button disabled={isLoading} onClick={() => setShowImportModal(true)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                     <UploadCloud className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Import RAB</span>
                   </button>
                 </>
               )}
               {canExportData && (
                 <>
-                  <button onClick={() => setExportModal({ show: true, type: 'excel' })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+                  <button disabled={isLoading} onClick={() => setExportModal({ show: true, type: 'excel' })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                     <FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export Excel</span>
                   </button>
-                  <button onClick={() => setExportModal({ show: true, type: 'pdf' })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+                  <button disabled={isLoading} onClick={() => setExportModal({ show: true, type: 'pdf' })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                     <Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export PDF</span>
                   </button>
                 </>
@@ -88,7 +86,7 @@ export default function NavigasiRAB({
           )}
         </div>
 
-        <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar z-0">
+        <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
           <button onClick={() => navigate(`/projects/${id}/data`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
             <Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span>
           </button>

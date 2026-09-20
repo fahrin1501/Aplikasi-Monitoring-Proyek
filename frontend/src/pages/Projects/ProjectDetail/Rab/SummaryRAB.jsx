@@ -3,10 +3,9 @@ import { DollarSign, FileSpreadsheet, Activity, TrendingDown } from 'lucide-reac
 
 export default function SummaryRAB({ 
   paguKontrak, grandTotalRencana, grandTotalRealisasi, 
-  pctRencanaRaw, pctRealisasiRaw, pctRencanaCSS, pctRealisasiCSS, isRencanaBigger, isEditMode, formatRupiah 
+  pctRencanaRaw, pctRealisasiRaw, pctRencanaCSS, pctRealisasiCSS, isRencanaBigger, isEditMode, formatRupiah, isLoading 
 }) {
   
-  // --- CEK HAK AKSES MANDIRI ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -14,28 +13,34 @@ export default function SummaryRAB({
   }, []);
 
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
-  // -----------------------------
-
-  if (!canViewPrices) return null; // Sembunyikan seluruh summary jika bukan Admin/Direktur
+  if (!canViewPrices) return null; 
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center">
         <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 mb-1.5 uppercase tracking-wider"><DollarSign className="w-4 h-4 text-amber-500" /> Total Pagu Kontrak</span>
-        <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate font-mono" title={formatRupiah(paguKontrak)}>{formatRupiah(paguKontrak)}</p>
+        <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate font-mono" title={formatRupiah(paguKontrak)}>
+          {isLoading ? <span className="inline-block w-32 h-6 bg-slate-200 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(paguKontrak)}
+        </p>
       </div>
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/50 bg-blue-50/20 dark:bg-blue-900/10' : 'border-slate-200 dark:border-slate-700/60'} rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center transition-colors`}>
         <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 mb-1.5 uppercase tracking-wider"><FileSpreadsheet className="w-4 h-4 text-blue-500" /> Total Rencana</span>
-        <p className="text-lg md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate font-mono" title={formatRupiah(grandTotalRencana)}>{formatRupiah(grandTotalRencana)}</p>
+        <p className="text-lg md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate font-mono" title={formatRupiah(grandTotalRencana)}>
+          {isLoading ? <span className="inline-block w-24 h-6 bg-blue-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRencana)}
+        </p>
       </div>
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center">
         <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 mb-1.5 uppercase tracking-wider"><Activity className="w-4 h-4 text-emerald-500" /> Total Realisasi (Actual)</span>
-        <p className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate font-mono" title={formatRupiah(grandTotalRealisasi)}>{formatRupiah(grandTotalRealisasi)}</p>
+        <p className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate font-mono" title={formatRupiah(grandTotalRealisasi)}>
+          {isLoading ? <span className="inline-block w-24 h-6 bg-emerald-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRealisasi)}
+        </p>
       </div>
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 md:p-5 shadow-sm flex flex-col justify-center">
         <div className="flex justify-between items-center mb-5">
           <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center gap-1.5 uppercase tracking-wider"><TrendingDown className="w-4 h-4 text-amber-500" /> Serapan Biaya Aktual</span>
-          <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{pctRealisasiRaw.toFixed(2)}%</span>
+          <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+            {isLoading ? <span className="inline-block w-10 h-5 bg-amber-100 dark:bg-slate-700 animate-pulse rounded"></span> : `${pctRealisasiRaw.toFixed(2)}%`}
+          </span>
         </div>
         <div className="relative w-full h-2.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-visible mt-1">
           {isRencanaBigger ? (

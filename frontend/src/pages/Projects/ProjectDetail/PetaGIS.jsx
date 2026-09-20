@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import api from '../../../api'; 
 import { 
   Compass, ArrowLeft, Info, FileSpreadsheet, TrendingUp, 
@@ -50,9 +50,13 @@ const parseCoord = (coordString) => {
 
 export default function PetaGIS() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
 
-  const [projectData, setProjectData] = useState(null);
+  // Gunakan state dari router agar UI langsung memiliki data dasar tanpa menunggu loading
+  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
+  const [projectData, setProjectData] = useState(initialProject);
+
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -108,7 +112,7 @@ export default function PetaGIS() {
 
       const resReports = await api.get(`/daily-reports`);
       const allReports = resReports.data?.data || [];
-      const projectReports = allReports.filter(rep => rep.project_id == id);
+      const projectReports = allReports.filter(rep => rep.project_id.toString() === id.toString());
       
       const extractedReportZones = [];
       projectReports.forEach(rep => {
@@ -288,6 +292,7 @@ export default function PetaGIS() {
   return (
     <div className="w-full space-y-5 pb-20 relative">
 
+      {/* Kustomisasi Scrollbar */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -301,7 +306,7 @@ export default function PetaGIS() {
       {/* ========================================== */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${id}/data`} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
+          <Link to={`/projects/${id}/data`} state={projectData} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1 min-w-0">
@@ -326,26 +331,28 @@ export default function PetaGIS() {
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
-          {canCreateData && !isGisEmpty && !isLoading && (
+          {/* ACTION BUTTONS: Tetap ada, disabled saat loading */}
+          {canCreateData && !isGisEmpty && (
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
               {isEditMode && (
-                <button onClick={cancelEdit} disabled={isSaving} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
+                <button onClick={cancelEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                   <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal
                 </button>
               )}
-              <button onClick={isEditMode ? handleSaveGIS : () => setIsEditMode(true)} disabled={isSaving} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
+              <button onClick={isEditMode ? handleSaveGIS : () => setIsEditMode(true)} disabled={isSaving || isLoading} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
                 {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
                 <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Draf')}</span>
               </button>
             </div>
           )}
 
+          {/* TAB NAVIGASI MODUL UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
-            <button onClick={() => navigate(`/projects/${id}/data`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
+            <button onClick={() => navigate(`/projects/${id}/data`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
             {!isGuest && (
               <>
-                <button onClick={() => navigate(`/projects/${id}/rab`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
-                <button onClick={() => navigate(`/projects/${id}/kurva-s`)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S</span></button>
+                <button onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
+                <button onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S</span></button>
               </>
             )}
             <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Peta GIS</span></button>
@@ -354,7 +361,7 @@ export default function PetaGIS() {
       </div>
 
       {/* ========================================== */}
-      {/* 2. LOADING STATE VS MAIN CONTENT             */}
+      {/* 2. LOADING STATE VS KONTEN UTAMA             */}
       {/* ========================================== */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
@@ -363,15 +370,15 @@ export default function PetaGIS() {
             Memuat Peta & Data Spasial...
           </p>
         </div>
-      ) : errorMsg || !projectData ? (
+      ) : errorMsg || !projectData?.tanggal_mulai ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm text-center animate-fade-in">
           <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
           <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Proyek Tidak Ditemukan</h2>
-          <button onClick={() => navigate('/projects')} className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-xl font-bold mt-4">Kembali ke Daftar</button>
+          <button onClick={() => navigate('/projects')} className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-xl font-bold mt-4 transition-colors">Kembali ke Daftar</button>
         </div>
       ) : isGisEmpty ? (
         <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-8 md:p-12 shadow-sm text-center min-h-[50vh] animate-fade-in">
-          <div className="w-20 h-20 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-full flex items-center justify-center mb-6 shadow-inner"><Compass className="w-10 h-10 text-amber-500" /></div>
+          <div className="w-20 h-20 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-full flex items-center justify-center mb-6 shadow-inner mx-auto"><Compass className="w-10 h-10 text-amber-500" /></div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white mb-2">Peta Spasial Belum Diatur</h2>
           
           {canCreateData ? (
@@ -388,14 +395,14 @@ export default function PetaGIS() {
                     <span className="font-bold text-slate-700 dark:text-slate-300 text-xs mb-3 block border-b border-slate-100 dark:border-slate-700 pb-2">Titik Awal Proyek</span>
                     <div className="text-left">
                       <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1.5 font-medium text-center">Titik Koordinat (Lat, Long)</label>
-                      <input type="text" required name="koordinat_awal" value={editForm.koordinat_awal || ''} onChange={handleChange} placeholder="-3.3191, 114.5911" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono text-xs text-center" />
+                      <input type="text" required name="koordinat_awal" value={editForm.koordinat_awal || ''} onChange={handleChange} placeholder="-3.3191, 114.5911" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono text-xs text-center custom-scrollbar" />
                     </div>
                   </div>
                   <div className="flex-1 bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <span className="font-bold text-slate-700 dark:text-slate-300 text-xs mb-3 block border-b border-slate-100 dark:border-slate-700 pb-2">Titik Akhir Proyek</span>
                     <div className="text-left">
                       <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1.5 font-medium text-center">Titik Koordinat (Lat, Long)</label>
-                      <input type="text" required name="koordinat_akhir" value={editForm.koordinat_akhir || ''} onChange={handleChange} placeholder="-3.3215, 114.6102" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono text-xs text-center" />
+                      <input type="text" required name="koordinat_akhir" value={editForm.koordinat_akhir || ''} onChange={handleChange} placeholder="-3.3215, 114.6102" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono text-xs text-center custom-scrollbar" />
                     </div>
                   </div>
                 </div>
@@ -489,18 +496,18 @@ export default function PetaGIS() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-amber-50/50 dark:bg-amber-900/10 p-3.5 rounded-xl border border-amber-200 dark:border-amber-500/30">
                     <span className="text-amber-700 dark:text-amber-500/80 text-[10px] font-medium block mb-1">Koordinat Awal</span>
-                    {isEditMode ? (<input type="text" name="koordinat_awal" value={editForm.koordinat_awal || ''} onChange={handleChange} placeholder="-3.300, 114.595" className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white font-mono text-xs focus:ring-2 focus:ring-amber-500" />) : (<span className="text-slate-700 dark:text-slate-300 font-mono font-bold text-xs block">{mainZone?.koordinat_awal || '-'}</span>)}
+                    {isEditMode ? (<input type="text" name="koordinat_awal" value={editForm.koordinat_awal || ''} onChange={handleChange} placeholder="-3.300, 114.595" className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white font-mono text-xs focus:ring-2 focus:ring-amber-500 custom-scrollbar" />) : (<span className="text-slate-700 dark:text-slate-300 font-mono font-bold text-xs block">{mainZone?.koordinat_awal || '-'}</span>)}
                   </div>
                   <div className="bg-amber-50/50 dark:bg-amber-900/10 p-3.5 rounded-xl border border-amber-200 dark:border-amber-500/30">
                     <span className="text-amber-700 dark:text-amber-500/80 text-[10px] font-medium block mb-1">Koordinat Akhir</span>
-                    {isEditMode ? (<input type="text" name="koordinat_akhir" value={editForm.koordinat_akhir || ''} onChange={handleChange} placeholder="-3.301, 114.598" className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white font-mono text-xs focus:ring-2 focus:ring-amber-500" />) : (<span className="text-slate-700 dark:text-slate-300 font-mono font-bold text-xs block">{mainZone?.koordinat_akhir || '-'}</span>)}
+                    {isEditMode ? (<input type="text" name="koordinat_akhir" value={editForm.koordinat_akhir || ''} onChange={handleChange} placeholder="-3.301, 114.598" className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white font-mono text-xs focus:ring-2 focus:ring-amber-500 custom-scrollbar" />) : (<span className="text-slate-700 dark:text-slate-300 font-mono font-bold text-xs block">{mainZone?.koordinat_akhir || '-'}</span>)}
                   </div>
                 </div>
 
                 {isEditMode && (
                   <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-blue-200 dark:border-blue-900/50 space-y-2 mt-4">
                     <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase block">Data Poligon (GeoJSON)</span>
-                    <textarea name="geojson_data" rows="3" value={editForm.geojson_data || ''} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                    <textarea name="geojson_data" rows="3" value={editForm.geojson_data || ''} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none custom-scrollbar" />
                   </div>
                 )}
               </div>
@@ -521,7 +528,7 @@ export default function PetaGIS() {
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <div className="w-full">
                     <p className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">Status Pembebasan Lahan</p>
-                    {isEditMode ? (<textarea name="status_lahan" rows="2" value={editForm.status_lahan || ''} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white resize-none mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500" />) : (<p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">{mainZone?.status_lahan || 'Belum ada catatan status lahan.'}</p>)}
+                    {isEditMode ? (<textarea name="status_lahan" rows="2" value={editForm.status_lahan || ''} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-500/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-white resize-none mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 custom-scrollbar" />) : (<p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">{mainZone?.status_lahan || 'Belum ada catatan status lahan.'}</p>)}
                   </div>
                 </div>
                 <div className="space-y-2 flex-1 overflow-y-auto max-h-[150px] custom-scrollbar pr-1">
@@ -548,7 +555,7 @@ export default function PetaGIS() {
                 <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md font-bold font-mono border border-emerald-200 dark:border-emerald-800">{reportZones.length} Titik</span>
               </div>
               
-              <div className="p-4 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
+              <div className="p-4 space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-2">
                 {reportZones.length === 0 ? (
                   <div className="text-center py-8"><FileSpreadsheet className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" /><p className="text-xs text-slate-500 italic">Belum ada laporan harian berkoordinat.</p></div>
                 ) : (

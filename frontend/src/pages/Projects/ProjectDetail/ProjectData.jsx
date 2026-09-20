@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../../api'; 
 import { 
   Building2, ArrowLeft, Calendar, MapPin, DollarSign, HardHat, 
@@ -10,10 +10,12 @@ import {
 
 export default function ProjectData() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
 
-  // State Data Proyek
-  const [project, setProject] = useState(null);
+  // State Data Proyek (Bisa ambil sementara dari state router agar UI tidak kosong)
+  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
+  const [project, setProject] = useState(initialProject);
   const projectId = project?.id || id;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -92,7 +94,7 @@ export default function ProjectData() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
 
-  // --- ROUTING URL FILE (BERSIH & LANGSUNG KE RAILWAY) ---
+  // --- ROUTING URL FILE ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
 
   const getImageUrl = (filename) => {
@@ -234,6 +236,7 @@ export default function ProjectData() {
   return (
     <div className="w-full space-y-5 relative pb-20">
       
+      {/* Kustomisasi Scrollbar Global untuk halaman ini */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -300,14 +303,14 @@ export default function ProjectData() {
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
-          {/* ACTION BUTTONS: Hanya Tampil Jika Proyek Telah Dimuat */}
-          {!isLoading && project && !isGuest && (
+          {/* ACTION BUTTONS: Selalu tampil jika bukan tamu. Akan disable (redup) saat isLoading */}
+          {!isGuest && (
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
               {canCreateData && isEditMode && (
-                 <button onClick={cancelEditMode} disabled={isSavingMain} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap"><X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal</button>
+                 <button onClick={cancelEditMode} disabled={isSavingMain || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal</button>
               )}
               {canCreateData && (
-                <button onClick={toggleEditMode} disabled={isSavingMain} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-200'}`}>
+                <button onClick={toggleEditMode} disabled={isSavingMain || isLoading} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-200'}`}>
                   {isSavingMain ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
                   <span className="hidden lg:inline">{isSavingMain ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Data')}</span>
                 </button>
@@ -315,13 +318,13 @@ export default function ProjectData() {
               {!isEditMode && (
                 <>
                   {canCreateData && (
-                    <button onClick={confirmDeleteProject} title="Hapus Proyek" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Hapus</span></button>
+                    <button onClick={confirmDeleteProject} disabled={isLoading} title="Hapus Proyek" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Hapus</span></button>
                   )}
                   {canExportData && (
                     <>
                       <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                      <button onClick={handleExportExcel} title="Export Excel" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export Excel</span></button>
-                      <button onClick={handleExportPDF} title="Export PDF" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export PDF</span></button>
+                      <button onClick={handleExportExcel} disabled={isLoading} title="Export Excel" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export Excel</span></button>
+                      <button onClick={handleExportPDF} disabled={isLoading} title="Export PDF" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export PDF</span></button>
                     </>
                   )}
                 </>
@@ -340,7 +343,7 @@ export default function ProjectData() {
       </div>
 
       {/* ========================================== */}
-      {/* 2. KONDISI LOADING VS KONTEN UTAMA           */}
+      {/* 2. LOADING STATE VS KONTEN UTAMA             */}
       {/* ========================================== */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
@@ -349,11 +352,12 @@ export default function ProjectData() {
             Memuat rincian proyek...
           </p>
         </div>
-      ) : errorMsg || !project ? (
+      ) : errorMsg || !project?.tanggal_mulai ? ( 
+        // Pengecekan tambahan (!project?.tanggal_mulai) agar konten tidak dirender kosong jika API gagal fetch data full
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm text-center animate-fade-in">
           <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
           <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Proyek Tidak Ditemukan</h2>
-          <button onClick={() => navigate('/projects')} className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-xl font-bold mt-4">Kembali ke Daftar</button>
+          <button onClick={() => navigate('/projects')} className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-xl font-bold mt-4 transition-colors">Kembali ke Daftar</button>
         </div>
       ) : (
         <div className="space-y-4 animate-fade-in">
@@ -569,7 +573,7 @@ export default function ProjectData() {
                 <FileText className="w-4 h-4" /> Deskripsi & Lingkup Pekerjaan
               </h2>
               {isEditMode ? (
-                <textarea name="deskripsi" rows={5} value={editFormData.deskripsi || ''} onChange={handleMainChange} className="w-full flex-1 bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                <textarea name="deskripsi" rows={5} value={editFormData.deskripsi || ''} onChange={handleMainChange} className="w-full flex-1 bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors custom-scrollbar" />
               ) : (
                 <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 flex-1 overflow-y-auto custom-scrollbar">
                   {project.deskripsi || 'Tidak ada deskripsi.'}

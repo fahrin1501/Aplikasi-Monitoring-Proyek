@@ -91,7 +91,6 @@ export default function KurvaS({ selectedProject }) {
     else setIsExportingPdf(true);
 
     try {
-      // JPEG Scale 1.5 agar tajam tapi tetap ringan
       const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
@@ -285,8 +284,8 @@ export default function KurvaS({ selectedProject }) {
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
               <span className="text-slate-400 mx-0.5">•</span>
-              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project.kategori)}`}>
-                {project.kategori || 'Belum Ditentukan'}
+              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>
+                {project?.kategori || 'Belum Ditentukan'}
               </span>
             </div>
           </div>
@@ -296,16 +295,17 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER (HANYA TANGGAL) */}
+            {/* KAPSUL DATE RANGE FILTER */}
             <div className="flex flex-col">
-              <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
+              <div className={`flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden transition-opacity ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input 
                   type="date" 
                   value={startDateFilter} 
                   min={projectBounds.start}
                   max={endDateFilter || projectBounds.end}
                   onChange={e => setStartDateFilter(e.target.value)} 
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  disabled={isLoading}
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
                   title="Tanggal Mulai Filter"
                 />
                 <span className="text-slate-400 text-[10px] font-bold px-1.5 bg-slate-100 dark:bg-slate-800/50 py-1.5 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
@@ -315,19 +315,25 @@ export default function KurvaS({ selectedProject }) {
                   min={startDateFilter || projectBounds.start}
                   max={projectBounds.end}
                   onChange={e => setEndDateFilter(e.target.value)} 
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer [color-scheme:light_dark]" 
+                  disabled={isLoading}
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
                   title="Tanggal Akhir Filter"
                 />
               </div>
+              {projectBounds.start && projectBounds.end && (
+                <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-1 ml-1 font-medium tracking-wide">
+                  Batas Info: {formatIndoDate(projectBounds.start)} - {formatIndoDate(projectBounds.end)}
+                </span>
+              )}
             </div>
 
             {!isGuest && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-start mt-2"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
                 </button>
               </>
@@ -335,10 +341,10 @@ export default function KurvaS({ selectedProject }) {
           </div>
 
           <div className="flex items-center w-full lg:w-auto justify-between gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
-            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
-            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default"><TrendingUp className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Kurva S</span></button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><Compass className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span></button>
+            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
+            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
+            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><TrendingUp className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Kurva S</span></button>
+            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Compass className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span></button>
           </div>
         </div>
       </div>
@@ -356,7 +362,7 @@ export default function KurvaS({ selectedProject }) {
       ) : (
         <div className="animate-fade-in space-y-5">
           {isScheduleEmpty && (
-            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm animate-fade-in">
+            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
               <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0">
                 <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               </div>

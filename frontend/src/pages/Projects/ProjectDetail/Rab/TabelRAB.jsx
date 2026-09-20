@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, FileSpreadsheet, ListPlus, Type, Edit3, Trash2 } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, ListPlus, Type, Edit3, Trash2, Loader2 } from 'lucide-react';
 
 export default function TabelRAB({ 
   rabsWithRealization, filteredRabsView, isEditMode, formatRupiah,
-  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi
+  openCatModal, openItemModal, confirmDelete, setSearchQuery, setActiveDivisi, isLoading
 }) {
 
-  // --- CEK HAK AKSES MANDIRI ---
   const [userRole, setUserRole] = useState('Tamu');
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -14,11 +13,22 @@ export default function TabelRAB({
   }, []);
 
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
-  // -----------------------------
+
+  // MENGISOLASI LOADING HANYA DI DALAM TABEL INI
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
+        <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          Menyusun dan mengkalkulasi tabel RAB...
+        </p>
+      </div>
+    );
+  }
 
   if (rabsWithRealization.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl animate-fade-in">
         <FileSpreadsheet className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
         <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">RAB Belum Dibuat</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Mulai bangun struktur RAB proyek dengan menambahkan Divisi/Kategori pekerjaan pertama atau Import via Excel.</p>
@@ -37,7 +47,7 @@ export default function TabelRAB({
 
   if (filteredRabsView.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl animate-fade-in">
         <Search className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
         <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">Item Tidak Ditemukan</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Coba ubah kata kunci pencarian atau ganti filter divisi.</p>
@@ -49,7 +59,7 @@ export default function TabelRAB({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {filteredRabsView.map((divisi) => (
         <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
           
@@ -129,7 +139,7 @@ export default function TabelRAB({
             )}
           </div>
 
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden lg:block overflow-x-auto custom-scrollbar">
             <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
               <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
                 <tr>

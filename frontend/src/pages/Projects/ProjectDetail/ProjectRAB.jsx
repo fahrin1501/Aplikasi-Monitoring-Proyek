@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../api'; 
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 
 import NavigasiRAB from './Rab/NavigasiRAB';
 import SummaryRAB from './Rab/SummaryRAB';
@@ -12,6 +12,7 @@ import ModalRAB from './Rab/ModalRAB';
 export default function ProjectRAB() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     document.title = "PrismaGroup - RAB";
@@ -24,7 +25,10 @@ export default function ProjectRAB() {
   }, []);
   const isGuest = userRole === 'Tamu';
 
-  const [projectData, setProjectData] = useState(null);
+  // Mengambil state awal dari navigasi agar data tidak kosong saat pertama kali dirender
+  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
+  const [projectData, setProjectData] = useState(initialProject);
+  
   const [rabs, setRabs] = useState([]);
   const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -190,7 +194,6 @@ export default function ProjectRAB() {
     );
   }
 
-  // Parameter dari projectData (Bisa Error jika null saat Loading, makanya default object kosong)
   const safeProjectData = projectData || {};
   const paguKontrak = Number(safeProjectData.nilai_kontrak) || 1; 
   const pctRencanaRaw = (grandTotalRencana / paguKontrak) * 100;
@@ -199,10 +202,18 @@ export default function ProjectRAB() {
   const pctRealisasiCSS = Math.min(pctRealisasiRaw, 100);
 
   return (
-    <div className="w-full space-y-5 relative pb-20">
+    <div className="w-full space-y-5 relative pb-20 animate-fade-in">
       
-      {/* 1. NAVIGASI HEADER SELALU TAMPIL */}
-      {/* Kita lewatkan fallback object agar NavigasiRAB tidak error jika projectData belum load */}
+      {/* MENGATASI BUG JARAK MARGIN HEADER */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+
+      {/* SEMUA KOMPONEN SELALU DI RENDER (TIDAK ADA CONDITIONAL HIDING) */}
       <NavigasiRAB 
         id={id} 
         projectData={safeProjectData} 
@@ -211,44 +222,36 @@ export default function ProjectRAB() {
         openCatModal={() => { setCatForm({ id: null, kode_divisi: '', nama_kategori: '' }); setShowCatModal(true); }} 
         setShowImportModal={setShowImportModal} 
         setExportModal={setExportModal}
+        isLoading={isLoading}
       />
 
-      {/* 2. LOADING STATE VS MAIN CONTENT */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
-          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-            Memuat Rencana Anggaran Biaya (RAB)...
-          </p>
-        </div>
-      ) : (
-        <div className="animate-fade-in space-y-5">
-          <SummaryRAB 
-            paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
-            pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
-            pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
-          />
-          
-          <FilterRAB 
-            rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
-            searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
-          />
-          
-          <TabelRAB 
-            rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
-            openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
-            openItemModal={(catId, isSub, item) => {
-              if (item) setItemForm({ id: item.id, rab_category_id: catId, kode_pekerjaan: item.kode_pekerjaan || '', uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
-              else setItemForm({ id: null, rab_category_id: catId, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSub });
-              setShowItemModal(true);
-            }}
-            confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
-            setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
-          />
-        </div>
-      )}
-
-      {/* 3. MODAL SELALU DI RENDER AGAR STATE TIDAK HILANG */}
+      <SummaryRAB 
+        paguKontrak={paguKontrak} grandTotalRencana={grandTotalRencana} grandTotalRealisasi={grandTotalRealisasi} 
+        pctRencanaRaw={pctRencanaRaw} pctRealisasiRaw={pctRealisasiRaw} pctRencanaCSS={pctRencanaCSS} 
+        pctRealisasiCSS={pctRealisasiCSS} isRencanaBigger={pctRencanaCSS > pctRealisasiCSS} formatRupiah={formatRupiah} isEditMode={isEditMode}
+        isLoading={isLoading}
+      />
+      
+      <FilterRAB 
+        rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
+        isLoading={isLoading}
+      />
+      
+      {/* LOADING STATE DI ISOLASI HANYA DI DALAM TABEL */}
+      <TabelRAB 
+        rabsWithRealization={rabsWithRealization} filteredRabsView={filteredRabsView} isEditMode={isEditMode} formatRupiah={formatRupiah}
+        openCatModal={(cat) => { setCatForm({ id: cat.id, kode_divisi: cat.kode_divisi || '', nama_kategori: cat.nama_kategori }); setShowCatModal(true); }}
+        openItemModal={(catId, isSub, item) => {
+          if (item) setItemForm({ id: item.id, rab_category_id: catId, kode_pekerjaan: item.kode_pekerjaan || '', uraian_pekerjaan: item.uraian_pekerjaan, satuan: item.satuan || '', volume: item.volume || '', harga_satuan: item.harga_satuan || '', is_subheader: item.is_subheader });
+          else setItemForm({ id: null, rab_category_id: catId, kode_pekerjaan: '', uraian_pekerjaan: '', satuan: '', volume: '', harga_satuan: '', is_subheader: isSub });
+          setShowItemModal(true);
+        }}
+        confirmDelete={(type, id, name) => setDeleteConfig({ show: true, type, id, name })}
+        setSearchQuery={setSearchQuery} setActiveDivisi={setActiveDivisi}
+        isLoading={isLoading}
+      />
+      
       <ModalRAB 
         showCatModal={showCatModal} setShowCatModal={setShowCatModal} catForm={catForm} setCatForm={setCatForm} saveCategory={saveCategory}
         showItemModal={showItemModal} setShowItemModal={setShowItemModal} itemForm={itemForm} setItemForm={setItemForm} saveItem={saveItem} formatRupiah={formatRupiah}
