@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api'; 
 import { 
   Search, Eye, Plus, CalendarDays, Calendar, MapPin, 
-  RotateCw, Building2, AlertTriangle, Loader2, Edit3, Trash2, X, CheckCircle2
+  Building2, AlertTriangle, Loader2, Edit3, Trash2, X, CheckCircle2
 } from 'lucide-react';
 
 export default function ScheduleList() {
@@ -12,7 +12,6 @@ export default function ScheduleList() {
   // --- STATE MANAJEMEN ---
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -39,10 +38,8 @@ export default function ScheduleList() {
   // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
 
-  const fetchProjects = async (showMainLoader = true) => {
-    if (showMainLoader) setIsLoading(true);
-    else setIsRefreshing(true);
-    
+  const fetchProjects = async () => {
+    setIsLoading(true);
     setErrorMsg('');
     try {
       const response = await api.get('/projects');
@@ -51,16 +48,13 @@ export default function ScheduleList() {
     } catch (error) {
       setErrorMsg('Gagal memuat data proyek. Pastikan server terhubung.');
     } finally {
-      if (showMainLoader) setIsLoading(false);
-      else setIsRefreshing(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProjects();
   }, []);
-
-  const handleRefresh = () => fetchProjects(false);
 
   // --- HANDLER HAPUS DATA JADWAL KE BACKEND ---
   const executeDelete = async () => {
@@ -69,7 +63,7 @@ export default function ScheduleList() {
       await api.delete(`/projects/${deleteConfig.projectId}/schedules`);
       alert(`Seluruh jadwal untuk proyek ${deleteConfig.projectName} berhasil di-reset (dihapus).`);
       setDeleteConfig({ show: false, projectId: null, projectName: '' });
-      fetchProjects(false); // Refresh data senyap
+      fetchProjects(); // Refresh data
     } catch (error) {
       console.error("Gagal hapus jadwal:", error);
       alert('Gagal menghapus jadwal proyek. Pastikan koneksi server aman.');
@@ -102,10 +96,8 @@ export default function ScheduleList() {
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          <button onClick={handleRefresh} disabled={isRefreshing || isLoading} className="p-2.5 md:p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-sm">
-            <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
-          </button>
 
+          {/* Hapus Tombol Refresh Disini */}
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input type="text" placeholder="Cari proyek..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
@@ -140,8 +132,16 @@ export default function ScheduleList() {
         </div>
       )}
 
+      {/* --- Peringatan Mobile --- */}
+      <div className="md:hidden p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+         <Building2 className="w-10 h-10 mx-auto text-amber-500 mb-3 opacity-80" />
+         <h3 className="font-bold text-slate-700 dark:text-slate-200 text-sm">Gunakan Layar Desktop</h3>
+         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Daftar Time Schedule hanya bisa diakses menggunakan layar lebar (Desktop/Tablet) untuk tampilan optimal.</p>
+      </div>
+
+      {/* --- KONTEN TABEL (HANYA MUNCUL DI DESKTOP / MD KE ATAS) --- */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+        <div className="hidden md:flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
           <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-3" />
           <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Memuat data proyek...</p>
         </div>

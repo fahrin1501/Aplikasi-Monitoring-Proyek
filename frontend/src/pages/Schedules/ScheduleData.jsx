@@ -29,8 +29,10 @@ export default function ScheduleData() {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // State untuk menyimpan data Proyek dan Jadwal
-  const [projectData, setProjectData] = useState(location.state || null);
+  // State untuk menyimpan data Proyek dan Jadwal (Fallback UI agar tidak kosong saat loading)
+  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...', kategori: 'Memuat...' };
+  const [projectData, setProjectData] = useState(initialProject);
+  
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -229,22 +231,13 @@ export default function ScheduleData() {
     return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-', bobot: 0 };
   };
 
-  if (isLoading || !projectData) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 w-full">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
-        <p className="text-slate-500 font-medium">Memuat Data Jadwal...</p>
-      </div>
-    );
-  }
-
   const totalWeeks = scheduleData?.project_info?.total_minggu || 0;
   
   // LOGIKA RENDER MINGGU
   let weeksToRender = [];
   if (filterWeek === 'all') {
     for (let i = 1; i <= totalWeeks; i++) {
-      const hasData = scheduleData?.schedules.some(s => parseInt(s.minggu_ke) === i);
+      const hasData = scheduleData?.schedules?.some(s => parseInt(s.minggu_ke) === i);
       if (hasData) {
         weeksToRender.push(i);
       }
@@ -255,6 +248,17 @@ export default function ScheduleData() {
 
   return (
     <div className="w-full space-y-5 pb-20 relative">
+
+      {/* Kustomisasi Scrollbar */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+
+      {/* --- 1. HEADER NAVIGASI (Selalu Tampil) --- */}
       <div className="flex flex-col lg:flex-row justify-between gap-4 mb-2">
         <div className="flex items-start gap-3">
           <button onClick={() => navigate('/schedules')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm text-slate-600 dark:text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
@@ -265,7 +269,7 @@ export default function ScheduleData() {
               {isEditMode && <span className="px-2 py-0.5 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              <span className="truncate font-medium">{projectData?.nama_proyek || 'Memuat...'}</span>
+              <span className="truncate font-medium">{projectData?.nama_proyek || 'Memuat Data...'}</span>
               <span className="text-slate-400 mx-0.5">•</span>
               <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
                 {projectData?.kategori || 'Belum Ditentukan'}
@@ -275,52 +279,51 @@ export default function ScheduleData() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* TAG FILTER UI (POPOVER CARD) */}
-          {totalWeeks > 0 && !isEditMode && (
-            <div className="relative" ref={filterMenuRef}>
-              <button 
-                onClick={() => setShowFilterMenu(!showFilterMenu)} 
-                className={`flex items-center gap-2 bg-white dark:bg-slate-800/80 p-2 rounded-xl border ${showFilterMenu ? 'border-blue-400 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'} shadow-sm px-3 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all`}
-              >
-                <Filter className="w-4 h-4 text-blue-500" />
-                {filterWeek === 'all' ? 'Tampilkan Semua' : `Filter: M-${filterWeek}`}
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showFilterMenu ? 'rotate-180' : ''}`} />
-              </button>
+          {/* TAG FILTER UI (POPOVER CARD) - Dimatikan saat Loading */}
+          <div className="relative" ref={filterMenuRef}>
+            <button 
+              disabled={isLoading || isEditMode || totalWeeks === 0}
+              onClick={() => setShowFilterMenu(!showFilterMenu)} 
+              className={`flex items-center gap-2 bg-white dark:bg-slate-800/80 p-2 rounded-xl border ${showFilterMenu ? 'border-blue-400 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'} shadow-sm px-3 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <Filter className="w-4 h-4 text-blue-500" />
+              {filterWeek === 'all' ? 'Tampilkan Semua' : `Filter: M-${filterWeek}`}
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showFilterMenu ? 'rotate-180' : ''}`} />
+            </button>
 
-              {showFilterMenu && (
-                <div className="absolute top-full mt-2 right-0 md:left-auto w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-4 animate-fade-in">
-                  <h4 className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">Filter Minggu Ke-</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <button 
-                      onClick={() => { setFilterWeek('all'); setShowFilterMenu(false); }}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filterWeek === 'all' ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                    >
-                      Semua
-                    </button>
-                    {Array.from({ length: totalWeeks }).map((_, i) => {
-                      const w = String(i + 1);
-                      const isActive = filterWeek === w || filterWeek === parseInt(w);
-                      return (
-                        <button 
-                          key={w}
-                          onClick={() => { setFilterWeek(w); setShowFilterMenu(false); }}
-                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${isActive ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                        >
-                          M-{w}
-                        </button>
-                      )
-                    })}
-                  </div>
+            {showFilterMenu && (
+              <div className="absolute top-full mt-2 right-0 md:left-auto w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-4 animate-fade-in">
+                <h4 className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">Filter Minggu Ke-</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button 
+                    onClick={() => { setFilterWeek('all'); setShowFilterMenu(false); }}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filterWeek === 'all' ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    Semua
+                  </button>
+                  {Array.from({ length: totalWeeks }).map((_, i) => {
+                    const w = String(i + 1);
+                    const isActive = filterWeek === w || filterWeek === parseInt(w);
+                    return (
+                      <button 
+                        key={w}
+                        onClick={() => { setFilterWeek(w); setShowFilterMenu(false); }}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${isActive ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                      >
+                        M-{w}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {/* TAMPILKAN TOMBOL AKSI HANYA JIKA PUNYA HAK AKSES */}
           {canCreateData && (
-            <div className="flex items-center bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+            <div className="flex items-center bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
               {!isEditMode && (
-                <button onClick={() => navigate('/schedules/input')} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold rounded-lg transition-colors border border-emerald-200 dark:border-emerald-500/30">
+                <button disabled={isLoading} onClick={() => navigate('/schedules/input')} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold rounded-lg transition-colors border border-emerald-200 dark:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
                   <ListPlus className="w-3.5 h-3.5" /> Tambah Pekerjaan
                 </button>
               )}
@@ -329,15 +332,15 @@ export default function ScheduleData() {
               
               {isEditMode ? (
                 <>
-                  <button onClick={handleBatalEdit} disabled={isSaving} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 dark:border-slate-600 shadow-sm">
+                  <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 dark:border-slate-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     <X className="w-3.5 h-3.5" /> Batal Edit
                   </button>
-                  <button onClick={() => setSaveModal(true)} disabled={isSaving} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg ml-1 transition-colors shadow-sm disabled:opacity-50">
+                  <button onClick={() => setSaveModal(true)} disabled={isSaving || isLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg ml-1 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Simpan Perubahan
                   </button>
                 </>
               ) : (
-                <button onClick={() => { setIsEditMode(true); setFilterWeek('all'); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-colors">
+                <button onClick={() => { setIsEditMode(true); setFilterWeek('all'); }} disabled={isLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   <Edit3 className="w-3.5 h-3.5" /> Mode Edit Draf
                 </button>
               )}
@@ -346,8 +349,18 @@ export default function ScheduleData() {
         </div>
       </div>
 
-      {(!scheduleData || totalWeeks === 0) ? (
-        <div className="p-8 text-center bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl animate-fade-in"><AlertTriangle className="w-10 h-10 mx-auto text-rose-500 dark:text-rose-400 mb-2" /><h3 className="font-bold text-rose-700 dark:text-rose-300">Tanggal Proyek Tidak Valid</h3><p className="text-xs text-rose-600 mt-1">Kembali ke Menu Data Utama untuk mensetting tanggal mulai dan selesai.</p></div>
+      {/* --- 2. KONDISI LOADING VS KONTEN UTAMA --- */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
+          <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat Data Jadwal...</p>
+        </div>
+      ) : (!scheduleData || totalWeeks === 0) ? (
+        <div className="p-8 text-center bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl animate-fade-in shadow-sm">
+          <AlertTriangle className="w-10 h-10 mx-auto text-rose-500 dark:text-rose-400 mb-2" />
+          <h3 className="font-bold text-rose-700 dark:text-rose-300">Tanggal Proyek Tidak Valid</h3>
+          <p className="text-xs text-rose-600 mt-1">Kembali ke Menu Data Utama untuk mensetting tanggal mulai dan selesai.</p>
+        </div>
       ) : weeksToRender.length === 0 ? (
         <div className="p-16 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <CalendarDays className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
@@ -398,7 +411,7 @@ export default function ScheduleData() {
                   </div>
                 </div>
                 
-                <div className="overflow-x-auto w-full">
+                <div className="overflow-x-auto w-full custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
@@ -530,9 +543,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI SIMPAN PERUBAHAN           */}
-      {/* ========================================== */}
+      {/* --- MODAL: KONFIRMASI SIMPAN PERUBAHAN --- */}
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -553,9 +564,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI HAPUS ITEM 1 BARIS (LOKAL) */}
-      {/* ========================================== */}
+      {/* --- MODAL: KONFIRMASI HAPUS ITEM 1 BARIS (LOKAL) --- */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -578,9 +587,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI HAPUS 1 MINGGU FULL        */}
-      {/* ========================================== */}
+      {/* --- MODAL: KONFIRMASI HAPUS 1 MINGGU FULL --- */}
       {deleteWeekConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
