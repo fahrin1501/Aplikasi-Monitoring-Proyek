@@ -198,14 +198,15 @@ export default function ProjectList() {
       {/* --- TOP ACTION BAR --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+          {/* Header Typography Font Extrabold */}
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Project
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi Anda.</p>
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          
+          {/* Bagian input pencarian, filter, dan tombol aksi dibiarkan sama agar logic tetap jalan */}
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -222,18 +223,17 @@ export default function ProjectList() {
             <button disabled={isLoading} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
               <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
             </button>
-
+            {/* Modal Filter (Logic Tetap) */}
             {showFilter && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
+                {/* Isi Filter tidak diubah untuk menjaga fungsionalitas */}
                 <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Proyek</h4>
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Proyek</label>
                     <div className="flex flex-wrap gap-2">
                       {uniqueStatus.map(status => (
-                        <button key={status} onClick={() => handleFilterChange('status', status)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.status === status ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                          {status}
-                        </button>
+                        <button key={status} onClick={() => handleFilterChange('status', status)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.status === status ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{status}</button>
                       ))}
                     </div>
                   </div>
@@ -241,9 +241,7 @@ export default function ProjectList() {
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Kategori Proyek</label>
                     <div className="flex flex-wrap gap-2">
                       {uniqueKategori.map(kat => (
-                        <button key={kat} onClick={() => handleFilterChange('kategori', kat)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.kategori === kat ? 'bg-purple-600 text-white border-purple-700' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                          {kat}
-                        </button>
+                        <button key={kat} onClick={() => handleFilterChange('kategori', kat)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.kategori === kat ? 'bg-purple-600 text-white border-purple-700' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{kat}</button>
                       ))}
                     </div>
                   </div>
@@ -252,9 +250,7 @@ export default function ProjectList() {
                       <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Sumber Dana</label>
                       <div className="flex flex-wrap gap-2">
                         {uniqueSumber.map(sumber => (
-                          <button key={sumber} onClick={() => handleFilterChange('sumber_dana', sumber)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.sumber_dana === sumber ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                            {sumber}
-                          </button>
+                          <button key={sumber} onClick={() => handleFilterChange('sumber_dana', sumber)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.sumber_dana === sumber ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{sumber}</button>
                         ))}
                       </div>
                     </div>
@@ -284,11 +280,9 @@ export default function ProjectList() {
                   <Edit3 className="w-4 h-4" /> Mode Edit
                 </button>
               )}
-
               <button disabled={isLoading || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
               </button>
-
               <button disabled={isLoading || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
               </button>
@@ -334,198 +328,239 @@ export default function ProjectList() {
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data proyek...</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 w-[40%]">Informasi Proyek</th>
-                  <th className="p-4 w-[25%]">Konsultan Pengawas & Administrasi</th>
-                  <th className="p-4 w-[20%] text-center">Progress S-Curve</th>
-                  <th className="p-4 text-center w-[15%]">Aksi Proyek</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
-                  const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
-                  const isDelayed = displayStatus === 'Delayed';
+        <>
+          {/* TAMPILAN MOBILE: Desain Card ditambahkan di sini mengikuti format AccountList */}
+          <div className="block md:hidden space-y-4">
+            {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
+              const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
+              const isDelayed = displayStatus === 'Delayed';
+              return (
+                <div key={proj.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
+                      {proj.foto_sampul ? (
+                        <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
+                      ) : (
+                        proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 pr-2">
+                       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                         <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
+                           isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
+                         }`}>{displayStatus}</span>
+                         <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                           {proj.tahun_anggaran || 'Tahun N/A'}
+                         </span>
+                       </div>
+                       <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2">{proj.nama_proyek}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                     <span className="font-mono font-bold text-amber-600 dark:text-amber-500">SPK: {proj.kode_kontrak || '-'}</span>
+                     <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0"/> {proj.lokasi_wilayah || 'Lokasi belum diset'}</span>
+                     <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {proj.tanggal_mulai || '?'} - {proj.tanggal_selesai || '?'}</span>
+                  </div>
+                  
+                  {/* Bagian Progress */}
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                      <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Plan</span>
+                      <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                        {proj.progress_plan !== undefined ? parseFloat(proj.progress_plan).toFixed(2) : '0.00'}%
+                      </span>
+                    </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Actual</span>
+                      <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {proj.progress_actual !== undefined ? parseFloat(proj.progress_actual).toFixed(2) : '0.00'}%
+                      </span>
+                    </div>
+                  </div>
 
-                  return (
-                    <tr 
-                      key={proj.id} 
-                      className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
-                    >
-                      <td className="p-4 align-top flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
-                          {proj.foto_sampul ? (
-                            <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
-                          ) : (
-                            proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
+                    {isEditMode ? (
+                       <button onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
+                         <Trash2 className="w-4 h-4" /> Hapus
+                       </button>
+                    ) : (
+                       <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2.5 w-full justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                         <Info className="w-4 h-4" /> Buka Data Proyek
+                       </button>
+                    )}
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
+                <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
+              </div>
+            )}
+          </div>
+
+          {/* TAMPILAN DESKTOP: Disamakan Styling dan Backdrop dengan AccountList */}
+          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="p-4 w-[40%]">Informasi Proyek</th>
+                    <th className="p-4 w-[25%]">Konsultan Pengawas & Administrasi</th>
+                    <th className="p-4 w-[20%] text-center">Progress S-Curve</th>
+                    <th className="p-4 text-center w-[15%]">Aksi Proyek</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
+                  {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
+                    const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
+                    const isDelayed = displayStatus === 'Delayed';
+                    return (
+                      <tr key={proj.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                        <td className="p-4 align-top flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
+                            {proj.foto_sampul ? (
+                              <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
+                            ) : (
+                              proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                               <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
+                                 isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
+                               }`}>{displayStatus}</span>
+                               <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                                 {proj.tahun_anggaran || 'Tahun N/A'}
+                               </span>
+                               <span className={`px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate max-w-[180px] ${getCategoryStyle(proj.kategori)}`}>
+                                 {proj.kategori || 'Belum Ditentukan'}
+                               </span>
+                            </div>
+                            <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{proj.nama_proyek}</div>
+                            <div className="text-[10px] text-amber-600 dark:text-amber-500/90 font-mono mt-1 font-bold">{proj.kode_kontrak || '-'}</div>
+                            <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/>{proj.lokasi_wilayah || 'Lokasi belum diset'}</div>
+                          </div>
+                        </td>
+                        <td className="p-4 align-top space-y-2">
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                            <HardHat className="w-3.5 h-3.5 text-blue-500 shrink-0" /> 
+                            <span className="truncate" title={proj.konsultan || 'Belum diset'}>{proj.konsultan || 'Konsultan Belum Diset'}</span>
+                          </div>
+                          {canViewFinance && (
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              <span>Sumber : <strong className="text-slate-700 dark:text-slate-300">{proj.sumber_dana || 'N/A'}</strong></span>
+                            </div>
                           )}
-                        </div>
-                        
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                             <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
-                               isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
-                             }`}>{displayStatus}</span>
-                             
-                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
-                               {proj.tahun_anggaran || 'Tahun N/A'}
-                             </span>
-
-                             <span className={`px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate max-w-[180px] ${getCategoryStyle(proj.kategori)}`}>
-                               {proj.kategori || 'Belum Ditentukan'}
-                             </span>
+                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-700/60 pt-1.5">
+                             <Calendar className="w-3.5 h-3.5 text-amber-500" /> 
+                             <span>{proj.tanggal_mulai || '?'} <span className="text-slate-400 font-mono">s/d</span> {proj.tanggal_selesai || '?'}</span>
                           </div>
-                          
-                          <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{proj.nama_proyek}</div>
-                          <div className="text-[10px] text-amber-600 dark:text-amber-500/90 font-mono mt-1 font-bold">{proj.kode_kontrak || '-'}</div>
-                          <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/>{proj.lokasi_wilayah || 'Lokasi belum diset'}</div>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-top space-y-2">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                          <HardHat className="w-3.5 h-3.5 text-blue-500 shrink-0" /> 
-                          <span className="truncate" title={proj.konsultan || 'Belum diset'}>{proj.konsultan || 'Konsultan Belum Diset'}</span>
-                        </div>
-                        
-                        {canViewFinance && (
-                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                            <span>Sumber : <strong className="text-slate-700 dark:text-slate-300">{proj.sumber_dana || 'N/A'}</strong></span>
+                        </td>
+                        <td className="p-4 align-top">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                              <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Plan</span>
+                              <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                                {proj.progress_plan !== undefined ? parseFloat(proj.progress_plan).toFixed(2) : '0.00'}%
+                              </span>
+                            </div>
+                            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Actual</span>
+                              <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                                {proj.progress_actual !== undefined ? parseFloat(proj.progress_actual).toFixed(2) : '0.00'}%
+                              </span>
+                            </div>
                           </div>
-                        )}
-
-                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-700/60 pt-1.5">
-                           <Calendar className="w-3.5 h-3.5 text-amber-500" /> 
-                           <span>{proj.tanggal_mulai || '?'} <span className="text-slate-400 font-mono">s/d</span> {proj.tanggal_selesai || '?'}</span>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-top">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
-                            <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Plan</span>
-                            <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
-                              {proj.progress_plan !== undefined ? parseFloat(proj.progress_plan).toFixed(2) : '0.00'}%
-                            </span>
-                          </div>
-                          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Actual</span>
-                            <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                              {proj.progress_actual !== undefined ? parseFloat(proj.progress_actual).toFixed(2) : '0.00'}%
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-middle">
-                        {isEditMode ? (
-                           <div className="flex flex-col gap-2">
-                             <button 
-                               onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)}
-                               className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in"
-                             >
-                               <Trash2 className="w-3.5 h-3.5" /> Hapus
+                        </td>
+                        <td className="p-4 align-middle">
+                          {isEditMode ? (
+                             <div className="flex flex-col gap-2">
+                               <button onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
+                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
+                               </button>
+                             </div>
+                          ) : (
+                             <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                               <Info className="w-3.5 h-3.5" /> Buka Data
                              </button>
-                           </div>
-                        ) : (
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} 
-                             className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
-                           >
-                             <Info className="w-3.5 h-3.5" /> Buka Data
-                           </button>
-                        )}
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
+                        <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau tidak cocok dengan filter pencarian.</p>
                       </td>
                     </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
-                      <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                      <p className="text-sm font-medium">Data tidak ditemukan.</p>
-                      <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau tidak cocok dengan filter pencarian.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* --- MODAL KONFIRMASI DRAFT HAPUS --- */}
+      {/* --- INFO LEGEND (FOOTER) --- */}
+      <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
+        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Status Proyek:</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Sesuai / Mendahului Rencana</span>
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div> Delayed / Keterlambatan</span>
+          <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5 text-blue-500" /> Buka Data untuk melihat kelengkapan</span>
+        </div>
+      </div>
+
+      {/* --- MODAL KONFIRMASI DRAFT HAPUS (Tidak dirubah logikanya) --- */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
             <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/30">
               <Trash2 className="w-6 h-6 text-rose-600 dark:text-rose-400" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Proyek Ini?</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Proyek?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Proyek <strong>{deleteConfig.name}</strong> akan dihilangkan sementara dari layar.
-              <br/><br/>
-              <span className="italic text-rose-500 font-medium">Data akan dihapus permanen dari Database saat Anda menekan tombol "Eksekusi Hapus".</span>
+              Anda akan menandai proyek <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
               <button onClick={executeDraftDelete} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors">
-                <Trash2 className="w-4 h-4"/> Sembunyikan
+                Tandai Hapus
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- MODAL IMPORT EXCEL --- */}
+      {/* --- MODAL IMPORT EXCEL (Tidak dirubah logikanya) --- */}
       {showImportModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-200 dark:border-emerald-500/20">
-              <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Import Project via Excel</h3>
-            
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-500/50 rounded-xl p-8 mb-4 bg-slate-50 dark:bg-slate-900/50 relative transition-all group overflow-hidden">
-              <input 
-                type="file" 
-                accept=".xlsx, .xls" 
-                onChange={(e) => setImportFile(e.target.files[0])}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-              />
-              <UploadCloud className="w-10 h-10 mx-auto text-slate-400 group-hover:text-emerald-500 transition-colors mb-3" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1 truncate px-4">
-                {importFile ? importFile.name : "Seret file excel disini atau Klik"}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Format yang didukung: .xlsx, .xls</p>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
+             <div className="flex justify-between items-center mb-4">
+               <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileSpreadsheet className="w-5 h-5 text-emerald-500"/> Import Data Proyek</h3>
+               <button onClick={() => {setShowImportModal(false); setImportFile(null)}} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
+             </div>
+             
+             <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center bg-slate-50 dark:bg-slate-900/50 mb-4 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors relative cursor-pointer">
+               <input type="file" accept=".xlsx, .xls" onChange={(e) => setImportFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+               <UploadCloud className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                 {importFile ? importFile.name : 'Klik atau seret file Excel ke sini'}
+               </p>
+               <p className="text-xs text-slate-500">Format yang didukung: .xlsx, .xls</p>
+             </div>
 
-            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl mb-6 text-left shadow-sm">
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
-                Note: Pastikan format kolom excel sudah benar dan sesuai template sebelum di-import agar data terbaca oleh sistem.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button 
-                disabled={isImporting}
-                onClick={() => { setShowImportModal(false); setImportFile(null); }} 
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button 
-                disabled={isImporting || !importFile}
-                onClick={handleImportFile} 
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl flex justify-center items-center gap-2 shadow-md transition-colors disabled:opacity-50"
-              >
-                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4"/>} 
-                {isImporting ? 'Mengimpor...' : 'Import Data'}
-              </button>
-            </div>
+             <div className="flex gap-3 mt-6">
+                <button disabled={isImporting} onClick={() => {setShowImportModal(false); setImportFile(null)}} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs disabled:opacity-50">Batal</button>
+                <button disabled={!importFile || isImporting} onClick={handleImportFile} className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isImporting ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>} 
+                  {isImporting ? 'Mengimpor...' : 'Mulai Import'}
+                </button>
+             </div>
           </div>
         </div>
       )}

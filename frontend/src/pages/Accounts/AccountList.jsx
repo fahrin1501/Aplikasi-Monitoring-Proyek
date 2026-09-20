@@ -1,612 +1,405 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api'; 
 import { 
-  Users, Search, Plus, Shield, Mail, Edit3, Trash2, Key,
-  ShieldCheck, HardHat, Building, UserCheck, X,
-  AlertTriangle, CheckCircle2, UserPlus, Loader2, RotateCw, Sparkles
+  Search, Plus, Filter, Loader2, AlertTriangle, 
+  Users, Shield, User, Mail, ShieldAlert, CheckCircle2, 
+  XCircle, Edit3, Trash2, Calendar
 } from 'lucide-react';
 
 export default function AccountList() {
-  const [accounts, setAccounts] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); 
-  const [isRefreshing, setIsRefreshing] = useState(false); 
+  const navigate = useNavigate();
+  
+  // --- STATE MANAJEMEN ---
+  const [accountList, setAccountList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-      document.title = "Prisma Group - Daftar Akun";
-    }, []);
+    document.title = "Prisma Group - Daftar Akun";
+  }, []);
+  
+  // --- SEARCH & FILTER ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const [filters, setFilters] = useState({ role: 'Semua', status: 'Semua' });
+  const filterRef = useRef(null);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('Semua');
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  const [currentUserRole, setCurrentUserRole] = useState('Tamu');
 
-  // --- MODAL STATES ---
-  const [modalType, setModalType] = useState(null);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form States
-  const [addFormData, setAddFormData] = useState({ nama: '', email: '', role: 'Pengawas Lapangan', password: '' });
-  const [editFormData, setEditFormData] = useState({ nama: '', email: '', role: 'Pengawas Lapangan', status: 'Aktif' });
-  const [newPassword, setNewPassword] = useState('');
-
-  // --- FETCH DATA DARI LARAVEL ---
   useEffect(() => {
-    fetchUsers(true);
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
+      try {
+        const user = JSON.parse(userDataStr);
+        setCurrentUserRole(user.role || 'Tamu');
+      } catch (error) {}
+    }
   }, []);
 
-  const fetchUsers = async (showMainLoader = true) => {
-    if (showMainLoader) setIsLoading(true);
-    else setIsRefreshing(true);
-    
+  const isAdmin = currentUserRole === 'Administrator';
+
+  // --- FETCH DATA DARI LARAVEL ---
+  const fetchAccounts = async () => {
+    setIsLoading(true);
     setErrorMsg('');
     try {
+      // Sesuaikan endpoint API ini dengan rute Laravel Anda (misal: /users atau /accounts)
       const response = await api.get('/users');
-      const formattedData = response.data.map(user => ({
+      
+      const formattedData = response.data.data.map(user => ({
         id: user.id,
-        nama: user.name, 
+        name: user.name,
         email: user.email,
-        role: user.role || 'Pengawas Lapangan',
-        status: user.status || 'Aktif',
-        isNew: user.is_new || false, // <--- Menangkap flag is_new dari Laravel
-        lastLogin: user.updated_at 
-          ? new Date(user.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WITA'
-          : 'Belum pernah login'
+        role: user.role || 'Tamu',
+        status: user.is_active ? 'aktif' : 'nonaktif', // Sesuaikan dengan field DB Anda
+        createdAt: user.created_at ? new Date(user.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-',
+        originalData: user 
       }));
-      setAccounts(formattedData);
+      
+      setAccountList(formattedData);
     } catch (error) {
-      console.error("Error fetching users:", error);
-      setErrorMsg('Gagal memuat data pengguna. Pastikan Anda sudah login dan server berjalan.');
+      console.error("Error fetching accounts:", error);
+      setErrorMsg('Gagal memuat data akun. Pastikan server terhubung atau Anda memiliki akses.');
     } finally {
-      if (showMainLoader) setIsLoading(false);
-      else setIsRefreshing(false);
+      setIsLoading(false);
     }
   };
 
-  // Helper Buka Modal
-  const openModal = (type, account = null) => {
-    setSelectedAccount(account);
-    if (type === 'edit' && account) {
-      setEditFormData({
-        nama: account.nama, email: account.email, role: account.role, status: account.status
-      });
-    }
-    setModalType(type);
-  };
+  useEffect(() => {
+    fetchAccounts();
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) setShowFilter(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // Helper Tutup Modal
-  const closeModal = () => {
-    setModalType(null);
-    setTimeout(() => {
-      setSelectedAccount(null);
-      setEditFormData({ nama: '', email: '', role: 'Pengawas Lapangan', status: 'Aktif' });
-      setAddFormData({ nama: '', email: '', role: 'Pengawas Lapangan', password: '' });
-      setNewPassword('');
-      setErrorMsg('');
-    }, 200);
-  };
-
-  // --- HANDLE TAMBAH AKUN BARU ---
-  const handleAddAccount = async () => {
-    if (!addFormData.nama || !addFormData.email || !addFormData.password) {
-      setErrorMsg('Mohon lengkapi semua field yang wajib diisi.');
-      return;
-    }
-    setIsSubmitting(true);
-    setErrorMsg('');
+  // --- DELETE LOGIC (Jika diperlukan langsung di list) ---
+  const handleDelete = async (id, name) => {
+    if(!window.confirm(`Apakah Anda yakin ingin menghapus akun ${name}?`)) return;
     try {
-      await api.post('/register', {
-        name: addFormData.nama, email: addFormData.email, password: addFormData.password, role: addFormData.role
-      });
-      fetchUsers(false); 
-      closeModal(); 
+      await api.delete(`/users/${id}`);
+      fetchAccounts();
     } catch (error) {
-      if (error.response && error.response.data.message) setErrorMsg(error.response.data.message);
-      else setErrorMsg('Gagal menambahkan akun baru.');
-    } finally {
-      setIsSubmitting(false);
+      alert('Gagal menghapus akun.');
     }
   };
 
-  // --- HANDLE UPDATE AKUN (EDIT) ---
-  const handleUpdateAccount = async () => {
-    setIsSubmitting(true);
-    setErrorMsg('');
-    try {
-      await api.put(`/users/${selectedAccount.id}`, {
-        name: editFormData.nama, email: editFormData.email, role: editFormData.role, status: editFormData.status
-      });
-      fetchUsers(false); 
-      closeModal(); 
-    } catch (error) {
-      if (error.response && error.response.data.message) setErrorMsg(error.response.data.message);
-      else setErrorMsg('Gagal memperbarui data akun.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // --- LOGIKA FILTER ---
+  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
+  const clearFilter = (key) => setFilters(prev => ({ ...prev, [key]: 'Semua' }));
 
-  // --- HANDLE RESET PASSWORD ---
-  const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      setErrorMsg('Password baru harus diisi dan minimal 6 karakter.');
-      return;
-    }
-    setIsSubmitting(true);
-    setErrorMsg('');
-    try {
-      await api.put(`/users/${selectedAccount.id}/reset-password`, {
-        password: newPassword
-      });
-      closeModal(); 
-    } catch (error) {
-      if (error.response && error.response.data.message) setErrorMsg(error.response.data.message);
-      else setErrorMsg('Gagal mereset kata sandi.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Filter Data
-  const filteredAccounts = accounts.filter(acc => {
-    const matchSearch = acc.nama.toLowerCase().includes(searchTerm.toLowerCase()) || acc.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchRole = filterRole === 'Semua' || acc.role === filterRole;
-    return matchSearch && matchRole;
+  const filteredAccounts = accountList.filter(acc => {
+    const query = searchQuery.toLowerCase();
+    const matchSearch = 
+      acc.name.toLowerCase().includes(query) ||
+      acc.email.toLowerCase().includes(query);
+    
+    const matchRole = filters.role === 'Semua' || acc.role === filters.role;
+    const matchStatus = filters.status === 'Semua' || acc.status === filters.status;
+    
+    return matchSearch && matchRole && matchStatus;
   });
 
-  // Helper Badge
-  const getRoleBadge = (role) => {
-    switch (role) {
-      case 'Administrator': return { icon: <Shield className="w-3 h-3" />, color: 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20' };
-      case 'Direktur': return { icon: <Building className="w-3 h-3" />, color: 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/20' };
-      case 'Team Leader': return { icon: <ShieldCheck className="w-3 h-3" />, color: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20' };
-      case 'Pengawas Lapangan': return { icon: <HardHat className="w-3 h-3" />, color: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' };
-      case 'Owner / PPK': return { icon: <UserCheck className="w-3 h-3" />, color: 'bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-500/20' };
-      default: return { icon: <Users className="w-3 h-3" />, color: 'bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-500/20' };
-    }
+  // --- PEWARNAAN ROLE & STATUS ---
+  const getRoleStyle = (role) => {
+    if (role === 'Administrator') return { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500/20", icon: <ShieldAlert size={14}/> };
+    if (role === 'Team Leader') return { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/20", icon: <Shield size={14}/> };
+    if (role === 'Pengawas Lapangan') return { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/20", icon: <User size={14}/> };
+    return { bg: "bg-gray-500/10", text: "text-gray-600 dark:text-gray-400", border: "border-gray-500/20", icon: <User size={14}/> };
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === 'aktif') return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400";
+    return "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400";
   };
 
   return (
-    <div className="w-full space-y-6 relative">
+    <div className="w-full min-h-screen p-4 md:p-6 lg:p-8 font-sans bg-gray-50/50 dark:bg-gray-900/50 flex flex-col">
       
-      {/* HEADER & ACTION BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
-            Manajemen Akun & Akses
+          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
+            <Users className="text-blue-600 dark:text-blue-400" size={32} />
+            Daftar Akun
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola pengguna sistem, otoritas role, dan status keaktifan akun.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Manajemen pengguna, hak akses, dan status akun sistem.
+          </p>
         </div>
-        
-        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          
-          <button
-            onClick={() => fetchUsers(false)}
-            disabled={isRefreshing || isLoading}
-            title="Refresh Data Akun"
-            className="p-2.5 md:p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
-          </button>
 
-          <div className="relative flex-1 md:flex-none min-w-[150px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Cari nama / email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full md:w-56 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* SEARCH INPUT */}
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Cari nama atau email..." 
+              disabled={isLoading}
+              className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none backdrop-blur-sm transition-all text-sm disabled:opacity-50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <select 
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="flex-1 md:flex-none bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-700 dark:text-slate-300 px-3 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer appearance-none"
-          >
-            <option value="Semua">Semua Role</option>
-            <option value="Administrator">Administrator</option>
-            <option value="Direktur">Direktur</option>
-            <option value="Team Leader">Team Leader</option>
-            <option value="Pengawas Lapangan">Pengawas Lapangan</option>
-            <option value="Owner / PPK">Owner / PPK</option>
-          </select>
+          {/* FILTER DROPDOWN */}
+          <div className="relative" ref={filterRef}>
+            <button 
+              disabled={isLoading}
+              onClick={() => setShowFilter(!showFilter)} 
+              className={`p-2.5 border rounded-xl flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50 ${
+                showFilter || filters.role !== 'Semua' || filters.status !== 'Semua' 
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600' 
+                  : 'bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <Filter size={20} />
+            </button>
 
-          <button 
-            onClick={() => openModal('add')}
-            className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap shrink-0 w-full sm:w-auto mt-2 sm:mt-0"
-          >
-            <Plus className="w-4 h-4" /> Akun Baru
-          </button>
+            {showFilter && (
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 p-5 z-50">
+                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Filter Akun</h4>
+                
+                <div className="space-y-5">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Hak Akses (Role)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Semua', 'Administrator', 'Team Leader', 'Pengawas Lapangan', 'Tamu'].map(opt => (
+                        <button 
+                          key={opt}
+                          onClick={() => handleFilterChange('role', opt)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                            filters.role === opt 
+                              ? 'bg-blue-600 text-white border-blue-600' 
+                              : 'bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Status Akun</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Semua', 'aktif', 'nonaktif'].map(opt => (
+                        <button 
+                          key={opt}
+                          onClick={() => handleFilterChange('status', opt)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border capitalize ${
+                            filters.status === opt 
+                              ? 'bg-blue-600 text-white border-blue-600' 
+                              : 'bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                  <button onClick={() => { setFilters({ role: 'Semua', status: 'Semua' }); setShowFilter(false); }} className="text-xs font-bold text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">Reset Filter</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TAMBAH AKUN BUTTON */}
+          {isAdmin && (
+            <button onClick={() => navigate('/accounts/input')} disabled={isLoading} className="flex-1 md:flex-none w-full md:w-auto mt-2 md:mt-0 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md disabled:opacity-50">
+              <Plus size={18} /> Tambah Akun
+            </button>
+          )}
         </div>
       </div>
 
-      {/* PEMBERITAHUAN ERROR LUAR */}
-      {errorMsg && !modalType && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
+      {/* FILTER TAGS AKTIF */}
+      {(filters.role !== 'Semua' || filters.status !== 'Semua') && (
+        <div className="flex flex-wrap gap-2 mb-6 -mt-2">
+          {filters.role !== 'Semua' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 text-purple-600 text-xs font-bold rounded-full border border-purple-500/20">
+              Role: {filters.role}
+              <button onClick={() => clearFilter('role')} className="hover:bg-purple-500/20 p-0.5 rounded-full transition-colors"><XCircle size={14}/></button>
+            </span>
+          )}
+          {filters.status !== 'Semua' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-600 text-xs font-bold rounded-full border border-emerald-500/20">
+              Status: {filters.status === 'aktif' ? 'Aktif' : 'Nonaktif'}
+              <button onClick={() => clearFilter('status')} className="hover:bg-emerald-500/20 p-0.5 rounded-full transition-colors"><XCircle size={14}/></button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* NOTIFIKASI ERROR */}
+      {errorMsg && (
+        <div className="p-4 mb-6 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-600 text-sm font-medium">
+          <AlertTriangle size={18} /> {errorMsg}
         </div>
       )}
 
       {/* LOADING STATE */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
-          <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-3" />
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Memuat data pengguna...</p>
+        <div className="flex flex-col items-center justify-center flex-1 w-full bg-white/70 dark:bg-gray-800/40 backdrop-blur-md border border-gray-200/60 dark:border-white/10 rounded-2xl shadow-sm min-h-[400px]">
+          <Loader2 size={40} className="text-blue-500 animate-spin mb-4" />
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Memuat data akun sistem...</p>
         </div>
       ) : (
         <>
-          {/* TAMPILAN MOBILE */}
-          <div className="block md:hidden space-y-4">
+          {/* MOBILE VIEW (CARD) */}
+          <div className="grid grid-cols-1 gap-4 md:hidden mb-8">
             {filteredAccounts.length > 0 ? (
               filteredAccounts.map((acc) => {
-                const roleStyle = getRoleBadge(acc.role);
+                const roleStyle = getRoleStyle(acc.role);
                 return (
-                  <div key={acc.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0 text-sm">
-                        {acc.nama.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0 pr-6">
-                        <p className="font-bold text-slate-800 dark:text-white text-sm truncate flex items-center gap-2">
-                          {acc.nama}
-                          {/* BADGE NEW MOBILE */}
-                          {acc.isNew && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-amber-500/20 animate-pulse">
-                              <Sparkles className="w-2.5 h-2.5" /> NEW
-                            </span>
-                          )}
-                        </p>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">{acc.email}</span>
+                  <div key={acc.id} className="p-5 rounded-2xl border bg-white/70 dark:bg-gray-800/40 backdrop-blur-md border-gray-200/60 dark:border-white/10 shadow-sm flex flex-col gap-4 relative overflow-hidden transition-all">
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-extrabold text-lg border border-blue-200 dark:border-blue-800">
+                          {acc.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900 dark:text-white leading-tight">{acc.name}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5"><Mail size={12}/> {acc.email}</p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${roleStyle.color} text-[10px] font-medium`}>
-                        {roleStyle.icon} {acc.role}
-                      </span>
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                        acc.status === 'Aktif' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20' : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${acc.status === 'Aktif' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                        {acc.status}
-                      </span>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700/50 flex flex-col gap-3">
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                        <span className="font-semibold text-slate-600 dark:text-slate-300">Pembaruan:</span> {acc.lastLogin}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => openModal('edit', acc)} className="flex-1 py-2 bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-700 dark:text-amber-400 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-600 shadow-sm">
-                          <Edit3 className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button onClick={() => openModal('reset', acc)} className="flex-1 py-2 bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-blue-400 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-600 shadow-sm">
-                          <Key className="w-3.5 h-3.5" /> Akses
-                        </button>
-                        <button onClick={() => openModal('delete', acc)} className="py-2 px-3 bg-slate-50 dark:bg-slate-700/80 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-700 dark:text-rose-400 rounded-lg transition-all border border-slate-200 dark:border-slate-600 shadow-sm shrink-0">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                    <div className="grid grid-cols-2 gap-2 text-sm border-y border-gray-100 dark:border-gray-700/50 py-3">
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Role Akses</p>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase tracking-wider ${roleStyle.bg} ${roleStyle.text} ${roleStyle.border}`}>
+                          {roleStyle.icon} {acc.role}
+                        </span>
+                      </div>
+                      <div>
+                         <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Status</p>
+                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase tracking-wider ${getStatusStyle(acc.status)}`}>
+                            {acc.status === 'aktif' ? <CheckCircle2 size={12}/> : <XCircle size={12}/>} {acc.status}
+                          </span>
                       </div>
                     </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button onClick={() => navigate(`/accounts/edit/${acc.id}`)} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold">
+                          <Edit3 size={16} /> Edit
+                        </button>
+                        <button onClick={() => handleDelete(acc.id, acc.name)} className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold">
+                          <Trash2 size={16} /> Hapus
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60">
-                <Users className="w-10 h-10 mx-auto text-slate-400 mb-3" />
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Akun tidak ditemukan</p>
+              <div className="p-8 text-center bg-white/70 dark:bg-gray-800/40 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-white/10 shadow-sm">
+                <Users size={40} className="mx-auto text-gray-400 mb-3" />
+                <p className="font-semibold text-gray-700 dark:text-gray-300">Akun tidak ditemukan.</p>
+                <p className="text-sm text-gray-500 mt-1">Coba sesuaikan filter atau kata kunci.</p>
               </div>
             )}
           </div>
 
-          {/* TAMPILAN DESKTOP */}
-          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse table-auto min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    <th className="p-4 w-[35%]">Identitas Pengguna</th>
-                    <th className="p-4 w-[25%]">Role & Otoritas</th>
-                    <th className="p-4 text-center w-[15%]">Status</th>
-                    <th className="p-4 w-[20%]">Pembaruan Sistem</th>
-                    <th className="p-4 text-center w-[5%]"></th>
+          {/* DESKTOP VIEW (TABLE) */}
+          <div className="hidden md:block w-full overflow-x-auto rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/70 dark:bg-gray-800/40 backdrop-blur-md shadow-lg mb-8">
+            <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
+              <thead>
+                <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200/60 dark:border-white/10">
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[35%]">Profil Pengguna</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[20%]">Peran (Role)</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[15%]">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[15%]">Bergabung</th>
+                  {isAdmin && <th className="px-6 py-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-[15%]">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200/60 dark:divide-white/10">
+                {filteredAccounts.length > 0 ? (
+                  filteredAccounts.map((acc) => {
+                    const roleStyle = getRoleStyle(acc.role);
+
+                    return (
+                      <tr key={acc.id} className="transition-colors group hover:bg-white/40 dark:hover:bg-white/5">
+                        <td className="px-6 py-4 align-middle">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-extrabold border border-blue-200 dark:border-blue-800">
+                              {acc.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 dark:text-white">{acc.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5"><Mail size={12}/> {acc.email}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4 align-middle">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold border uppercase tracking-wider ${roleStyle.bg} ${roleStyle.text} ${roleStyle.border}`}>
+                            {roleStyle.icon} {acc.role}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 align-middle">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold border uppercase tracking-wider ${getStatusStyle(acc.status)}`}>
+                             {acc.status === 'aktif' ? <CheckCircle2 size={14}/> : <XCircle size={14}/>} {acc.status}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 align-middle">
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 font-medium">
+                            <Calendar size={16} className="text-gray-400" /> <span>{acc.createdAt}</span>
+                          </div>
+                        </td>
+
+                        {isAdmin && (
+                          <td className="px-6 py-4 align-middle text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => navigate(`/accounts/edit/${acc.id}`)} className="p-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-xl transition-all border border-blue-200 dark:border-blue-800" title="Edit Akun">
+                                <Edit3 size={16} />
+                              </button>
+                              <button onClick={() => handleDelete(acc.id, acc.name)} className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-xl transition-all border border-rose-200 dark:border-rose-800" title="Hapus Akun">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={isAdmin ? "5" : "4"} className="px-6 py-12 text-center text-gray-500">
+                      <Users size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                      <p className="font-semibold text-gray-700 dark:text-gray-300">Akun tidak ditemukan.</p>
+                      <p className="text-sm mt-1">Coba sesuaikan filter pencarian.</p>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                  {filteredAccounts.length > 0 ? (
-                    filteredAccounts.map((acc) => {
-                      const roleStyle = getRoleBadge(acc.role);
-                      return (
-                        <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all group">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0">
-                                {acc.nama.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="truncate">
-                                <p className="font-bold text-slate-800 dark:text-white text-[13px] truncate flex items-center gap-2">
-                                  {acc.nama}
-                                  {/* BADGE NEW DESKTOP */}
-                                  {acc.isNew && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-amber-500/20 animate-pulse">
-                                      <Sparkles className="w-2.5 h-2.5" /> NEW
-                                    </span>
-                                  )}
-                                </p>
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                  <Mail className="w-3 h-3" /> <span className="truncate">{acc.email}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${roleStyle.color} text-[11px] font-medium`}>
-                              {roleStyle.icon} {acc.role}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              acc.status === 'Aktif' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${acc.status === 'Aktif' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                              {acc.status}
-                            </span>
-                          </td>
-                          <td className="p-4 text-[11px] text-slate-500 dark:text-slate-400">{acc.lastLogin}</td>
-                          <td className="p-4 text-center relative">
-                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => openModal('edit', acc)} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-all" title="Edit Akun">
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => openModal('reset', acc)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-all" title="Reset Password">
-                                <Key className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => openModal('delete', acc)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-all" title="Hapus/Nonaktifkan">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="5" className="p-8 text-center text-slate-500 dark:text-slate-400">
-                        <Users className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-600 mb-3" />
-                        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Akun tidak ditemukan</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                )}
+              </tbody>
+            </table>
           </div>
         </>
       )}
 
-      {/* --- INFO LEGEND --- */}
-      <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
-        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Keterangan Akses:</span>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Admin</span>
-          <span className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" /> Direktur</span>
-          <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" /> Team Leader</span>
-          <span className="flex items-center gap-1.5"><HardHat className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> Pengawas</span>
-          <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" /> PPK</span>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* KUMPULAN MODAL (POP-UP)                    */}
-      {/* ========================================== */}
-
-      {modalType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          
-          {/* MODAL 0: TAMBAH AKUN BARU */}
-          {modalType === 'add' && (
-            <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-amber-500"/> Tambah Akun Baru</h3>
-                <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-              </div>
-
-              {errorMsg && (
-                <div className="mx-5 mt-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs font-medium">
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="text" 
-                    value={addFormData.nama}
-                    onChange={(e) => setAddFormData({...addFormData, nama: e.target.value})}
-                    placeholder="Contoh: Nama Pengguna" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors" 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Alamat Email <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="email" 
-                    value={addFormData.email}
-                    onChange={(e) => setAddFormData({...addFormData, email: e.target.value})}
-                    placeholder="email@konsultan.com" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors" 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Role Akses <span className="text-rose-500">*</span></label>
-                  <select 
-                    value={addFormData.role}
-                    onChange={(e) => setAddFormData({...addFormData, role: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer appearance-none"
-                  >
-                    <option value="Administrator">Administrator</option>
-                    <option value="Direktur">Direktur</option>
-                    <option value="Team Leader">Team Leader</option>
-                    <option value="Pengawas Lapangan">Pengawas Lapangan</option>
-                    <option value="Owner / PPK">Owner / PPK</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Password Sementara <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="password" 
-                    value={addFormData.password}
-                    onChange={(e) => setAddFormData({...addFormData, password: e.target.value})}
-                    placeholder="••••••••" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors font-mono" 
-                  />
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Pengguna akan diminta mengganti password saat login pertama kali.</p>
-                </div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button onClick={closeModal} disabled={isSubmitting} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50">Batal</button>
-                <button onClick={handleAddAccount} disabled={isSubmitting} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-xs font-bold rounded-xl transition-colors shadow-md flex items-center gap-2 disabled:opacity-50">
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
-                  {isSubmitting ? 'Mendaftarkan...' : 'Daftarkan Akun'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 1: EDIT AKUN */}
-          {modalType === 'edit' && selectedAccount && (
-            <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Edit3 className="w-4 h-4 text-amber-500"/> Edit Data Akun</h3>
-                <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-              </div>
-
-              {errorMsg && (
-                <div className="mx-5 mt-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs font-medium">
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Lengkap</label>
-                  <input 
-                    type="text" 
-                    value={editFormData.nama} 
-                    onChange={(e) => setEditFormData({...editFormData, nama: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors" 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Alamat Email</label>
-                  <input 
-                    type="email" 
-                    value={editFormData.email} 
-                    onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors" 
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Role Akses</label>
-                    <select 
-                      value={editFormData.role} 
-                      onChange={(e) => setEditFormData({...editFormData, role: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="Administrator">Administrator</option>
-                      <option value="Direktur">Direktur</option>
-                      <option value="Team Leader">Team Leader</option>
-                      <option value="Pengawas Lapangan">Pengawas Lapangan</option>
-                      <option value="Owner / PPK">Owner / PPK</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Status</label>
-                    <select 
-                      value={editFormData.status} 
-                      onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="Aktif">Aktif</option>
-                      <option value="Tidak Aktif">Tidak Aktif</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button onClick={closeModal} disabled={isSubmitting} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50">Batal</button>
-                <button onClick={handleUpdateAccount} disabled={isSubmitting} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-xs font-bold rounded-xl transition-colors shadow-md flex items-center gap-2 disabled:opacity-50">
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
-                  {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 2: RESET PASSWORD */}
-          {modalType === 'reset' && selectedAccount && (
-            <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Key className="w-4 h-4 text-blue-500"/> Reset Password</h3>
-                <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-              </div>
-
-              {errorMsg && (
-                <div className="mx-5 mt-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs font-medium">
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="p-5 space-y-5">
-                <div className="p-3.5 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20">
-                  <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                    Setel ulang kata sandi untuk akun <span className="font-bold">{selectedAccount.nama}</span>. Pastikan Anda memberikan password baru ini kepada pengguna yang bersangkutan.
-                  </p>
-                </div>
-                
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Password Baru <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="password" 
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimal 6 karakter" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 transition-colors font-mono" 
-                  />
-                </div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button onClick={closeModal} disabled={isSubmitting} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50">Batal</button>
-                <button onClick={handleResetPassword} disabled={isSubmitting} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-colors shadow-md flex items-center gap-2 disabled:opacity-50">
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
-                  {isSubmitting ? 'Menyimpan...' : 'Simpan Password Baru'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 3: KONFIRMASI HAPUS */}
-          {modalType === 'delete' && selectedAccount && (
-            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6" onClick={e => e.stopPropagation()}>
-              <div className="w-14 h-14 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                <AlertTriangle className="w-6 h-6 text-rose-500 dark:text-rose-400" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Akun Pengguna</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                Tindakan ini akan menghapus akun <span className="font-bold text-slate-700 dark:text-slate-300">{selectedAccount.nama}</span> secara permanen dari sistem. Lanjutkan?
-              </p>
-              <div className="flex gap-3">
-                <button onClick={closeModal} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
-                <button onClick={closeModal} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition-colors shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Ya, Hapus</button>
-              </div>
-            </div>
-          )}
+      {/* FOOTER LEGEND */}
+      {!isLoading && filteredAccounts.length > 0 && (
+        <div className="rounded-xl border border-gray-200/60 dark:border-white/10 bg-white/70 dark:bg-gray-800/40 backdrop-blur-sm p-4 mt-auto">
+          <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Keterangan Indikator</h4>
+          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><ShieldAlert size={16} className="text-purple-500" /> <span>Administrator (Hak Penuh)</span></div>
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><Shield size={16} className="text-blue-500" /> <span>Team Leader</span></div>
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><User size={16} className="text-amber-500" /> <span>Pengawas Lapangan</span></div>
+            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 hidden md:block mx-2"></div>
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><CheckCircle2 size={16} className="text-emerald-500" /> <span>Akun Aktif</span></div>
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300"><XCircle size={16} className="text-rose-500" /> <span>Akun Nonaktif</span></div>
+          </div>
         </div>
       )}
 
