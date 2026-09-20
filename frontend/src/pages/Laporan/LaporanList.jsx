@@ -1,883 +1,594 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api'; 
 import { 
-  ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
-  Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, Edit3, X, FileSpreadsheet, ChevronDown
+  Search, Eye, Plus, FileSpreadsheet, Calendar, MapPin, 
+  UserCheck, ListTodo, Users, 
+  Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2, FileBox, Info
 } from 'lucide-react';
 
-const defaultPersonilList = [
-  'Dinas PUPR', 'Konsultan', 'Kontraktor', 'Kepala Kerja/Mandor', 
-  'Pekerja', 'Tukang', 'Supir', 'Operator', 'Surveyor'
-];
-
-const defaultPeralatanList = [
-  'Excavator', 'Dump Truck', 'Water Past', 'Theodolith', 
-  'Concrete Mixer', 'Jack Hammer', 'Mesin Alcon', 'Mesin Las', 'Alat bantu'
-];
-
-export default function AddLaporan() {
+export default function LaporanList() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const editData = location.state?.editData || null;
-
-  const [submitting, setSubmitting] = useState(false);
-  const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  
+  // --- STATE MANAJEMEN ---
+  const [laporanList, setLaporanList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [projects, setProjects] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(editData?.project_id || '');
-  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  
-  const [rabOptions, setRabOptions] = useState([]);
-  const [isLoadingRab, setIsLoadingRab] = useState(false);
-
-  const [scheduleData, setScheduleData] = useState(null);
-  const [mingguKe, setMingguKe] = useState(null);
-
-  const [formData, setFormData] = useState({
-    tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
-    namaPengawas: editData?.namaPengawas || '',
-    lokasi: editData?.lokasi || ''
-  });
-
-  // --- STATE CUACA (ARRAY MULTIPLE) ---
-  const [cuacaItems, setCuacaItems] = useState([
-    { id: Date.now(), kondisi: 'Cerah', keterangan: '' }
-  ]);
-
-  const [kegiatanItems, setKegiatanItems] = useState(
-    editData?.kegiatan?.length > 0 
-      ? editData.kegiatan.map((k, i) => {
-          return { id: i, rab_item_id: k.rab_item_id || '', uraian: k.uraian || '', koordinat_awal: k.sta_awal || '', koordinat_akhir: k.sta_akhir || '', volume: k.volume || '', satuan: k.satuan || '' };
-      })
-      : [{ id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '' }]
-  );
-
-  const [personilItems, setPersonilItems] = useState(editData?.personil || []);
-  const [peralatanItems, setPeralatanItems] = useState(editData?.peralatan || []);
-  const [fotoLampiran, setFotoLampiran] = useState([]);
-  const [dokumenLampiran, setDokumenLampiran] = useState([]);
-  
-  const [showPersonilModal, setShowPersonilModal] = useState(false);
-  const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '' });
-  
-  const [showPeralatanModal, setShowPeralatanModal] = useState(false);
-  const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '' });
-
   useEffect(() => {
-    document.title = "Prisma Group - Input Laporan Harian";
+    document.title = "Prisma Group - Daftar Laporan";
   }, []);
+  
+  // --- SEARCH & FILTER ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const [filters, setFilters] = useState({ status: 'Semua', startDate: '', endDate: '' });
+  const filterRef = useRef(null);
+
+  // --- EDIT & BATCH DELETE MODE ---
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [deleteConfig, setDeleteConfig] = useState({ show: false, id: null, name: '' });
+  const [stagedDeletions, setStagedDeletions] = useState([]);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
-    const fetchProjects = async () => {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
       try {
-        const res = await api.get('/projects-active-report');
-        const allProjects = res.data?.data || res.data || [];
-        setProjects(allProjects);
-      } catch (error) {
-        console.error("Gagal mengambil data proyek:", error);
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
-    fetchProjects();
+        const user = JSON.parse(userDataStr);
+        setUserRole(user.role || 'Tamu');
+      } catch (error) {}
+    }
   }, []);
 
-  const selectedProject = projects.find(p => p.id.toString() === selectedProjectId.toString());
-  
-  useEffect(() => {
-    const tglDipilih = formData.tanggalPengawasan;
-    if (tglDipilih && selectedProject && selectedProject.tanggal_mulai) {
-      const start = new Date(selectedProject.tanggal_mulai);
-      const report = new Date(tglDipilih);
-      const diffTime = report.getTime() - start.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+  // Definisi Hak Akses
+  const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
+  const isGuest = userRole === 'Tamu';
+
+  // --- FETCH DATA DARI LARAVEL ---
+  const fetchLaporan = async () => {
+    setIsLoading(true);
+    setErrorMsg('');
+    try {
+      const response = await api.get('/daily-reports');
       
-      if (diffDays < 0) {
-        setMingguKe('Invalid (Sebelum SPMK)');
-      } else {
-        const hitungMinggu = Math.floor(diffDays / 7) + 1;
-        setMingguKe(hitungMinggu);
-      }
-    } else {
-      setMingguKe(null);
+      const formattedData = response.data.data.map(l => {
+        const formatTgl = l.tanggal.replace(/-/g, '');
+        const formatId = l.id.toString().padStart(3, '0');
+        const isNewReport = (new Date() - new Date(l.created_at)) / (1000 * 60 * 60 * 24) <= 3;
+        
+        return {
+          id: l.id,
+          nomorLaporan: `LAP/${formatTgl}/${formatId}`,
+          status: l.status || 'pending', 
+          tanggalPengawasan: l.tanggal, 
+          namaPengawas: l.pengawas,
+          namaProyek: l.project ? l.project.nama_proyek : 'Proyek Tidak Diketahui',
+          lokasi: l.lokasi,
+          kegiatan: l.activities ? l.activities.map(a => a.uraian) : [],
+          personil: l.personnels || [],
+          peralatan: l.equipments || [],
+          cuaca: l.cuaca || '-', 
+          isNew: isNewReport,
+          originalData: l 
+        };
+      });
+      
+      setLaporanList(formattedData);
+    } catch (error) {
+      console.error("Error fetching laporan:", error);
+      setErrorMsg('Gagal memuat data laporan harian. Pastikan server terhubung.');
+    } finally {
+      setIsLoading(false);
     }
-  }, [formData.tanggalPengawasan, selectedProject, projects]);
+  };
 
   useEffect(() => {
-    if (!selectedProjectId) {
-      setRabOptions([]);
-      setScheduleData(null);
+    fetchLaporan();
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) setShowFilter(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // --- BATCH DELETE LOGIC (MODE EDIT DRAF) ---
+  const confirmDelete = (e, id, name) => {
+    e.stopPropagation();
+    setDeleteConfig({ show: true, id, name });
+  };
+
+  const executeDraftDelete = () => {
+    setStagedDeletions(prev => [...prev, deleteConfig.id]);
+    setDeleteConfig({ show: false, id: null, name: '' });
+  };
+
+  const handleSelesaiEdit = async () => {
+    if (stagedDeletions.length === 0) {
+      setIsEditMode(false);
       return;
     }
 
-    const fetchScheduleAndRAB = async () => {
-      setIsLoadingRab(true);
-      try {
-        const res = await api.get(`/projects/${selectedProjectId}/schedules`);
-        const data = res.data.data;
-        setScheduleData(data);
-        
-        const flattenedItems = [];
-        data.rab_data.forEach(kategori => {
-          kategori.items.forEach(item => {
-            if (!item.is_subheader) {
-              flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
-            }
-          });
-        });
-        setRabOptions(flattenedItems);
-      } catch (error) {
-        console.error("Gagal mengambil data jadwal/RAB:", error);
-      } finally {
-        setIsLoadingRab(false);
-      }
-    };
-
-    fetchScheduleAndRAB();
-  }, [selectedProjectId]);
-
-  let optionsMingguIni = [];
-  let optionsMingguLain = [];
-
-  const isScheduleEmpty = scheduleData && (!scheduleData.schedules || scheduleData.schedules.length === 0);
-
-  if (scheduleData && scheduleData.schedules && scheduleData.schedules.length > 0) {
-    const scheduledItemsMap = new Map();
-    
-    scheduleData.schedules.forEach(sched => {
-      let detailItem = null;
-      let namaKategori = '';
-      
-      scheduleData.rab_data.forEach(cat => {
-        const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
-        if (itemMatch) {
-          detailItem = itemMatch;
-          namaKategori = cat.nama_kategori;
-        }
-      });
-
-      if (detailItem) {
-        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(mingguKe);
-        if (!scheduledItemsMap.has(sched.rab_item_id)) {
-          scheduledItemsMap.set(sched.rab_item_id, {
-            ...detailItem,
-            kategori: namaKategori,
-            is_this_week: isThisWeek
-          });
-        } else if (isThisWeek) {
-          scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
-        }
-      }
-    });
-
-    scheduledItemsMap.forEach(value => {
-      if (value.is_this_week) optionsMingguIni.push(value);
-      else optionsMingguLain.push(value);
-    });
-  }
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleKegiatanSelect = (index, selectedRabId) => {
-    const newK = [...kegiatanItems];
-    if (selectedRabId === "manual") {
-      newK[index].rab_item_id = null;
-      newK[index].uraian = '';
-      newK[index].satuan = '';
-    } else {
-      const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId);
-      if (selectedRab) {
-        newK[index].rab_item_id = selectedRab.id;
-        newK[index].uraian = selectedRab.uraian;
-        newK[index].satuan = selectedRab.satuan || '';
-      }
-    }
-    setKegiatanItems(newK);
-  };
-
-  const openPersonilModal = (item = null) => {
-    if (item) setPersonilForm(item);
-    else setPersonilForm({ id: Date.now(), peran: '', jumlah: '' });
-    setShowPersonilModal(true);
-  };
-
-  const savePersonil = (e) => {
-    e.preventDefault();
-    const existingIndex = personilItems.findIndex(p => p.id === personilForm.id);
-    if (existingIndex >= 0) {
-      const updated = [...personilItems];
-      updated[existingIndex] = personilForm;
-      setPersonilItems(updated);
-    } else {
-      setPersonilItems([...personilItems, personilForm]);
-    }
-    setShowPersonilModal(false);
-  };
-
-  const openPeralatanModal = (item = null) => {
-    if (item) setPeralatanForm(item);
-    else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '' });
-    setShowPeralatanModal(true);
-  };
-
-  const savePeralatan = (e) => {
-    e.preventDefault();
-    const existingIndex = peralatanItems.findIndex(p => p.id === peralatanForm.id);
-    if (existingIndex >= 0) {
-      const updated = [...peralatanItems];
-      updated[existingIndex] = peralatanForm;
-      setPeralatanItems(updated);
-    } else {
-      setPeralatanItems([...peralatanItems, peralatanForm]);
-    }
-    setShowPeralatanModal(false);
-  };
-
-  const handleFotoLampiranChange = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter(file => {
-      if (file.size > 2 * 1024 * 1024) {
-        alert(`File ${file.name} terlalu besar. Maksimal 2MB per foto.`);
-        return false;
-      }
-      return true;
-    });
-    setFotoLampiran([...fotoLampiran, ...validFiles]);
-  };
-
-  const handleRemoveFoto = (index) => {
-    setFotoLampiran(fotoLampiran.filter((_, i) => i !== index));
-  };
-
-  const handleDokumenLampiranChange = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} terlalu besar. Maksimal 5MB per dokumen.`);
-        return false;
-      }
-      return true;
-    });
-    setDokumenLampiran([...dokumenLampiran, ...validFiles]);
-  };
-
-  const handleRemoveDokumen = (index) => {
-    setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedProjectId) return alert("Silakan Pilih Proyek terlebih dahulu sebelum menyimpan laporan.");
-    if (isScheduleEmpty) return alert("Time Schedule Proyek ini belum dibuat! Laporan Harian hanya bisa ditambahkan pada proyek yang sudah memiliki Time Schedule.");
-
-    setSubmitting(true);
-    setErrorMsg('');
-    
+    setIsSavingEdit(true);
     try {
-      const payload = new FormData();
-      
-      payload.append('tanggal', formData.tanggalPengawasan);
-      payload.append('pengawas', formData.namaPengawas);
-      payload.append('lokasi', formData.lokasi);
-      
-      // MENGGABUNGKAN SELURUH ITEM CUACA MENJADI 1 TEKS AGAR DB LAMA TIDAK ERROR
-      const cuacaGabungan = cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
-      payload.append('cuaca', cuacaGabungan);
-      
-      // Kirim JSON mentahnya
-      payload.append('kondisi_cuaca', JSON.stringify(cuacaItems));
-
-      const payloadKegiatan = kegiatanItems.map(k => ({
-        rab_item_id: k.rab_item_id,
-        uraian: k.uraian,
-        sta_awal: k.koordinat_awal,   
-        sta_akhir: k.koordinat_akhir, 
-        volume: k.volume,
-        satuan: k.satuan
-      }));
-
-      payload.append('kegiatan', JSON.stringify(payloadKegiatan));
-      payload.append('personil', JSON.stringify(personilItems));
-      payload.append('peralatan', JSON.stringify(peralatanItems));
-
-      fotoLampiran.forEach(file => payload.append('foto[]', file));
-      dokumenLampiran.forEach(file => payload.append('lampiran[]', file));
-
-      await api.post(`/projects/${selectedProjectId}/daily-reports`, payload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      setSubmitting(false);
-      setSubmittedSuccess(true);
-      
-      setTimeout(() => setSubmittedSuccess(false), 4000);
-      setTimeout(() => navigate('/laporan'), 1500); 
-
+      await Promise.all(stagedDeletions.map(id => api.delete(`/daily-reports/${id}`)));
+      setStagedDeletions([]); 
+      await fetchLaporan(); 
+      setIsEditMode(false); 
     } catch (error) {
-      console.error("Gagal mengirim laporan:", error);
-      
-      if (error.response?.status === 413) {
-        setErrorMsg("Gagal: Total ukuran file (Foto/Dokumen) terlalu besar. Batas maksimal server (PHP) terlampaui.");
-      } else if (error.response?.data?.errors) {
-        const errorList = Object.values(error.response.data.errors).flat().join(' | ');
-        setErrorMsg(`Gagal Validasi: ${errorList}`);
-      } else if (error.response?.data?.message) {
-        setErrorMsg(error.response.data.message);
-      } else {
-        setErrorMsg("Gagal menyimpan data laporan beserta lampiran. Cek koneksi server.");
-      }
-      setSubmitting(false);
+      alert('Beberapa laporan gagal dihapus. Pastikan koneksi server stabil.');
+      setStagedDeletions([]);
+      await fetchLaporan();
+      setIsEditMode(false);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
+
+  const handleBatalEdit = () => {
+    setStagedDeletions([]);
+    setIsEditMode(false);
+  };
+
+  const hitungTotal = (arrayData) => {
+    return arrayData.reduce((total, item) => total + (Number(item.jumlah) || 0), 0);
+  };
+
+  // --- LOGIKA FILTER DINAMIS ---
+  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
+  const clearFilter = (key) => {
+    if (key === 'tanggal') {
+      setFilters(prev => ({ ...prev, startDate: '', endDate: '' }));
+    } else {
+      setFilters(prev => ({ ...prev, [key]: 'Semua' }));
+    }
+  };
+
+  const filteredLaporan = laporanList.filter(l => {
+    const query = searchQuery.toLowerCase();
+    const matchSearch = 
+      l.namaProyek.toLowerCase().includes(query) ||
+      l.nomorLaporan.toLowerCase().includes(query) ||
+      l.namaPengawas.toLowerCase().includes(query) ||
+      l.lokasi.toLowerCase().includes(query);
+    
+    const computedStatus = (isGuest && l.status === 'rejected') ? 'pending' : l.status;
+    const matchStatus = filters.status === 'Semua' || computedStatus === filters.status;
+    
+    let matchTanggal = true;
+    if (l.tanggalPengawasan) {
+      if (filters.startDate && l.tanggalPengawasan < filters.startDate) matchTanggal = false;
+      if (filters.endDate && l.tanggalPengawasan > filters.endDate) matchTanggal = false;
+    }
+    
+    return matchSearch && matchStatus && matchTanggal;
+  });
+
+  const visibleLaporan = filteredLaporan.filter(l => !stagedDeletions.includes(l.id));
+
+  // --- FUNGSI PEWARNAAN STATUS KONSISTEN ---
+  const getStatusStyles = (status) => {
+    if (status === 'approved') return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30";
+    if (status === 'rejected') return "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30";
+    return "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30"; 
+  };
+
+  const getStatusText = (status) => {
+    if (status === 'approved') return "Disetujui";
+    if (status === 'rejected') return "Ditolak";
+    return "Pending";
+  };
+
+  const statusOptions = [
+    { value: 'Semua', label: 'Semua' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Disetujui' },
+    ...(isGuest ? [] : [{ value: 'rejected', label: 'Ditolak' }])
+  ];
 
   return (
-    <div className="w-full space-y-5 md:space-y-6 relative pb-20">
+    <div className="space-y-6 w-full relative pb-20">
       
-      <datalist id="peran-options">
-        {defaultPersonilList.map(p => <option key={p} value={p} />)}
-      </datalist>
-      <datalist id="alat-options">
-        {defaultPeralatanList.map(a => <option key={a} value={a} />)}
-      </datalist>
+      {/* GLOBAL STYLE SCROLLBAR UNTUK KONSISTENSI */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
 
-      {/* HEADER SECTION */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => navigate('/laporan')}
-            className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
-            title="Batal & Kembali"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
-              <ListTodo className="w-5 h-5 md:w-6 md:h-6 text-amber-500 shrink-0 mt-1 md:mt-0 hidden sm:block" /> 
-              <span>Input Laporan Harian Baru</span>
-            </h1>
-            <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-              Entri data pengawasan cuaca, personil, peralatan, dan rincian pekerjaan
-            </p>
+      {/* --- TOP ACTION BAR --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          {/* Typografi disamakan dengan ProjectList */}
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+            Daftar Laporan
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian Anda.</p>
+        </div>
+        
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+          
+          {/* Search Input */}
+          <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Cari laporan..." 
+              value={searchQuery} 
+              disabled={isLoading}
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+            />
           </div>
+
+          {/* Filter Dropdown Pop-up */}
+          <div className="relative" ref={filterRef}>
+            <button 
+              disabled={isLoading}
+              onClick={() => setShowFilter(!showFilter)} 
+              className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+            >
+              <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
+            </button>
+
+            {showFilter && (
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Laporan</h4>
+                
+                <div className="space-y-4">
+                  {/* TAG FILTER: STATUS */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Laporan</label>
+                    <div className="flex flex-wrap gap-2">
+                      {statusOptions.map(opt => {
+                        const isActive = filters.status === opt.value;
+                        return (
+                          <button 
+                            key={opt.value}
+                            onClick={() => handleFilterChange('status', opt.value)}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${
+                              isActive 
+                                ? 'bg-amber-500 text-white border-amber-600' 
+                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* FILTER RENTANG TANGGAL */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Rentang Tanggal</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date" 
+                        value={filters.startDate} 
+                        onChange={(e) => handleFilterChange('startDate', e.target.value)} 
+                        className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-2 text-[11px] text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none [color-scheme:light_dark]" 
+                      />
+                      <span className="text-slate-400 text-[10px] font-bold">s/d</span>
+                      <input 
+                        type="date" 
+                        value={filters.endDate} 
+                        onChange={(e) => handleFilterChange('endDate', e.target.value)} 
+                        className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-2 text-[11px] text-slate-800 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none [color-scheme:light_dark]" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+                  <button onClick={() => { setFilters({ status: 'Semua', startDate: '', endDate: '' }); setShowFilter(false); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors">Reset Semua</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TAMPILKAN TOMBOL AKSI HANYA JIKA PUNYA HAK AKSES CREATE */}
+          {canCreateData && (
+            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              {isEditMode ? (
+                <>
+                  <button onClick={handleBatalEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <X className="w-4 h-4" /> Batal
+                  </button>
+                  <button onClick={handleSelesaiEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700 disabled:cursor-not-allowed">
+                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
+                    {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setIsEditMode(true)} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Edit3 className="w-4 h-4" /> Mode Edit
+                </button>
+              )}
+
+              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                <Plus className="w-4 h-4" /> <span>Buat Laporan</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* --- TAGS FILTER AKTIF --- */}
+      {(filters.status !== 'Semua' || filters.startDate || filters.endDate) && (
+        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
+          {filters.status !== 'Semua' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[10px] font-bold rounded-lg border border-amber-200 dark:border-amber-500/20">
+              Status: {getStatusText(filters.status)}
+              <button onClick={() => clearFilter('status')} className="hover:bg-amber-200 dark:hover:bg-amber-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
+            </span>
+          )}
+          {(filters.startDate || filters.endDate) && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20">
+              Tanggal: {filters.startDate || 'Awal'} s/d {filters.endDate || 'Akhir'}
+              <button onClick={() => clearFilter('tanggal')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ERROR MESSAGE */}
       {errorMsg && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-3 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in shadow-sm">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{errorMsg}</span>
+        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
+          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
         </div>
       )}
 
-      {submittedSuccess && (
-        <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-xs animate-fade-in shadow-sm">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-          <span>Laporan Harian berhasil dikirim dan terdaftar di database. Mengalihkan...</span>
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
+          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data laporan...</p>
         </div>
-      )}
+      ) : (
+        <>
+          {/* ========================================== */}
+          {/* TAMPILAN MOBILE: KUMPULAN KARTU (Diselaraskan dengan ProjectList) */}
+          {/* ========================================== */}
+          <div className="block md:hidden space-y-4">
+            {visibleLaporan.length > 0 ? (
+              visibleLaporan.map((laporan) => {
+                const totalPersonil = hitungTotal(laporan.personil);
+                const totalAlat = hitungTotal(laporan.peralatan);
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        
-        {/* SECTION 1: Info Proyek & Pengawas */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
-              <Building2 className="w-4 h-4" /> Informasi Pengawasan
-            </h2>
-          </div>
-          
-          <div className="space-y-1.5 border-b border-slate-100 dark:border-slate-700/50 pb-4">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5" /> Pilih Proyek yang Diawasi <span className="text-rose-500">*</span>
-            </label>
-            {isLoadingProjects ? (
-              <div className="flex items-center gap-2 text-xs text-amber-500 bg-amber-50 dark:bg-amber-500/10 p-3 rounded-xl border border-amber-200 dark:border-amber-500/20">
-                <Loader2 className="w-4 h-4 animate-spin" /> Sedang memuat daftar proyek...
-              </div>
+                const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
+
+                return (
+                  <div key={laporan.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
+                    <div className="flex items-start gap-3">
+                      {/* Icon Avatar Box yang selaras dengan ProjectList */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
+                        <FileSpreadsheet className="w-6 h-6 text-amber-500" />
+                        {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
+                            {getStatusText(finalStatus)}
+                          </span>
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                            {laporan.nomorLaporan}
+                          </span>
+                        </div>
+                        <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2">{laporan.namaProyek}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 shrink-0"/> {laporan.namaPengawas}</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0"/> <span className="line-clamp-1">{laporan.lokasi}</span></span>
+                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {laporan.tanggalPengawasan}</span>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-700/40 flex items-start gap-2">
+                      <ListTodo className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-slate-700 dark:text-slate-200 text-xs leading-relaxed line-clamp-2">
+                          {laporan.kegiatan[0] || 'Tidak ada uraian kegiatan'}
+                        </p>
+                        {laporan.kegiatan.length > 1 && (
+                          <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            + {laporan.kegiatan.length - 1} Kegiatan lainnya
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Total Personil</span>
+                        <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          {totalPersonil} Orang
+                        </span>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                        <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Total Alat</span>
+                        <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                          {totalAlat} Unit
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action buttons selaras dengan ProjectList */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
+                      {isEditMode ? (
+                        <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
+                          <Trash2 className="w-4 h-4" /> Hapus
+                        </button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2.5 w-full justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                          <Eye className="w-4 h-4" /> Buka Data Laporan
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             ) : (
-              <select 
-                required 
-                value={selectedProjectId} 
-                onChange={(e) => setSelectedProjectId(e.target.value)} 
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold transition-colors cursor-pointer"
-              >
-                <option value="" disabled>-- Klik di sini untuk memilih Proyek --</option>
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.nama_proyek} (SPK: {p.kode_kontrak || '-'})</option>
-                ))}
-              </select>
-            )}
-
-            {isScheduleEmpty && selectedProjectId && (
-              <div className="mt-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-600 dark:text-rose-400 animate-fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p><strong>Peringatan:</strong> Proyek ini belum memiliki <strong>Time Schedule</strong>. Laporan Harian hanya dapat dibuat untuk proyek yang jadwalnya sudah diset.</p>
+              <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm">
+                <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tanggal Pengawasan <span className="text-rose-500">*</span></label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="date" name="tanggalPengawasan" required value={formData.tanggalPengawasan} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 [color-scheme:light_dark]" />
-                </div>
-                {mingguKe && (
-                  <div className="px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 rounded-xl flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-blue-700 dark:text-blue-400">
-                      {typeof mingguKe === 'number' ? `Minggu Ke-${mingguKe}` : mingguKe}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Nama Pengawas <span className="text-rose-500">*</span></label>
-              <div className="relative">
-                <UserCheck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" name="namaPengawas" required value={formData.namaPengawas} onChange={handleInputChange} placeholder="Masukkan nama Anda" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-            </div>
-            <div className="space-y-1.5 md:col-span-2 lg:col-span-1">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Lokasi Proyek Utama <span className="text-rose-500">*</span></label>
-              <div className="relative">
-                <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" name="lokasi" required value={formData.lokasi} onChange={handleInputChange} placeholder="Contoh: Belitung Darat" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-            </div>
-          </div>
-        </div>
+          {/* ========================================== */}
+          {/* TAMPILAN DESKTOP: TABEL STANDAR (Diselaraskan dengan ProjectList) */}
+          {/* ========================================== */}
+          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="p-4 w-[35%]">Info Proyek & Laporan</th>
+                    <th className="p-4 w-[20%]">Pengawas & Tanggal</th>
+                    <th className="p-4 w-[25%]">Kegiatan Lapangan</th>
+                    <th className="p-4 text-center w-[15%]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
+                  {visibleLaporan.length > 0 ? (
+                    visibleLaporan.map((laporan) => {
+                      const totalPersonil = hitungTotal(laporan.personil);
+                      const totalAlat = hitungTotal(laporan.peralatan);
 
-        {/* SECTION 2: Cuaca (Dinamis Multiple) Konsisten dengan Kegiatan */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-              <Sun className="w-4 h-4" /> Kondisi Cuaca Lapangan
-            </h2>
-            <button 
-              type="button" 
-              onClick={() => {
-                if (cuacaItems.length < 4) {
-                  setCuacaItems([...cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }]);
-                } else {
-                  alert("Maksimal 4 entri cuaca per hari.");
-                }
-              }} 
-              className="text-[10px] bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-amber-200 dark:border-amber-500/20"
-            >
-              <Plus className="w-3.5 h-3.5" /> Tambah
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            {cuacaItems.map((item, index) => (
-              <div key={item.id} className="flex flex-col bg-slate-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 items-start transition-all shadow-sm gap-3">
-                <div className="w-full flex justify-between items-center mb-1">
-                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase flex items-center gap-1.5">
-                    <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Sesi Cuaca {index + 1}
-                  </span>
-                  {cuacaItems.length > 1 && (
-                    <button 
-                      type="button" 
-                      onClick={() => setCuacaItems(cuacaItems.filter(c => c.id !== item.id))} 
-                      className="text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                
-                <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold uppercase">Kondisi Cuaca <span className="text-rose-500">*</span></label>
-                    <div className="relative">
-                      <select 
-                        value={item.kondisi}
-                        onChange={(e) => { 
-                          const newC = [...cuacaItems]; 
-                          newC[index].kondisi = e.target.value; 
-                          setCuacaItems(newC); 
-                        }}
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
-                      >
-                        <option value="Cerah">Cerah</option>
-                        <option value="Berawan">Berawan</option>
-                        <option value="Hujan Gerimis">Hujan Gerimis</option>
-                        <option value="Hujan Lebat">Hujan Lebat</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  
-                  <div className="sm:col-span-2 space-y-1.5">
-                    <label className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold uppercase">Waktu / Durasi / Keterangan</label>
-                    <input 
-                      type="text" 
-                      value={item.keterangan} 
-                      onChange={(e) => { 
-                        const newC = [...cuacaItems]; 
-                        newC[index].keterangan = e.target.value; 
-                        setCuacaItems(newC); 
-                      }} 
-                      placeholder="Contoh: 08:00 - 12:00..." 
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-sm" 
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                      const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
 
-        {/* SECTION 3: Kegiatan & Volume Lapangan */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3">
-            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
-              <ListTodo className="w-4 h-4" /> Kegiatan & Geografis
-            </h2>
-            <button 
-              type="button" 
-              onClick={() => {
-                if (kegiatanItems.length < 6) {
-                  setKegiatanItems([...kegiatanItems, { id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '' }]);
-                } else {
-                  alert("Maksimal 6 Kegiatan sesuai format form.");
-                }
-              }} 
-              className="text-[10px] bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-amber-200 dark:border-amber-500/20"
-            >
-              <Plus className="w-3.5 h-3.5" /> Tambah
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            {kegiatanItems.map((item, index) => (
-              <div key={item.id} className="flex flex-col bg-slate-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 items-start transition-all shadow-sm gap-3">
-                <div className="w-full flex justify-between items-center mb-1">
-                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase flex items-center gap-1.5">
-                    <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Kegiatan {index + 1}
-                  </span>
-                  {kegiatanItems.length > 1 && (
-                    <button type="button" onClick={() => setKegiatanItems(kegiatanItems.filter(k => k.id !== item.id))} className="text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                
-                <div className="w-full">
-                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold uppercase mb-1.5 flex items-center justify-between">
-                    <span>Uraian Pekerjaan <span className="text-rose-500">*</span></span>
-                    {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat RAB...</span>}
-                  </label>
-                  
-                  {rabOptions.length > 0 ? (
-                    <select
-                      value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
-                      onChange={(e) => handleKegiatanSelect(index, e.target.value)}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium mb-2 cursor-pointer truncate"
-                    >
-                      <option value="" disabled>-- Pilih Pekerjaan Terjadwal --</option>
-                      {optionsMingguIni.length > 0 && (
-                        <optgroup label={`>>> TARGET MINGGU INI (MINGGU KE-${mingguKe})`}>
-                          {optionsMingguIni.map(opt => (
-                            <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {optionsMingguLain.length > 0 && (
-                        <optgroup label=">>> TARGET MINGGU LAINNYA">
-                          {optionsMingguLain.map(opt => (
-                            <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {optionsMingguIni.length === 0 && optionsMingguLain.length === 0 && (
-                        <optgroup label=">>> BELUM ADA JADWAL">
-                          {rabOptions.map(opt => (
-                            <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      <option value="manual">+ Pekerjaan Tambah/Kurang (Input Manual)</option>
-                    </select>
+                      return (
+                        <tr key={laporan.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                          
+                          <td className="p-4 align-top flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
+                              <FileSpreadsheet className="w-5 h-5 text-amber-500" />
+                              {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-800 animate-pulse"></span>}
+                            </div>
+                            
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
+                                  {getStatusText(finalStatus)}
+                                </span>
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                                  {laporan.nomorLaporan}
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{laporan.namaProyek}</div>
+                              <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/><span className="line-clamp-1">{laporan.lokasi}</span></div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-top space-y-2">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                              <UserCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="truncate" title={laporan.namaPengawas}>{laporan.namaPengawas}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-700/60 pt-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{laporan.tanggalPengawasan}</span>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-top">
+                            <div className="bg-slate-50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-100 dark:border-slate-700/40 flex items-start gap-2 mb-2">
+                              <ListTodo className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-slate-700 dark:text-slate-200 text-[11px] leading-relaxed line-clamp-2">
+                                  {laporan.kegiatan[0] || 'Tidak ada uraian kegiatan'}
+                                </p>
+                                {laporan.kegiatan.length > 1 && (
+                                  <p className="text-[9px] text-sky-600 dark:text-sky-400 mt-1 font-bold">
+                                    + {laporan.kegiatan.length - 1} Kegiatan lainnya
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Gabungkan elemen Personil & Alat di Desktop agar tampilan tabel proporsional */}
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
+                                <span className="text-[8px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Personil</span>
+                                <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{totalPersonil} Orang</span>
+                              </div>
+                              <div className="bg-blue-50 dark:bg-blue-900/20 p-1.5 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
+                                <span className="text-[8px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider">Alat</span>
+                                <span className="font-mono text-[10px] font-bold text-blue-700 dark:text-blue-300">{totalAlat} Unit</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-middle">
+                            {isEditMode ? (
+                              <div className="flex flex-col gap-2">
+                                <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
+                                  <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                                <Eye className="w-3.5 h-3.5" /> Buka Data
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
-                    <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Time Schedule belum dibuat.</div>
+                    <tr>
+                      <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
+                        <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau tidak cocok dengan filter pencarian.</p>
+                      </td>
+                    </tr>
                   )}
-
-                  {(item.rab_item_id === null || rabOptions.length === 0) && (
-                    <textarea 
-                      rows="2" placeholder="Ketik manual uraian pekerjaan..." 
-                      value={item.uraian} 
-                      onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none transition-colors" 
-                    />
-                  )}
-                </div>
-                
-                <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
-                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80">
-                    <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold uppercase mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
-                    <input type="text" placeholder="-3.3191, 114.5911" value={item.koordinat_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
-                  </div>
-
-                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80">
-                    <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold uppercase mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
-                    <input type="text" placeholder="-3.3215, 114.6102" value={item.koordinat_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
-                  </div>
-
-                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center">
-                    <div className="flex gap-3 w-full">
-                      <div className="flex-1">
-                        <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold uppercase mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                        <input type="number" step="any" required placeholder="0.00" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
-                      </div>
-                      <div className="w-24">
-                        <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold uppercase mb-2 block text-center">Satuan</label>
-                        <input type="text" placeholder="M3/Ls" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+        </>
+      )}
+
+      {/* --- INFO LEGEND (FOOTER) --- */}
+      <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
+        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Status Laporan:</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div> Pending / Menunggu</span>
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Telah Disetujui</span>
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div> Ditolak / Perbaikan</span>
         </div>
+      </div>
 
-        {/* SECTION 4: Personil & Peralatan */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2">
-                <Users className="w-4 h-4" /> Personil Lapangan
-              </h2>
-              <button 
-                type="button" 
-                onClick={() => openPersonilModal()}
-                className="text-[10px] bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-emerald-200 dark:border-emerald-500/20"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tambah
-              </button>
-            </div>
-            <div className="space-y-2 max-h-[250px] overflow-y-auto hide-scrollbar flex-1">
-              {personilItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                  <Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
-                  <p className="text-slate-500 font-medium text-xs">Belum ada personil diinput</p>
-                </div>
-              ) : (
-                personilItems.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-colors">
-                    <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">{p.peran}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-md text-xs font-bold font-mono">
-                        {p.jumlah} Org
-                      </span>
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => openPersonilModal(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-800"><Edit3 className="w-3.5 h-3.5"/></button>
-                        <button type="button" onClick={() => setPersonilItems(personilItems.filter(item => item.id !== p.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-800"><Trash2 className="w-3.5 h-3.5"/></button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-sm font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
-                <Wrench className="w-4 h-4" /> Pemakaian Peralatan
-              </h2>
-              <button 
-                type="button" 
-                onClick={() => openPeralatanModal()}
-                className="text-[10px] bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-blue-200 dark:border-blue-500/20"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tambah
-              </button>
-            </div>
-            <div className="space-y-2 max-h-[250px] overflow-y-auto hide-scrollbar flex-1">
-              {peralatanItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                  <Wrench className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
-                  <p className="text-slate-500 font-medium text-xs">Belum ada alat diinput</p>
-                </div>
-              ) : (
-                peralatanItems.map((alat) => (
-                  <div key={alat.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-colors">
-                    <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">{alat.namaAlat}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-md text-xs font-bold font-mono">
-                        {alat.jumlah} Unit
-                      </span>
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => openPeralatanModal(alat)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-800"><Edit3 className="w-3.5 h-3.5"/></button>
-                        <button type="button" onClick={() => setPeralatanItems(peralatanItems.filter(item => item.id !== alat.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-800"><Trash2 className="w-3.5 h-3.5"/></button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* SECTION 5: Upload Foto & Lampiran */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
-              </h2>
-              <>
-                <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={handleFotoLampiranChange} />
-                <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-medium rounded-lg border border-amber-200 dark:border-amber-500/20 transition-all">
-                  <UploadCloud className="w-3.5 h-3.5" /> Upload Foto
-                </button>
-              </>
-            </div>
-            <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
-              {fotoLampiran.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
-                   <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
-                   <p className="text-slate-500 font-medium">Belum ada foto terlampir</p>
-                 </div>
-              ) : (
-                fotoLampiran.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-all">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
-                    </div>
-                    <button type="button" onClick={() => handleRemoveFoto(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
-                      <Trash2 className="w-3.5 h-3.5"/>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-                <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
-              </h2>
-              <>
-                <input type="file" id="docUploadAdd" className="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={handleDokumenLampiranChange} />
-                <button type="button" onClick={() => document.getElementById('docUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all">
-                  <UploadCloud className="w-3.5 h-3.5" /> Upload File
-                </button>
-              </>
-            </div>
-            <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
-              {dokumenLampiran.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
-                   <FileSpreadsheet className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
-                   <p className="text-slate-500 font-medium">Belum ada berkas terlampir</p>
-                 </div>
-              ) : (
-                dokumenLampiran.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-all">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
-                    </div>
-                    <button type="button" onClick={() => handleRemoveDokumen(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
-                      <Trash2 className="w-3.5 h-3.5"/>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Submit & Cancel Button */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
-          <button
-            type="button"
-            onClick={() => navigate('/laporan')}
-            className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs active:scale-95 border border-slate-200 dark:border-slate-600 shadow-sm"
-          >
-            <X className="w-4 h-4" /> Batal
-          </button>
-          <button 
-            type="submit" 
-            disabled={submitting || isScheduleEmpty} 
-            className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs disabled:opacity-50"
-          >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin text-slate-950 dark:text-white" /> : <CheckCircle2 className="w-4 h-4" />}
-            {submitting ? 'Memproses Data...' : 'Simpan Laporan Harian'}
-          </button>
-        </div>
-      </form>
-
-      {/* MODALS PERSONIL & PERALATAN */}
-      {showPersonilModal && (
+      {/* --- MODAL KONFIRMASI DRAFT HAPUS --- */}
+      {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> Form Personil</h3>
-              <button onClick={() => setShowPersonilModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
+           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
+            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/30">
+              <Trash2 className="w-6 h-6 text-rose-600 dark:text-rose-400" />
             </div>
-            <form onSubmit={savePersonil}>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Posisi / Nama Jabatan <span className="text-rose-500">*</span></label>
-                  <input type="text" required list="peran-options" value={personilForm.peran} onChange={(e) => setPersonilForm({...personilForm, peran: e.target.value})} placeholder="Contoh: Pekerja, Tukang..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Orang <span className="text-rose-500">*</span></label>
-                  <input type="number" required min="1" value={personilForm.jumlah} onChange={(e) => setPersonilForm({...personilForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono transition-colors" />
-                </div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Personil</button>
-              </div>
-            </form>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan?</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+              Anda akan menandai laporan <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
+              <button onClick={executeDraftDelete} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors">
+                Tandai Hapus
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {showPeralatanModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> Form Peralatan</h3>
-              <button onClick={() => setShowPeralatanModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-            </div>
-            <form onSubmit={savePeralatan}>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Peralatan <span className="text-rose-500">*</span></label>
-                  <input type="text" required list="alat-options" value={peralatanForm.namaAlat} onChange={(e) => setPeralatanForm({...peralatanForm, namaAlat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Unit <span className="text-rose-500">*</span></label>
-                  <input type="number" required min="1" value={peralatanForm.jumlah} onChange={(e) => setPeralatanForm({...peralatanForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" />
-                </div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Alat</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
