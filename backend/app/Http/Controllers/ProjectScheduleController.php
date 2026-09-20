@@ -205,7 +205,7 @@ class ProjectScheduleController extends Controller
         return $tempPath;
     }
 
-    // ==========================================================
+// ==========================================================
     // 2. EXPORT PDF KURVA S
     // ==========================================================
     public function exportKurvaPdf(Request $request, $projectId)
@@ -215,7 +215,6 @@ class ProjectScheduleController extends Controller
 
         $project = Project::findOrFail($projectId);
 
-        // Baca Base64 langsung agar DomPDF tidak perlu mencari file fisik
         $chartImageBase64 = $request->chart_image;
 
         $itemProgress = $request->item_progress ?? [];
@@ -226,7 +225,10 @@ class ProjectScheduleController extends Controller
                   ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode'))
                   ->setPaper('a4', 'landscape');
 
-        return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
+        // FIX: Bersihkan nama dari karakter terlarang (seperti garis miring /)
+        $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
+
+        return $pdf->download('Kurva_S_' . $safeName . '.pdf');
     }
 
     // ==========================================================
@@ -239,13 +241,15 @@ class ProjectScheduleController extends Controller
 
         $project = Project::findOrFail($projectId);
 
-        // Excel butuh file fisik, gunakan Temp OS Path yang 100% aman
         $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
         $viewMode = $request->view_mode ?? 'mingguan';
 
-        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath), 'Kurva_S_' . $project->kode_kontrak . '.xlsx');
+        // FIX: Bersihkan nama dari karakter terlarang (seperti garis miring /)
+        $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
+
+        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath), 'Kurva_S_' . $safeName . '.xlsx');
     }
 }
