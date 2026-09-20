@@ -401,7 +401,7 @@ export default function ProjectList() {
           </div>
 
           {/* TAMPILAN DESKTOP: Disamakan Styling dan Backdrop dengan AccountList */}
-          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
+          <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
                 <thead>
