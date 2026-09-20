@@ -20,14 +20,12 @@
     <div class="header-title">LAPORAN KURVA S &amp; KEMAJUAN PROYEK</div>
     <div class="header-subtitle">{{ $project->nama_proyek }} | SPK: {{ $project->kode_kontrak }}</div>
 
-    <!-- Tampilkan gambar grafik (KHUSUS PDF). Excel diurus oleh WithDrawings. -->
-    @if(!isset($isExcel) && isset($imagePath) && file_exists($imagePath))
+    @if(!isset($isExcel) && isset($chartImageBase64))
         <div style="text-align: center; margin-bottom: 30px;">
-            <img src="{{ $imagePath }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
+            <img src="{{ $chartImageBase64 }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
         </div>
     @endif
 
-    <!-- Beri ruang baris kosong untuk meletakkan gambar grafik khusus di Excel -->
     @if(isset($isExcel))
         <table>
             @for($i=0; $i<18; $i++)

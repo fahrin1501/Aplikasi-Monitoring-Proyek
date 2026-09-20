@@ -10,17 +10,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class KurvaExport implements FromView, ShouldAutoSize, WithDrawings
 {
-    protected $project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate;
+    protected $project, $itemProgress, $chartData, $viewMode, $imagePath;
 
-    public function __construct($project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate)
+    public function __construct($project, $itemProgress, $chartData, $viewMode, $imagePath)
     {
         $this->project = $project;
         $this->itemProgress = $itemProgress;
         $this->chartData = $chartData;
         $this->viewMode = $viewMode;
         $this->imagePath = $imagePath;
-        $this->startDate = $startDate;
-        $this->endDate = $endDate;
     }
 
     public function view(): View
@@ -30,8 +28,6 @@ class KurvaExport implements FromView, ShouldAutoSize, WithDrawings
             'itemProgress' => $this->itemProgress,
             'chartData' => $this->chartData,
             'viewMode' => $this->viewMode,
-            'startDate' => $this->startDate,
-            'endDate' => $this->endDate,
             'isExcel' => true
         ]);
     }

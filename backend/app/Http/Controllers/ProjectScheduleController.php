@@ -186,14 +186,11 @@ class ProjectScheduleController extends Controller
         }
     }
 
-// ==========================================================
-    // --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
-    // ==========================================================
+// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
     private function saveChartImage($base64String)
     {
         if (!$base64String) return null;
 
-        // Pastikan folder temp ada di server
         if (!Storage::disk('public')->exists('temp')) {
             Storage::disk('public')->makeDirectory('temp');
         }
@@ -208,59 +205,44 @@ class ProjectScheduleController extends Controller
         $filename = 'kurva_' . time() . '.' . $extension;
 
         Storage::disk('public')->put('temp/' . $filename, $decoded);
-
-        // Gunakan storage_path agar aman dibaca oleh PhpSpreadsheet di Linux
         return storage_path('app/public/temp/' . $filename);
     }
 
-    // ==========================================================
     // --- EXPORT PDF KURVA S ---
-    // ==========================================================
     public function exportKurvaPdf(Request $request, $projectId)
     {
-        // Beri napas panjang untuk server Railway
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
 
-        // Memanggil fungsi saveChartImage yang ada di atas
-        $imagePath = $this->saveChartImage($request->chart_image);
+        // Baca Base64 langsung agar DomPDF tidak crash
+        $chartImageBase64 = $request->chart_image;
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'harian';
+        $viewMode = $request->view_mode ?? 'mingguan';
 
-        $startDate = $request->start_date ?? null;
-        $endDate = $request->end_date ?? null;
-
-        // Nyalakan isRemoteEnabled agar DomPDF tidak error saat membaca gambar
         $pdf = Pdf::setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true])
-                  ->loadView('exports.kurva-s', compact('project', 'imagePath', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
+                  ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode'))
                   ->setPaper('a4', 'landscape');
 
         return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
     }
 
-    // ==========================================================
     // --- EXPORT EXCEL KURVA S ---
-    // ==========================================================
     public function exportKurvaExcel(Request $request, $projectId)
     {
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
-
-        // Memanggil fungsi saveChartImage yang ada di atas
         $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'harian';
-        $startDate = $request->start_date ?? null;
-        $endDate = $request->end_date ?? null;
+        $viewMode = $request->view_mode ?? 'mingguan';
 
-        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate), 'Kurva_S_' . $project->kode_kontrak . '.xlsx');
+        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath), 'Kurva_S_' . $project->kode_kontrak . '.xlsx');
     }
 }

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
-  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock, CalendarDays
+  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Filter, Clock, ChevronDown
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -18,21 +18,18 @@ export default function KurvaS({ selectedProject }) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [scheduleData, setScheduleData] = useState(null);
+  const [viewMode, setViewMode] = useState('mingguan'); 
   
-  // --- STATE HAK AKSES (RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
-
-  // --- STATE FILTER RENTANG TANGGAL (DATE RANGE) ---
-  const [startDateFilter, setStartDateFilter] = useState('');
-  const [endDateFilter, setEndDateFilter] = useState('');
-  
-  const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [itemProgressData, setItemProgressData] = useState([]);
 
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportModal, setExportModal] = useState({ show: false, type: '' });
+
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const filterMenuRef = useRef(null);
 
   useEffect(() => {
     document.title = "PrismaGroup - Kurva S";
@@ -41,6 +38,16 @@ export default function KurvaS({ selectedProject }) {
   }, []);
 
   const isGuest = userRole === 'Tamu';
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target)) {
+        setShowFilterMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchSchedule = async () => {
@@ -88,7 +95,7 @@ export default function KurvaS({ selectedProject }) {
         chart_image: base64Image,
         item_progress: itemProgressData,
         chart_data: filteredChartData, 
-        date_range: `${startDateFilter} to ${endDateFilter}`
+        view_mode: viewMode
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -106,12 +113,12 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  // --- LOGIKA KALKULASI HARIAN ---
   useEffect(() => {
     if (!scheduleData) return;
 
     let grandTotalRAB = 0;
     const allItems = [];
+    
     (scheduleData.rab_data || []).forEach(cat => {
       (cat.items || []).forEach(item => {
         if (!item.is_subheader) {
@@ -125,13 +132,21 @@ export default function KurvaS({ selectedProject }) {
       const baseBobot = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
       const itemRealisasi = (scheduleData.realizations || [])?.filter(r => r.rab_item_id === item.id)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
       const progressPercent = baseBobot > 0 ? (itemRealisasi / baseBobot) * 100 : 0;
-      return { id: item.id, nama: item.uraian_pekerjaan, volume: item.volume || 0, satuan: item.satuan || '-', bobot: baseBobot, progress: Math.min(progressPercent, 100) };
+
+      return {
+        id: item.id,
+        nama: item.uraian_pekerjaan,
+        volume: item.volume || 0,
+        satuan: item.satuan || '-',
+        bobot: baseBobot,
+        progress: Math.min(progressPercent, 100) 
+      };
     });
     setItemProgressData(progressList);
 
     const startDate = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date();
     startDate.setHours(0,0,0,0);
-    const endDate = scheduleData.project_info?.tanggal_selesai ? new Date(scheduleData.project_info.tanggal_selesai) : new Date(startDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+    const endDate = scheduleData.project_info?.tanggal_selesai ? new Date(scheduleData.project_info.tanggal_selesai) : new Date(startDate.getTime() + (30 * 24 * 60 * 60 * 1000)); 
     endDate.setHours(0,0,0,0);
 
     let plannedTotalHari = Math.floor((endDate - startDate) / (1000*3600*24)) + 1;
@@ -139,13 +154,17 @@ export default function KurvaS({ selectedProject }) {
 
     const dailyPlans = {};
     let maxPlannedDay = 0;
+    
     (scheduleData.schedules || []).forEach(s => {
       const m = parseInt(s.minggu_ke);
       const bobotHarian = parseFloat(s.bobot_rencana) / 7;
       const startDay = (m - 1) * 7 + 1;
       const endDay = m * 7;
       if (endDay > maxPlannedDay) maxPlannedDay = endDay;
-      for (let i = startDay; i <= endDay; i++) { dailyPlans[i] = (dailyPlans[i] || 0) + bobotHarian; }
+      
+      for (let i = startDay; i <= endDay; i++) {
+        dailyPlans[i] = (dailyPlans[i] || 0) + bobotHarian;
+      }
     });
 
     const dailyRealisasi = {};
@@ -155,83 +174,72 @@ export default function KurvaS({ selectedProject }) {
       if (isNaN(rDate.getTime())) return;
       rDate.setHours(0,0,0,0);
       const dayNum = Math.floor((rDate - startDate) / (1000*3600*24)) + 1;
+      
       if (dayNum > maxReportedDay) maxReportedDay = dayNum;
       dailyRealisasi[dayNum] = (dailyRealisasi[dayNum] || 0) + parseFloat(r.bobot_realisasi);
     });
 
     const actualTotalHari = Math.max(plannedTotalHari, maxPlannedDay, maxReportedDay);
+
     const today = new Date();
     today.setHours(0,0,0,0);
     const currentProjectDay = Math.floor((today - startDate) / (1000 * 3600 * 24)) + 1;
 
-    const tempChartData = [];
+    const buckets = [];
+    if (viewMode === 'harian') {
+      for (let i = 1; i <= actualTotalHari; i++) buckets.push({ label: `H-${i.toString().padStart(2,'0')}`, dayStart: i, dayEnd: i });
+    } else if (viewMode === 'bulanan') {
+      const totalBulan = Math.ceil(actualTotalHari / 30);
+      for (let i = 1; i <= totalBulan; i++) buckets.push({ label: `B-${i.toString().padStart(2,'0')}`, dayStart: (i-1)*30 + 1, dayEnd: i*30 });
+    } else { 
+      const totalMinggu = Math.ceil(actualTotalHari / 7);
+      for (let i = 1; i <= totalMinggu; i++) buckets.push({ label: `M-${i.toString().padStart(2,'0')}`, dayStart: (i-1)*7 + 1, dayEnd: i*7 });
+    }
+
     let cumRencana = 0;
     let cumRealisasi = 0;
+    const sCurveArray = [];
 
-    for (let i = 1; i <= actualTotalHari; i++) {
-      const currentDate = new Date(startDate.getTime() + (i - 1) * 24 * 3600 * 1000);
-      const yyyymmdd = currentDate.toISOString().split('T')[0];
-      const displayDate = currentDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const shortDate = currentDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+    for (const b of buckets) {
+      let bucketRencana = 0;
+      let bucketRealisasi = 0;
 
-      let planVal = dailyPlans[i] || 0;
-      let actVal = dailyRealisasi[i] || 0;
+      for (let i = b.dayStart; i <= b.dayEnd; i++) {
+        bucketRencana += (dailyPlans[i] || 0);
+        bucketRealisasi += (dailyRealisasi[i] || 0);
+      }
 
-      const isPlanEmpty = maxPlannedDay === 0 ? true : i > maxPlannedDay;
-      const isActEmpty = maxReportedDay === 0 ? true : i > maxReportedDay;
-      const isFuture = i > currentProjectDay && i > maxReportedDay;
+      const isPlanEmpty = maxPlannedDay === 0 ? true : b.dayStart > maxPlannedDay;
+      const isActEmpty = maxReportedDay === 0 ? true : b.dayStart > maxReportedDay;
+      const isFuture = b.dayStart > currentProjectDay && b.dayStart > maxReportedDay;
 
-      if (!isPlanEmpty) cumRencana += planVal;
-      if (!isActEmpty) cumRealisasi += actVal;
+      const dataPoint = { label: b.label, isPlanEmpty, isActEmpty, isFuture };
 
-      tempChartData.push({
-        hariKe: i,
-        label: `H-${i.toString().padStart(2,'0')}`,
-        dateString: yyyymmdd,
-        displayDate: displayDate,
-        shortDate: shortDate,
-        isPlanEmpty,
-        isActEmpty,
-        isFuture,
-        bobotRencana: planVal,
-        rencanaKumulatif: isPlanEmpty ? 0 : Number(cumRencana.toFixed(2)),
-        bobotRealisasi: actVal,
-        realisasiKumulatif: isActEmpty ? 0 : Number(cumRealisasi.toFixed(2)),
-        deviasi: isActEmpty ? 0 : Number((cumRealisasi - cumRencana).toFixed(2))
-      });
+      if (!isPlanEmpty) {
+        cumRencana += bucketRencana;
+        dataPoint.bobotRencana = bucketRencana;
+        dataPoint.rencanaKumulatif = Number(cumRencana.toFixed(2));
+      }
+
+      if (!isActEmpty) {
+        cumRealisasi += bucketRealisasi;
+        dataPoint.bobotRealisasi = bucketRealisasi;
+        dataPoint.realisasiKumulatif = Number(cumRealisasi.toFixed(2));
+        dataPoint.deviasi = Number((cumRealisasi - cumRencana).toFixed(2));
+      }
+
+      sCurveArray.push(dataPoint);
     }
 
-    setFullChartData(tempChartData);
+    setChartData(sCurveArray);
 
-    // Set Default Filter ke Range Awal dan Akhir Proyek
-    if (!startDateFilter && !endDateFilter && tempChartData.length > 0) {
-      setStartDateFilter(tempChartData[0].dateString);
-      setEndDateFilter(tempChartData[tempChartData.length - 1].dateString);
-    }
-  }, [scheduleData]);
-
-  // --- EFEK FILTER RENTANG TANGGAL ---
-  useEffect(() => {
-    if (fullChartData.length === 0) return;
-    let filtered = fullChartData;
-    
-    if (startDateFilter) {
-      filtered = filtered.filter(d => d.dateString >= startDateFilter);
-    }
-    if (endDateFilter) {
-      filtered = filtered.filter(d => d.dateString <= endDateFilter);
-    }
-    
-    setChartData(filtered);
-  }, [fullChartData, startDateFilter, endDateFilter]);
+  }, [scheduleData, viewMode]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const dataInfo = payload[0].payload;
       return (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl shadow-xl text-xs z-50">
-          <p className="font-extrabold text-slate-800 dark:text-white mb-1">{dataInfo.displayDate}</p>
-          <p className="text-[10px] text-amber-500 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider">{dataInfo.label}</p>
+          <p className="font-extrabold text-slate-800 dark:text-white mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">Periode: {label}</p>
           {payload.map((entry, index) => {
             if (entry.value === undefined || entry.value === null) return null; 
             return (
@@ -260,11 +268,11 @@ export default function KurvaS({ selectedProject }) {
   }
 
   const isScheduleEmpty = !scheduleData?.schedules || scheduleData.schedules.length === 0;
+  const titlePeriode = viewMode === 'harian' ? 'Harian' : viewMode === 'bulanan' ? 'Bulanan' : 'Mingguan';
 
   return (
     <div className="w-full space-y-5 pb-20 relative">
       
-      {/* SUNTIKAN CSS SCROLLBAR ELEGAN & MENYATU DENGAN TEMA */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -297,29 +305,37 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER */}
-            <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden">
-              <div className="pl-3 py-2 border-r border-slate-200 dark:border-slate-700/60 flex items-center bg-slate-100 dark:bg-slate-800/50 text-slate-500">
-                <CalendarDays className="w-3.5 h-3.5" />
-              </div>
-              <input 
-                type="date" 
-                value={startDateFilter} 
-                onChange={e => setStartDateFilter(e.target.value)} 
-                className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-2 cursor-pointer [color-scheme:light_dark]" 
-                title="Tanggal Mulai Filter"
-              />
-              <span className="text-slate-400 text-[10px] font-bold px-1 bg-slate-100 dark:bg-slate-800/50 py-2 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
-              <input 
-                type="date" 
-                value={endDateFilter} 
-                onChange={e => setEndDateFilter(e.target.value)} 
-                className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2 py-2 cursor-pointer [color-scheme:light_dark]" 
-                title="Tanggal Akhir Filter"
-              />
+            <div className="relative" ref={filterMenuRef}>
+              <button 
+                onClick={() => setShowFilterMenu(!showFilterMenu)} 
+                className={`flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border ${showFilterMenu ? 'border-blue-400 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80'} shadow-sm px-3 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition-all`}
+              >
+                <Filter className="w-3.5 h-3.5 text-blue-500" />
+                {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showFilterMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showFilterMenu && (
+                <div className="absolute top-full mt-2 right-0 lg:left-0 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-4 animate-fade-in">
+                  <h4 className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">Tampilkan Total Keseluruhan:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {['harian', 'mingguan', 'bulanan'].map((mode) => {
+                      const isActive = viewMode === mode;
+                      return (
+                        <button 
+                          key={mode}
+                          onClick={() => { setViewMode(mode); setShowFilterMenu(false); }}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${isActive ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                        >
+                          {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* TOMBOL EXPORT HANYA UNTUK ROLE SELAIN TAMU */}
             {!isGuest && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0"></div>
@@ -333,7 +349,6 @@ export default function KurvaS({ selectedProject }) {
             )}
           </div>
 
-          {/* NAVIGASI MENU UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
             <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
             <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
@@ -358,13 +373,9 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 z-10 relative">
-        
-        {/* GRAFIK KURVA S (KIRI) */}
         <div id="chart-area" className="lg:col-span-7 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-amber-500" /> Grafik Rentang Tanggal
-            </h3>
+            <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><TrendingUp className="w-4 h-4 text-amber-500" /> Grafik Kumulatif ({titlePeriode})</h3>
             
             <div className="flex items-center gap-3 text-[10px] bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 px-2.5 py-2 rounded-lg shadow-inner">
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span> Rencana (Plan)</span>
@@ -373,26 +384,21 @@ export default function KurvaS({ selectedProject }) {
           </div>
           
           <div className="w-full h-[350px] overflow-x-auto custom-scrollbar">
-            <div className={`h-full ${chartData.length > 30 ? 'min-w-[1500px]' : 'min-w-[600px]'}`}>
-              {chartData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-xs text-slate-400 italic">Tidak ada data di rentang tanggal ini.</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
-                    <XAxis dataKey="shortDate" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
-                    <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="rencanaKumulatif" name="Kumulatif Rencana" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="realisasiKumulatif" name="Kumulatif Realisasi" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+            <div className={`h-full ${viewMode === 'harian' ? 'min-w-[1500px]' : 'min-w-[500px]'}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
+                  <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
+                  <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line type="monotone" dataKey="rencanaKumulatif" name="Kumulatif Rencana" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
+                  <Line type="monotone" dataKey="realisasiKumulatif" name="Kumulatif Realisasi" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* TABEL PROGRES PER ITEM (KANAN) */}
         <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex flex-col overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
             <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-500" /> Total Progress Pekerjaan</h3>
@@ -437,19 +443,17 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* TABEL EVALUASI DEVIASI DINAMIS */}
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
           <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-amber-500" /> Parameter Evaluasi Deviasi
+            <FileSpreadsheet className="w-4 h-4 text-amber-500" /> Parameter Evaluasi Deviasi {titlePeriode}
           </h3>
         </div>
-        <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
+        <div className={`overflow-x-auto custom-scrollbar ${viewMode === 'harian' ? 'max-h-[500px]' : ''}`}>
           <table className="w-full text-left border-collapse min-w-[800px] relative">
             <thead className="sticky top-0 z-20 shadow-sm">
               <tr className="bg-slate-100 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th className="p-3 text-center w-28">Tanggal</th>
-                <th className="p-3 text-center w-16">Periode</th>
+                <th className="p-3 text-center w-20">Periode</th>
                 <th className="p-3 text-right text-blue-600 dark:text-blue-400">Rencana (%)</th>
                 <th className="p-3 text-right text-emerald-600 dark:text-emerald-400">Realisasi (%)</th>
                 <th className="p-3 text-right bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-bold">Kum. Rencana</th>
@@ -459,57 +463,49 @@ export default function KurvaS({ selectedProject }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300 font-mono">
-              {chartData.filter(row => !row.isFuture).length === 0 ? (
-                <tr><td colSpan="8" className="text-center py-6 text-slate-500 italic">Tidak ada data deviasi di rentang ini.</td></tr>
-              ) : (
-                chartData.filter(row => !row.isFuture).map((row, idx) => {
-                  const isDevNegative = row.deviasi < 0;
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                      <td className="p-3 text-center font-bold text-slate-800 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">{row.displayDate}</td>
-                      <td className="p-3 text-center text-[10px] text-slate-500">{row.label}</td>
-                      
-                      <td className="p-3 text-right">{row.isPlanEmpty ? '-' : row.bobotRencana.toFixed(2)}</td>
-                      <td className="p-3 text-right">{row.isActEmpty ? '-' : row.bobotRealisasi.toFixed(2)}</td>
-                      
-                      <td className="p-3 text-right text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/30 dark:bg-blue-950/10">
-                        {row.isPlanEmpty ? '-' : row.rencanaKumulatif.toFixed(2)}
-                      </td>
-                      <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50/30 dark:bg-emerald-950/10">
+              {chartData.filter(row => !row.isFuture).map((row, idx) => {
+                const isDevNegative = row.deviasi < 0;
+                return (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <td className="p-3 text-center font-bold text-slate-800 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">{row.label}</td>
+                    
+                    <td className="p-3 text-right">{row.isPlanEmpty ? '-' : row.bobotRencana.toFixed(2)}</td>
+                    <td className="p-3 text-right">{row.isActEmpty ? '-' : row.bobotRealisasi.toFixed(2)}</td>
+                    
+                    <td className="p-3 text-right text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/30 dark:bg-blue-950/10">
+                      {row.isPlanEmpty ? '-' : row.rencanaKumulatif.toFixed(2)}
+                    </td>
+                    <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50/30 dark:bg-emerald-950/10">
                         {row.isActEmpty ? '-' : row.realisasiKumulatif.toFixed(2)}
-                      </td>
-                      
-                      <td className={`p-3 text-center font-bold ${row.isActEmpty ? 'text-slate-400' : isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {row.isActEmpty ? '-' : (row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}` : row.deviasi.toFixed(2))}
-                      </td>
-                      
-                      <td className="p-3 text-center">
-                        {row.isPlanEmpty && row.isActEmpty ? (
-                          <span className="text-slate-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Belum Berjalan</span>
-                        ) : row.isActEmpty && !row.isPlanEmpty ? (
-                          <span className="text-amber-500 dark:text-amber-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Menunggu Lap.</span>
-                        ) : isDevNegative ? (
-                          <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 shadow-sm">
-                            <AlertTriangle className="w-3 h-3" /> Terlambat
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-sm">
-                            <CheckCircle2 className="w-3 h-3" /> Positif
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+                    </td>
+                    
+                    <td className={`p-3 text-center font-bold ${row.isActEmpty ? 'text-slate-400' : isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {row.isActEmpty ? '-' : (row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}` : row.deviasi.toFixed(2))}
+                    </td>
+                    
+                    <td className="p-3 text-center">
+                      {row.isPlanEmpty && row.isActEmpty ? (
+                        <span className="text-slate-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Belum Berjalan</span>
+                      ) : row.isActEmpty && !row.isPlanEmpty ? (
+                        <span className="text-amber-500 dark:text-amber-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Menunggu Lap.</span>
+                      ) : isDevNegative ? (
+                        <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 shadow-sm">
+                          <AlertTriangle className="w-3 h-3" /> Terlambat
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-sm">
+                          <CheckCircle2 className="w-3 h-3" /> Positif
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI EXPORT (EXCEL / PDF)       */}
-      {/* ========================================== */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
@@ -518,7 +514,7 @@ export default function KurvaS({ selectedProject }) {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Sistem akan memotret grafik di rentang <strong>{startDateFilter} s/d {endDateFilter}</strong> dan menggabungkannya bersama <strong>Tabel Progress</strong> dan <strong>Evaluasi Deviasi</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>. 
+              Sistem akan memotret grafik dan menggabungkannya bersama <strong>Tabel Progress</strong> dan <strong>Evaluasi Deviasi</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>. 
             </p>
             <div className="flex gap-3">
               <button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
