@@ -5,10 +5,19 @@ import {
   ArrowLeft, Calendar, MapPin, Building2, Download, 
   Edit3, Paperclip, Image as ImageIcon, UserCheck, 
   ExternalLink, Sun, Users, Wrench, ListTodo, Trash2, FileSpreadsheet, 
-  Plus, UploadCloud, AlertTriangle, CheckCircle2, Save, X, Loader2, Copy, Clock, ShieldAlert, ChevronDown
+  Plus, UploadCloud, AlertTriangle, CheckCircle2, Save, X, Loader2, Copy, Clock, ChevronDown
 } from 'lucide-react';
 
-// FUNGSI BANTUAN UNTUK FORMAT TAMPILAN KOORDINAT
+const defaultPersonilList = [
+  'Dinas PUPR', 'Konsultan', 'Kontraktor', 'Kepala Kerja/Mandor', 
+  'Pekerja', 'Tukang', 'Supir', 'Operator', 'Surveyor'
+];
+
+const defaultPeralatanList = [
+  'Excavator', 'Dump Truck', 'Water Past', 'Theodolith', 
+  'Concrete Mixer', 'Jack Hammer', 'Mesin Alcon', 'Mesin Las', 'Alat bantu'
+];
+
 const formatKoordTampil = (staString) => {
   if (!staString) return null;
   if (staString.includes(',')) {
@@ -18,24 +27,10 @@ const formatKoordTampil = (staString) => {
   return staString;
 };
 
-// FUNGSI BANTUAN UNTUK MEMECAH STRING KE INPUT FORM
-const parseInitKoord = (staString) => {
-  if (!staString) return { lat: '', long: '' };
-  if (staString.includes(',')) {
-    const [lat, long] = staString.split(',');
-    return { lat: lat.trim(), long: long.trim() };
-  }
-  return { lat: staString, long: '' };
-};
-
 export default function LaporanData() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams(); 
-
-  useEffect(() => {
-      document.title = "Prisma Group - Data Laporan";
-    }, []);
 
   const initialData = location.state?.laporan;
   const reportId = id || initialData?.id || initialData?.originalData?.id;
@@ -48,28 +43,32 @@ export default function LaporanData() {
   const [isSaving, setIsSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     tanggal: '', pengawas: '', lokasi: '',
-    cuacaItems: [], // <-- Menggunakan Array untuk Fitur Cuaca Dinamis
+    cuacaItems: [], 
     activities: [], personnels: [], equipments: []
   });
   
-  // STATE EXPORT LOADING
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // STATE MODALS
+  // STATE MODALS KEGIATAN
   const [showActModal, setShowActModal] = useState(false);
   const [actItem, setActItem] = useState({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null });
 
-  const [showPerModal, setShowPerModal] = useState(false);
-  const [perItem, setPerItem] = useState({ index: null, peran: '', jumlah: '' });
+  // STATE MODALS PERSONIL (YANG SEBELUMNYA HILANG)
+  const [showPersonilModal, setShowPersonilModal] = useState(false);
+  const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '', index: null });
 
-  const [showEqModal, setShowEqModal] = useState(false);
-  const [eqItem, setEqItem] = useState({ index: null, nama_alat: '', jumlah: '' });
+  // STATE MODALS PERALATAN (YANG SEBELUMNYA HILANG)
+  const [showPeralatanModal, setShowPeralatanModal] = useState(false);
+  const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '', index: null });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
+
+  useEffect(() => {
+    document.title = "Prisma Group - Data Laporan";
+  }, []);
 
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -77,13 +76,10 @@ export default function LaporanData() {
       try {
         const user = JSON.parse(userDataStr);
         setUserRole(user.role || 'Tamu');
-      } catch (error) {
-        console.error("Gagal membaca data user:", error);
-      }
+      } catch (error) {}
     }
   }, []);
 
-  // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const canVerify = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
@@ -105,7 +101,6 @@ export default function LaporanData() {
 
   const toggleEditMode = () => {
     if (!isEditMode) {
-      // Mengonversi data cuaca menjadi format Array (Backward Compatibility dari format teks lama)
       let parsedCuaca = [{ id: Date.now(), kondisi: 'Cerah', keterangan: reportData.cuaca || '' }];
       
       try {
@@ -143,7 +138,6 @@ export default function LaporanData() {
         }
       } catch(e) {}
 
-      // DEEP COPY data ke Draft
       setEditForm({
         tanggal: reportData.tanggal,
         pengawas: reportData.pengawas,
@@ -162,15 +156,14 @@ export default function LaporanData() {
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Menggabungkan seluruh array cuaca ke bentuk string kompatibel DB lama
       const cuacaGabungan = editForm.cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
-
+      
       const payload = {
         tanggal: editForm.tanggal,
         pengawas: editForm.pengawas,
         lokasi: editForm.lokasi,
         cuaca: cuacaGabungan, 
-        kondisi_cuaca: JSON.stringify(editForm.cuacaItems), // Persiapan update struktur DB (Opsional)
+        kondisi_cuaca: JSON.stringify(editForm.cuacaItems), 
         kegiatan: JSON.stringify(editForm.activities),
         personil: JSON.stringify(editForm.personnels),
         peralatan: JSON.stringify(editForm.equipments),
@@ -188,18 +181,52 @@ export default function LaporanData() {
   };
 
   const handleVerifyLaporan = async () => {
-    const confirmVerif = window.confirm(
-      "Apakah Anda yakin ingin menyetujui laporan ini? \n\nData volume yang disetujui akan permanen dan langsung masuk ke hitungan realisasi Kurva S."
-    );
+    const confirmVerif = window.confirm("Apakah Anda yakin ingin menyetujui laporan ini? \n\nData volume yang disetujui akan permanen dan langsung masuk ke hitungan realisasi Kurva S.");
     if (!confirmVerif) return;
     try {
       await api.put(`/daily-reports/${reportId}/verify`);
       alert("Laporan berhasil disetujui!");
       fetchReport(); 
     } catch (error) {
-      console.error("Gagal verifikasi:", error);
       alert("Terjadi kesalahan saat memverifikasi laporan.");
     }
+  };
+
+  // --- HANDLER MODALS PERSONIL & PERALATAN (YANG BARU DITAMBAHKAN) ---
+  const openPersonilModal = (item = null, index = null) => {
+    if (item) setPersonilForm({ id: item.id || Date.now(), peran: item.peran, jumlah: item.jumlah, index: index });
+    else setPersonilForm({ id: Date.now(), peran: '', jumlah: '', index: null });
+    setShowPersonilModal(true);
+  };
+
+  const savePersonil = (e) => {
+    e.preventDefault();
+    const newArr = [...editForm.personnels];
+    if (personilForm.index !== null) {
+      newArr[personilForm.index] = { id: personilForm.id, peran: personilForm.peran, jumlah: personilForm.jumlah };
+    } else {
+      newArr.push({ id: personilForm.id, peran: personilForm.peran, jumlah: personilForm.jumlah });
+    }
+    setEditForm({...editForm, personnels: newArr});
+    setShowPersonilModal(false);
+  };
+
+  const openPeralatanModal = (item = null, index = null) => {
+    if (item) setPeralatanForm({ id: item.id || Date.now(), namaAlat: item.nama_alat || item.namaAlat, jumlah: item.jumlah, index: index });
+    else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '', index: null });
+    setShowPeralatanModal(true);
+  };
+
+  const savePeralatan = (e) => {
+    e.preventDefault();
+    const newArr = [...editForm.equipments];
+    if (peralatanForm.index !== null) {
+      newArr[peralatanForm.index] = { id: peralatanForm.id, nama_alat: peralatanForm.namaAlat, jumlah: peralatanForm.jumlah };
+    } else {
+      newArr.push({ id: peralatanForm.id, nama_alat: peralatanForm.namaAlat, jumlah: peralatanForm.jumlah });
+    }
+    setEditForm({...editForm, equipments: newArr});
+    setShowPeralatanModal(false);
   };
 
   // Upload/Delete File
@@ -240,105 +267,41 @@ export default function LaporanData() {
     }
   };
 
-  // --- HANDLER COPY TO CLIPBOARD ---
   const handleCopyText = () => {
     if (!reportData) return;
-
     const dateObj = new Date(reportData.tanggal);
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('id-ID', options);
 
-    let pekerjaanText = "";
-    if (reportData.activities && reportData.activities.length > 0) {
-      pekerjaanText = reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan})`).join('\n');
-    } else {
-      pekerjaanText = "1. Tidak Ada Pekerjaan";
-    }
+    let pekerjaanText = reportData.activities?.length ? reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan})`).join('\n') : "1. Tidak Ada Pekerjaan";
+    let manpowerText = reportData.personnels?.length ? reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n') : "1. Tidak Ada Pekerja = -";
+    let alatText = reportData.equipments?.length ? reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n') : "1. Tidak Ada Alat = -";
 
-    let manpowerText = "";
-    if (reportData.personnels && reportData.personnels.length > 0) {
-      manpowerText = reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n');
-    } else {
-      manpowerText = "1. Tidak Ada Pekerja = -";
-    }
+    const textToCopy = `*Daily Report ${formattedDate}*\n\n*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*\n\nPekerjaan :\n${pekerjaanText}\n\nMANPOWER :\n${manpowerText}\n\nAlat : \n${alatText}\n\nCuaca Harian : \n${reportData.cuaca || '-'}\n           \nJam Kerja : -\n \nCatatan : \n* -`;
 
-    let alatText = "";
-    if (reportData.equipments && reportData.equipments.length > 0) {
-      alatText = reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n');
-    } else {
-      alatText = "1. Tidak Ada Alat = -";
-    }
-
-    const textToCopy = `*Daily Report ${formattedDate}*
-
-*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*
-
-Pekerjaan :
-${pekerjaanText}
-
-MANPOWER :
-${manpowerText}
-
-Alat : 
-${alatText}
-
-Cuaca Harian : 
-${reportData.cuaca || '-'}
-           
-Jam Kerja : -
- 
-Catatan : 
-* -`;
-
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.");
-    }).catch(err => {
-      console.error("Gagal menyalin text: ", err);
-      alert("Gagal menyalin text.");
-    });
+    navigator.clipboard.writeText(textToCopy).then(() => alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.")).catch(() => alert("Gagal menyalin text."));
   };
 
-  // --- HANDLER EXPORT EXCEL ---
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
     try {
       const response = await api.get(`/daily-reports/${reportId}/export/excel`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error("Gagal export Excel:", error);
-      alert("Gagal mengunduh file Excel.");
-    } finally {
-      setIsExportingExcel(false);
-    }
+      const link = document.createElement('a'); link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.xlsx`); document.body.appendChild(link); link.click(); link.remove();
+    } catch (error) { alert("Gagal mengunduh file Excel."); } finally { setIsExportingExcel(false); }
   };
 
-  // --- HANDLER EXPORT PDF ---
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
     try {
       const response = await api.get(`/daily-reports/${reportId}/export/pdf`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error("Gagal export PDF:", error);
-      alert("Gagal mengunduh file PDF.");
-    } finally {
-      setIsExportingPdf(false);
-    }
+      const link = document.createElement('a'); link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.pdf`); document.body.appendChild(link); link.click(); link.remove();
+    } catch (error) { alert("Gagal mengunduh file PDF."); } finally { setIsExportingPdf(false); }
   };
 
-  // --- URL RAILWAY FIX ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getDocUrl = (path) => {
     if (!path) return '#';
@@ -355,12 +318,18 @@ Catatan :
   const activePersonnels = isEditMode ? editForm.personnels : reportData.personnels;
   const activeEquipments = isEditMode ? editForm.equipments : reportData.equipments;
 
-  // PENYAMARAN STATUS UNTUK TAMU
   const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
 
   return (
     <div className="w-full space-y-5 relative pb-20">
       
+      <datalist id="peran-options">
+        {defaultPersonilList.map(p => <option key={p} value={p} />)}
+      </datalist>
+      <datalist id="alat-options">
+        {defaultPeralatanList.map(a => <option key={a} value={a} />)}
+      </datalist>
+
       {/* --- TOP HEADER / ACTION BAR --- */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
@@ -377,21 +346,15 @@ Catatan :
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 font-mono font-bold">LAP/{reportData.tanggal.replace(/-/g, '/')}/00{reportData.id}</p>
               
-              {/* STATUS BADGE */}
               {!isEditMode && (
-                displayStatus === 'approved' ? (
-                  <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
-                ) : displayStatus === 'rejected' ? (
-                  <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
-                ) : (
-                  <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
-                )
+                displayStatus === 'approved' ? <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
+                : displayStatus === 'rejected' ? <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
+                : <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
               )}
             </div>
           </div>
         </div>
 
-        {/* CONTAINER ACTION BUTTONS (DISEMBUNYIKAN SEPENUHNYA UNTUK TAMU) */}
         {!isGuest && (
           <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto">
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar transition-all duration-300">
@@ -427,7 +390,6 @@ Catatan :
 
                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
 
-                  {/* TOMBOL EDIT & HAPUS HANYA UNTUK ROLE TERTENTU */}
                   {canCreateData && (
                     <>
                       <button onClick={toggleEditMode} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
@@ -463,7 +425,7 @@ Catatan :
       {/* Grid Informasi Utama */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Info Proyek & Pengawas */}
-        <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative`}>
+        <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative backdrop-blur-sm`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
@@ -503,8 +465,8 @@ Catatan :
           </div>
         </div>
 
-        {/* SECTION 2: Cuaca (Dinamis Multiple) KONSISTEN DENGAN KEGIATAN */}
-        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative`}>
+        {/* Info Cuaca Dinamis Multiple */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative backdrop-blur-sm`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
@@ -528,11 +490,11 @@ Catatan :
             )}
           </div>
           
-          <div className="pt-4 flex-1 flex flex-col">
+          <div className="pt-2 flex-1 flex flex-col">
              {isEditMode ? (
-               <div className="space-y-4">
+               <div className="space-y-4 mt-2">
                  {editForm.cuacaItems.map((item, index) => (
-                   <div key={item.id} className="flex flex-col bg-slate-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 items-start transition-all shadow-sm gap-3">
+                   <div key={item.id} className="flex flex-col bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 items-start transition-all shadow-sm gap-3 relative">
                      <div className="w-full flex justify-between items-center mb-1">
                        <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase flex items-center gap-1.5">
                          <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Sesi Cuaca {index + 1}
@@ -544,7 +506,7 @@ Catatan :
                              const newC = editForm.cuacaItems.filter(c => c.id !== item.id);
                              setEditForm({ ...editForm, cuacaItems: newC });
                            }} 
-                           className="text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md transition-colors"
+                           className="p-1.5 text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-500/10 rounded-md transition-colors"
                          >
                            <Trash2 className="w-3.5 h-3.5" />
                          </button>
@@ -592,7 +554,7 @@ Catatan :
                  ))}
                </div>
              ) : (
-                 <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1">
+                 <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1 mt-3">
                      {reportData.cuaca || 'Tidak ada catatan cuaca harian.'}
                  </div>
              )}
@@ -601,7 +563,7 @@ Catatan :
       </div>
 
       {/* Rincian Kegiatan */}
-      <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative`}>
+      <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
         {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
         
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 pr-8 gap-2">
@@ -686,7 +648,7 @@ Catatan :
               <Users className="w-4 h-4" /> Personil Lapangan
             </h3>
             {isEditMode && (
-              <button onClick={() => { setPerItem({ index: null, peran: '', jumlah: '' }); setShowPerModal(true); }} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 text-[10px] font-bold rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all animate-fade-in z-20">
+              <button onClick={() => openPersonilModal()} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 text-[10px] font-bold rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all animate-fade-in z-20">
                 <Plus className="w-3.5 h-3.5" /> Tambah
               </button>
             )}
@@ -712,8 +674,8 @@ Catatan :
                     {isEditMode && (
                       <td className="py-2.5 text-right animate-fade-in">
                         <div className="flex justify-end gap-2">
-                          <Edit3 onClick={() => { setPerItem({...p, index: idx}); setShowPerModal(true); }} className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 cursor-pointer" />
-                          <Trash2 onClick={() => { const newP = [...editForm.personnels]; newP.splice(idx,1); setEditForm({...editForm, personnels: newP}); }} className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 cursor-pointer" />
+                          <button type="button" onClick={() => openPersonilModal(p, idx)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-800"><Edit3 className="w-3.5 h-3.5"/></button>
+                          <button type="button" onClick={() => { const newP = [...editForm.personnels]; newP.splice(idx,1); setEditForm({...editForm, personnels: newP}); }} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-800"><Trash2 className="w-3.5 h-3.5"/></button>
                         </div>
                       </td>
                     )}
@@ -733,7 +695,7 @@ Catatan :
               <Wrench className="w-4 h-4" /> Pemakaian Alat
             </h3>
             {isEditMode && (
-              <button onClick={() => { setEqItem({ index: null, nama_alat: '', jumlah: '' }); setShowEqModal(true); }} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in z-20">
+              <button onClick={() => openPeralatanModal()} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in z-20">
                 <Plus className="w-3.5 h-3.5" /> Tambah
               </button>
             )}
@@ -759,8 +721,8 @@ Catatan :
                     {isEditMode && (
                       <td className="py-2.5 text-right animate-fade-in">
                         <div className="flex justify-end gap-2">
-                          <Edit3 onClick={() => { setEqItem({...alat, index: idx}); setShowEqModal(true); }} className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 cursor-pointer" />
-                          <Trash2 onClick={() => { const newE = [...editForm.equipments]; newE.splice(idx,1); setEditForm({...editForm, equipments: newE}); }} className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 cursor-pointer" />
+                          <button type="button" onClick={() => openPeralatanModal(alat, idx)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-800"><Edit3 className="w-3.5 h-3.5"/></button>
+                          <button type="button" onClick={() => { const newE = [...editForm.equipments]; newE.splice(idx,1); setEditForm({...editForm, equipments: newE}); }} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-800"><Trash2 className="w-3.5 h-3.5"/></button>
                         </div>
                       </td>
                     )}
@@ -950,15 +912,15 @@ Catatan :
               <div className="p-5 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Peralatan <span className="text-rose-500">*</span></label>
-                  <input type="text" required list="alat-options" value={eqItem.nama_alat} onChange={(e) => setEqItem({...eqItem, nama_alat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                  <input type="text" required list="alat-options" value={peralatanForm.namaAlat} onChange={(e) => setPeralatanForm({...peralatanForm, namaAlat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Unit <span className="text-rose-500">*</span></label>
-                  <input type="number" required min="1" value={eqItem.jumlah} onChange={(e) => setEqItem({...eqItem, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" />
+                  <input type="number" required min="1" value={peralatanForm.jumlah} onChange={(e) => setPeralatanForm({...peralatanForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" />
                 </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowEqModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+                <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Alat</button>
               </div>
             </form>
