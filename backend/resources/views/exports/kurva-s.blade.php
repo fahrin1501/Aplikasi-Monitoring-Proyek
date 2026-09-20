@@ -18,20 +18,16 @@
 </head>
 <body>
     <div class="header-title">LAPORAN KURVA S &amp; KEMAJUAN PROYEK</div>
-    <div class="header-subtitle">
-        {{ $project->nama_proyek }} | SPK: {{ $project->kode_kontrak }} <br>
-        @if(isset($startDate) && isset($endDate))
-            <strong>Periode Laporan:</strong> {{ \Carbon\Carbon::parse($startDate)->translatedFormat('d M Y') }} s/d {{ \Carbon\Carbon::parse($endDate)->translatedFormat('d M Y') }}
-        @endif
-    </div>
+    <div class="header-subtitle">{{ $project->nama_proyek }} | SPK: {{ $project->kode_kontrak }}</div>
 
+    <!-- Tampilkan gambar grafik (KHUSUS PDF). Excel diurus oleh WithDrawings. -->
     @if(!isset($isExcel) && isset($imagePath) && file_exists($imagePath))
         <div style="text-align: center; margin-bottom: 30px;">
-            <!-- TRIK RAHASIA: PHP yang memproses gambar menjadi Base64, mem-bypass error Symlink DomPDF -->
-            <img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents($imagePath)) }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
+            <img src="{{ $imagePath }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
         </div>
     @endif
 
+    <!-- Beri ruang baris kosong untuk meletakkan gambar grafik khusus di Excel -->
     @if(isset($isExcel))
         <table>
             @for($i=0; $i<18; $i++)
@@ -64,11 +60,10 @@
         </tbody>
     </table>
 
-    <div class="title-section">2. PARAMETER EVALUASI DEVIASI (RENTANG TANGGAL)</div>
+    <div class="title-section">2. PARAMETER EVALUASI DEVIASI ({{ strtoupper($viewMode) }})</div>
     <table>
         <thead>
             <tr>
-                <th class="bg-head">TANGGAL</th>
                 <th class="bg-head">PERIODE</th>
                 <th class="bg-head">RENCANA (%)</th>
                 <th class="bg-head">REALISASI (%)</th>
@@ -93,8 +88,7 @@
                     }
                 @endphp
                 <tr>
-                    <td class="text-center font-bold">{{ $row['displayDate'] ?? '-' }}</td>
-                    <td class="text-center">{{ $row['label'] }}</td>
+                    <td class="text-center font-bold">{{ $row['label'] }}</td>
                     <td class="text-right">{{ isset($row['isPlanEmpty']) && $row['isPlanEmpty'] ? '-' : number_format($row['bobotRencana'] ?? 0, 2) }}</td>
                     <td class="text-right">{{ isset($row['isActEmpty']) && $row['isActEmpty'] ? '-' : number_format($row['bobotRealisasi'] ?? 0, 2) }}</td>
                     <td class="text-right">{{ isset($row['isPlanEmpty']) && $row['isPlanEmpty'] ? '-' : number_format($row['rencanaKumulatif'] ?? 0, 2) }}</td>
