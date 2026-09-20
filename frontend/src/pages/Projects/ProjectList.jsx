@@ -1,773 +1,424 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../../api';
-import { 
-  Search, Plus, Edit3, Trash2, Filter, X, 
-  MapPin, Calendar, HardHat, 
-  Loader2, AlertTriangle, Info, FileBox, CheckCircle2,
-  UploadCloud, FileSpreadsheet
-} from 'lucide-react';
-
-export default function ProjectList() {
-  const navigate = useNavigate();
-  
-  // --- STATE MANAJEMEN ---
-  const [projects, setProjects] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
-  
-  // --- SEARCH & FILTER ---
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilter, setShowFilter] = useState(false);
-  const [filters, setFilters] = useState({ status: 'Semua', kategori: 'Semua', sumber_dana: 'Semua' });
-  const filterRef = useRef(null);
-
-  // --- EDIT & BATCH DELETE MODE ---
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [deleteConfig, setDeleteConfig] = useState({ show: false, id: null, name: '' });
-  const [stagedDeletions, setStagedDeletions] = useState([]);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-
-  // --- IMPORT EXCEL MODE ---
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
-
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
-  const [userRole, setUserRole] = useState('Tamu');
-
-  import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api'; 
 import { 
-  Search, Plus, CalendarDays, Calendar, MapPin, 
-  RotateCw, Building2, AlertTriangle, Loader2, Edit3, Trash2, X
+  ArrowLeft, AlertCircle, Loader2, CheckCircle2, 
+  FileSignature, Clock, Calendar, MapPin, 
+  UserCheck, ImageIcon, FileText, UploadCloud, Trash2, Plus, DollarSign, X 
 } from 'lucide-react';
 
-export default function ScheduleList() {
+export default function AddProject() {
   const navigate = useNavigate();
-  
-  // --- STATE MANAJEMEN ---
-  const [projects, setProjects] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // --- STATE EDIT MODE & DELETE ---
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [deleteConfig, setDeleteConfig] = useState({ show: false, projectId: null, projectName: '' });
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
-  const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
-    const userDataStr = localStorage.getItem('user_data');
-    if (userDataStr) {
-      try {
-        const user = JSON.parse(userDataStr);
-        setUserRole(user.role || 'Tamu');
-      } catch (error) {
-        console.error("Gagal membaca data user:", error);
-      }
-    }
+    document.title = "PrismaGroup - Proyek Baru";
   }, []);
 
-  // Definisi Hak Akses
-  const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
-
-  const fetchProjects = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const response = await api.get('/projects');
-      const dataProyek = response.data?.data || response.data || [];
-      setProjects(Array.isArray(dataProyek) ? dataProyek : []);
-    } catch (error) {
-      setErrorMsg('Gagal memuat data proyek. Pastikan server terhubung.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --- HANDLER HAPUS DATA JADWAL KE BACKEND ---
-  const executeDelete = async () => {
-    setIsDeleting(true);
-    try {
-      await api.delete(`/projects/${deleteConfig.projectId}/schedules`);
-      alert(`Seluruh jadwal untuk proyek ${deleteConfig.projectName} berhasil di-reset (dihapus).`);
-      setDeleteConfig({ show: false, projectId: null, projectName: '' });
-      fetchProjects(); // Refresh data
-    } catch (error) {
-      console.error("Gagal hapus jadwal:", error);
-      alert('Gagal menghapus jadwal proyek. Pastikan koneksi server aman.');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // --- LOGIKA FILTERING (PENCARIAN & STATUS) ---
-  const filteredProjects = (projects || []).filter(p => {
-    // 1. Abaikan/Sembunyikan proyek jika statusnya "Selesai" (Case Insensitive)
-    if (p?.status?.toLowerCase() === 'selesai') {
-      return false; 
-    }
-
-    // 2. Filter berdasarkan kata kunci pencarian
-    const matchNama = p?.nama_proyek?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchKontrak = p?.kode_kontrak?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchNama || matchKontrak;
+  // Form State Utama Proyek
+  const [formData, setFormData] = useState({
+    namaProyek: '',
+    kategori: '', 
+    kodeKontrak: '',              // Untuk Kontrak Konsultan
+    nomorKontrakKontraktor: '',   // Untuk Kontrak Kontraktor
+    sumberDana: '',
+    tahunAnggaran: '', 
+    nilaiKontrak: '',
+    tanggalMulai: '', 
+    tanggalSelesai: '',
+    waktuPelaksanaan: '',
+    masaPemeliharaan: '', 
+    lokasiWilayah: '',
+    ppk: '', 
+    kontraktor: '',
+    konsultan: '',
+    deskripsi: ''
   });
 
-  return (
-    <div className="space-y-6 w-full relative pb-20">
+  const [fotoSampul, setFotoSampul] = useState(null);
+  const [fotoPreview, setFotoPreview] = useState(null);
+  const [dokumenLampiran, setDokumenLampiran] = useState([]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // --- HANDLER FOTO BANNER ---
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFotoSampul(file);
+      setFotoPreview(URL.createObjectURL(file)); 
+    }
+  };
+
+  const handleRemoveFoto = () => {
+    setFotoSampul(null);
+    setFotoPreview(null);
+  };
+
+  // --- HANDLER DOKUMEN ---
+  const handleDokumenChange = (e) => {
+    const files = Array.from(e.target.files);
+    setDokumenLampiran([...dokumenLampiran, ...files]);
+  };
+
+  const handleRemoveDokumen = (index) => {
+    setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
+  };
+
+  // --- SUBMIT KE LARAVEL ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      const formDataPayload = new FormData();
       
-      {/* Kustomisasi Scrollbar */}
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
-      `}</style>
+      formDataPayload.append('nama_proyek', formData.namaProyek);
+      formDataPayload.append('kategori', formData.kategori);
+      formDataPayload.append('kode_kontrak', formData.kodeKontrak); // Konsultan
+      formDataPayload.append('nomor_kontrak_kontraktor', formData.nomorKontrakKontraktor); // Kontraktor
+      formDataPayload.append('sumber_dana', formData.sumberDana);
+      formDataPayload.append('tahun_anggaran', formData.tahunAnggaran);
+      formDataPayload.append('nilai_kontrak', formData.nilaiKontrak);
+      formDataPayload.append('tanggal_mulai', formData.tanggalMulai);
+      if (formData.tanggalSelesai) {
+        formDataPayload.append('tanggal_selesai', formData.tanggalSelesai);
+      }
+      formDataPayload.append('waktu_pelaksanaan', formData.waktuPelaksanaan);
+      formDataPayload.append('masa_pemeliharaan', formData.masaPemeliharaan);
+      formDataPayload.append('lokasi_wilayah', formData.lokasiWilayah);
+      formDataPayload.append('ppk', formData.ppk);
+      formDataPayload.append('kontraktor', formData.kontraktor);
+      formDataPayload.append('konsultan', formData.konsultan);
+      formDataPayload.append('deskripsi', formData.deskripsi);
+      formDataPayload.append('status', 'Persiapan');
 
-      {/* --- TOP ACTION BAR --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide">Daftar Time Schedule</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola target rencana jadwal (Barchart) untuk setiap proyek yang masih berjalan.</p>
-        </div>
-        
-        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+      // Masukkan File Foto
+      if (fotoSampul) {
+        formDataPayload.append('foto_sampul', fotoSampul);
+      }
 
-          {/* Search Input tanpa tombol Refresh (di-remove sesuai instruksi) */}
-          <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Cari proyek..." 
-              value={searchTerm} 
-              disabled={isLoading}
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-            />
-          </div>
+      // Masukkan File Dokumen Lampiran
+      dokumenLampiran.forEach((file) => {
+        formDataPayload.append('dokumen_lampiran[]', file);
+      });
 
-          <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-            {/* TAMPILKAN TOMBOL AKSI HANYA JIKA PUNYA HAK AKSES */}
-            {canCreateData && (
-              <>
-                {isEditMode ? (
-                  <button disabled={isLoading} onClick={() => setIsEditMode(false)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <X className="w-4 h-4" /> Batal Edit
-                  </button>
-                ) : (
-                  <button disabled={isLoading} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-blue-300 dark:hover:border-blue-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                    <Edit3 className="w-4 h-4" /> Mode Edit
-                  </button>
-                )}
+      // Mengirim Payload ke Laravel
+      await api.post('/projects', formDataPayload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-                <button disabled={isLoading || isEditMode} onClick={() => navigate('/schedules/input')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Plus className="w-4 h-4" /> <span>Buat Baru</span>
-                </button>
-              </>
-            )}
+      setSubmitting(false);
+      setSubmittedSuccess(true);
+      
+      setTimeout(() => setSubmittedSuccess(false), 4000);
+      setTimeout(() => navigate('/projects'), 1500); 
+
+    } catch (error) {
+      console.error("Error submitting project:", error);
+      
+      if (error.response?.data?.errors) {
+        const errorList = Object.values(error.response.data.errors).flat().join(' | ');
+        setErrorMsg(`Gagal: ${errorList}`);
+      } else if (error.response?.data?.message) {
+        setErrorMsg(error.response.data.message);
+      } else {
+        setErrorMsg("Gagal menyimpan data proyek beserta lampiran. Cek koneksi server.");
+      }
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-full space-y-5 md:space-y-6">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-start lg:items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
+            title="Batal & Kembali"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+              <span>Input Master Proyek Baru</span>
+            </h1>
+            <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Pendaftaran identitas proyek, data kontrak, jadwal, dan dokumen administrasi
+            </p>
           </div>
         </div>
       </div>
 
+      {/* PEMBERITAHUAN ERROR */}
       {errorMsg && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
-          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
+        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-3 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span className="leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
-      {/* --- KONTEN TABEL (TAMPIL DI MOBILE MAUPUN DESKTOP) --- */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
-          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data proyek...</p>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
-          {/* overflow-x-auto & custom-scrollbar membuat tabel scrollable di HP */}
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 w-[40%]">Informasi Proyek</th>
-                  <th className="p-4 w-[25%]">Periode Kontrak</th>
-                  <th className="p-4 w-[15%]">Status Proyek</th>
-                  <th className="p-4 text-center w-[20%]">Aksi Jadwal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                {filteredProjects.length > 0 ? filteredProjects.map((proj) => (
-                  <tr key={proj.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
-                    <td className="p-4">
-                      <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2">{proj.nama_proyek}</div>
-                      <div className="text-[10px] text-amber-600 dark:text-amber-500/90 font-mono mt-1.5 font-bold">SPK: {proj.kode_kontrak || '-'}</div>
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-slate-500"><MapPin className="w-3 h-3"/> {proj.lokasi_wilayah || 'Belum di-Set'}</div>
-                    </td>
-                    <td className="p-4 space-y-2">
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium"><Calendar className="w-3.5 h-3.5 text-blue-500" /> {proj.tanggal_mulai || '?'}</div>
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium"><Calendar className="w-3.5 h-3.5 text-rose-500" /> {proj.tanggal_selesai || '?'}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border inline-block ${
-                        proj.status === 'Delayed' ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10'
-                      }`}>{proj.status || 'Berjalan'}</span>
-                    </td>
-                    <td className="p-4 text-center">
-                      {isEditMode ? (
-                         <button 
-                           onClick={() => setDeleteConfig({ show: true, projectId: proj.id, projectName: proj.nama_proyek })}
-                           className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in"
-                         >
-                           <Trash2 className="w-3.5 h-3.5" /> Hapus Jadwal
-                         </button>
-                      ) : (
-                         <button 
-                           onClick={() => navigate(`/schedules/${proj.id}`, { state: proj })} 
-                           className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
-                         >
-                           <CalendarDays className="w-3.5 h-3.5" /> Buka Jadwal
-                         </button>
-                      )}
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
-                      <Building2 className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                      <p className="text-sm font-medium">Data tidak ditemukan.</p>
-                      <p className="text-[10px] mt-1 opacity-70">Proyek berstatus "Selesai" tidak ditampilkan di sini.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      {/* PEMBERITAHUAN SUKSES */}
+      {submittedSuccess && (
+        <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-xs animate-fade-in shadow-sm">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <span>Data Proyek Baru berhasil dibuat dan terdaftar di database sistem. Mengalihkan...</span>
         </div>
       )}
 
-      {/* --- MODAL KONFIRMASI HAPUS JADWAL (RESET) --- */}
-      {deleteConfig.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/30">
-              <Trash2 className="w-6 h-6 text-rose-600 dark:text-rose-400" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Reset Jadwal Proyek?</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Semua target waktu dan item pekerjaan pada jadwal proyek <strong>{deleteConfig.projectName}</strong> akan dihapus permanen.
-              <br/><br/>
-              <span className="italic text-rose-500 font-medium">Anda harus menyusun ulang jadwal dari awal setelah proses ini.</span>
-            </p>
-            <div className="flex gap-3">
-              <button disabled={isDeleting} onClick={() => setDeleteConfig({ show: false, projectId: null, projectName: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs disabled:opacity-50">Batal</button>
-              <button disabled={isDeleting} onClick={executeDelete} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Ya, Reset Jadwal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-  useEffect(() => {
-    const userDataStr = localStorage.getItem('user_data');
-    if (userDataStr) {
-      try {
-        const user = JSON.parse(userDataStr);
-        setUserRole(user.role || 'Tamu');
-      } catch (error) {}
-    }
-    document.title = "PrismaGroup - Daftar Project";
-  }, []);
-
-  // Definisi Hak Akses
-  const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
-  const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
-  const isGuest = userRole === 'Tamu';
-
-  const fetchProjects = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const response = await api.get('/projects');
-      const dataProyek = response.data?.data || response.data || [];
-      setProjects(Array.isArray(dataProyek) ? dataProyek : []);
-    } catch (error) {
-      setErrorMsg('Gagal memuat data proyek. Pastikan server terhubung.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProjects();
-    const handleClickOutside = (event) => {
-      if (filterRef.current && !filterRef.current.contains(event.target)) {
-        setShowFilter(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // --- LOGIKA HAPUS (DRAFT & PERMANENT) ---
-  const confirmDelete = (e, id, name) => {
-    e.stopPropagation();
-    setDeleteConfig({ show: true, id, name });
-  };
-
-  const executeDraftDelete = () => {
-    setStagedDeletions(prev => [...prev, deleteConfig.id]);
-    setDeleteConfig({ show: false, id: null, name: '' });
-  };
-
-  const handleSelesaiEdit = async () => {
-    if (stagedDeletions.length === 0) {
-      setIsEditMode(false);
-      return;
-    }
-
-    setIsSavingEdit(true);
-    try {
-      await Promise.all(stagedDeletions.map(id => api.delete(`/projects/${id}`)));
-      setStagedDeletions([]); 
-      await fetchProjects(); 
-      setIsEditMode(false); 
-    } catch (error) {
-      alert('Beberapa proyek gagal dihapus. Pastikan tidak ada data laporan yang masih terikat.');
-      setStagedDeletions([]);
-      await fetchProjects();
-      setIsEditMode(false);
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleBatalEdit = () => {
-    setStagedDeletions([]);
-    setIsEditMode(false);
-  };
-
-  // --- LOGIKA IMPORT EXCEL ---
-  const handleImportFile = async () => {
-    if (!importFile) return;
-    setIsImporting(true);
-    
-    const formData = new FormData();
-    formData.append('file', importFile);
-    
-    try {
-      await api.post('/projects/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      alert('Data proyek berhasil di-import!');
-      setShowImportModal(false);
-      setImportFile(null);
-      fetchProjects(); 
-    } catch (error) {
-      const serverMsg = error.response?.data?.message || 'Gagal mengimpor file. Periksa koneksi atau format data.';
-      alert(`Gagal Import: ${serverMsg}`);
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  // --- ROUTING URL FOTO ---
-  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
-  const getImageUrl = (filename) => {
-    if (!filename) return null;
-    if (filename.startsWith('http')) return filename; 
-    return `${BASE_URL}/storage/foto_proyek/${filename}`; 
-  };
-
-  const getCategoryStyle = (kat) => {
-    switch (kat) {
-      case 'Infrastruktur Jalan & Jembatan': return 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600';
-      case 'Gedung & Bangunan Sipil': return 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50';
-      case 'Sumber Daya Air & Irigasi': return 'bg-cyan-50 text-cyan-600 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-800/50';
-      case 'Tata Lingkungan & Sanitasi': return 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50';
-      case 'Preservasi Jalan': return 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
-      default: return 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800/50';
-    }
-  };
-
-  const uniqueStatus = ['Semua', ...new Set(projects.map(p => p.status || 'Persiapan'))];
-  const uniqueSumber = ['Semua', ...new Set(projects.map(p => p.sumber_dana).filter(Boolean))];
-  const uniqueKategori = ['Semua', ...new Set(projects.map(p => p.kategori || 'Belum Ditentukan'))];
-
-  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
-  const clearFilter = (key) => setFilters(prev => ({ ...prev, [key]: 'Semua' }));
-
-  const filteredProjects = projects.filter((p) => {
-    const query = searchQuery.toLowerCase();
-    const matchSearch = 
-      (p.nama_proyek && p.nama_proyek.toLowerCase().includes(query)) || 
-      (p.kode_kontrak && p.kode_kontrak.toLowerCase().includes(query));
-      
-    const matchStatus = filters.status === 'Semua' || (p.status || 'Persiapan') === filters.status;
-    const matchSumber = filters.sumber_dana === 'Semua' || p.sumber_dana === filters.sumber_dana;
-    const matchKategori = filters.kategori === 'Semua' || (p.kategori || 'Belum Ditentukan') === filters.kategori;
-
-    return matchSearch && matchStatus && matchSumber && matchKategori;
-  });
-
-  const visibleProjects = filteredProjects.filter(p => !stagedDeletions.includes(p.id));
-
-  return (
-    <div className="space-y-6 w-full relative pb-20">
-      
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
-      `}</style>
-
-      {/* --- TOP ACTION BAR --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
-            Daftar Project
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi Anda.</p>
-        </div>
+      {/* FORM MANUAL */}
+      <form onSubmit={handleSubmit} className="space-y-4">
         
-        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          
-          <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Cari proyek..." 
-              value={searchQuery} 
-              disabled={isLoading}
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-            />
+        {/* Section 1: Identitas & Keuangan */}
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <FileSignature className="w-4 h-4" /> Data Kontrak & Keuangan
+            </h2>
           </div>
 
-          <div className="relative" ref={filterRef}>
-            <button disabled={isLoading} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
-              <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
-            </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Nama Paket Pekerjaan <span className="text-rose-500">*</span></label>
+              <input type="text" name="namaProyek" required value={formData.namaProyek} onChange={handleChange} placeholder="Contoh : Pembangunan Jembatan Sei Tabalong STA 04" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Bidang / Kategori <span className="text-rose-500">*</span></label>
+              <select name="kategori" value={formData.kategori} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors cursor-pointer appearance-none">
+                <option value="" disabled>Pilih Kategori / Bidang</option>
+                <option value="Infrastruktur Jalan & Jembatan">Infrastruktur Jalan & Jembatan</option>
+                <option value="Gedung & Bangunan Sipil">Gedung & Bangunan Sipil</option>
+                <option value="Sumber Daya Air & Irigasi">Sumber Daya Air & Irigasi</option>
+                <option value="Tata Lingkungan & Sanitasi">Tata Lingkungan & Sanitasi</option>
+                <option value="Preservasi Jalan">Preservasi Jalan</option>
+              </select>
+            </div>
 
-            {showFilter && (
-              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
-                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Proyek</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Proyek</label>
-                    <div className="flex flex-wrap gap-2">
-                      {uniqueStatus.map(status => (
-                        <button key={status} onClick={() => handleFilterChange('status', status)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.status === status ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                          {status}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Kategori Proyek</label>
-                    <div className="flex flex-wrap gap-2">
-                      {uniqueKategori.map(kat => (
-                        <button key={kat} onClick={() => handleFilterChange('kategori', kat)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.kategori === kat ? 'bg-purple-600 text-white border-purple-700' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                          {kat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {canViewFinance && (
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Sumber Dana</label>
-                      <div className="flex flex-wrap gap-2">
-                        {uniqueSumber.map(sumber => (
-                          <button key={sumber} onClick={() => handleFilterChange('sumber_dana', sumber)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm border ${filters.sumber_dana === sumber ? 'bg-blue-500 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                            {sumber}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
-                  <button onClick={() => { setFilters({ status: 'Semua', kategori: 'Semua', sumber_dana: 'Semua' }); setShowFilter(false); }} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors">Reset Semua</button>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">No. Kontrak Konsultan (SPK) <span className="text-rose-500">*</span></label>
+              <input type="text" name="kodeKontrak" required value={formData.kodeKontrak} onChange={handleChange} placeholder="Contoh : 027/114-SPK/DINKES/2026" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors font-mono" />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">No. Kontrak Kontraktor <span className="text-rose-500">*</span></label>
+              <input type="text" name="nomorKontrakKontraktor" value={formData.nomorKontrakKontraktor} onChange={handleChange} placeholder="Contoh : 600/012/PUPR/2026" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors font-mono" />
+            </div>
+
+            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Nilai Kontrak (Pagu) <span className="text-rose-500">*</span></label>
+                <div className="relative">
+                  <input type="number" name="nilaiKontrak" required value={formData.nilaiKontrak} onChange={handleChange} placeholder="Contoh : 2500000000" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
                 </div>
               </div>
-            )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Sumber Dana <span className="text-rose-500">*</span></label>
+                <input type="text" name="sumberDana" value={formData.sumberDana} onChange={handleChange} placeholder="Contoh : APBD DAK" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tahun Anggaran <span className="text-rose-500">*</span></label>
+                <input type="number" name="tahunAnggaran" value={formData.tahunAnggaran} onChange={handleChange} placeholder="Contoh : 2026" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors font-mono" />
+              </div>
+            </div>
           </div>
 
-          {canCreateData && (
-            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-              {isEditMode ? (
+        </div>
+
+        {/* Section 2: Jadwal & Lokasi */}
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Jadwal Pelaksanaan & Lokasi
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tanggal Mulai (Kontrak) <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="date" name="tanggalMulai" required value={formData.tanggalMulai} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tanggal Selesai (PHO) <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="date" name="tanggalSelesai" value={formData.tanggalSelesai} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Waktu Pelaksanaan <span className="text-rose-500">*</span></label>
+              <input type="text" name="waktuPelaksanaan" value={formData.waktuPelaksanaan} onChange={handleChange} placeholder="Contoh : 180 Hari Kalender" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Masa Pemeliharaan <span className="text-rose-500">*</span></label>
+              <input type="text" name="masaPemeliharaan" value={formData.masaPemeliharaan} onChange={handleChange} placeholder="Contoh : 180 Hari Kalender" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+
+            <div className="lg:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Keterangan Wilayah Lokasi <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="text" name="lokasiWilayah" value={formData.lokasiWilayah} onChange={handleChange} placeholder="Contoh : Kec. Murung Pudak" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Stakeholders */}
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+              <UserCheck className="w-4 h-4" /> Para Pihak (Stakeholders)
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">PPK / Owner <span className="text-rose-500">*</span></label>
+              <input type="text" name="ppk" value={formData.ppk} onChange={handleChange} placeholder="Contoh : Dinas PUPR" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">Kontraktor Pelaksana <span className="text-rose-500">*</span></label>
+              <input type="text" name="kontraktor" value={formData.kontraktor} onChange={handleChange} placeholder="Contoh : PT / CV Penyedia Jasa" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">Konsultan Pengawas / MK <span className="text-rose-500">*</span></label>
+              <input type="text" name="konsultan" value={formData.konsultan} onChange={handleChange} placeholder="Contoh : PT / CV Konsultan" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-2">
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Deskripsi & Lingkup Pekerjaan <span className="text-rose-500">*</span></label>
+            <textarea name="deskripsi" rows={3} value={formData.deskripsi} onChange={handleChange} placeholder="Tuliskan spesifikasi umum atau batasan pekerjaan..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors resize-none" />
+          </div>
+        </div>
+
+        {/* Section 4: Uploads */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          {/* CARD 1: FOTO BANNER */}
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" /> Foto Banner Proyek<span className="text-rose-500">*</span>
+              </h2>
+            </div>
+            
+            <div className={`border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500/50 rounded-xl text-center transition-all relative flex-1 flex flex-col items-center justify-center overflow-hidden min-h-[160px] ${fotoPreview ? 'border-none p-0 bg-slate-900' : 'bg-slate-50 dark:bg-slate-900/40 p-6'}`}>
+              {fotoPreview ? (
                 <>
-                  <button disabled={isLoading || isSavingEdit} onClick={handleBatalEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50">
-                    <X className="w-4 h-4" /> Batal
-                  </button>
-                  <button disabled={isLoading || isSavingEdit} onClick={handleSelesaiEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700">
-                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
-                    {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
-                  </button>
+                  <img src={fotoPreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover z-0 opacity-90" />
+                  <div className="absolute inset-0 bg-slate-900/60 opacity-0 hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center z-10 gap-3 backdrop-blur-sm">
+                    <p className="text-white text-xs font-medium truncate max-w-[80%] px-3 py-1 bg-slate-900/50 rounded-md">
+                      {fotoSampul?.name}
+                    </p>
+                    <button 
+                      type="button" 
+                      onClick={handleRemoveFoto} 
+                      className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all active:scale-95 shadow-lg"
+                    >
+                      <Trash2 className="w-4 h-4" /> Hapus Foto
+                    </button>
+                  </div>
                 </>
               ) : (
-                <button disabled={isLoading} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50">
-                  <Edit3 className="w-4 h-4" /> Mode Edit
-                </button>
+                <>
+                  <input type="file" accept="image/*" onChange={handleFotoChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Pilih Foto Banner" />
+                  <UploadCloud className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-500 mb-3 relative z-0" />
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold relative z-0">Klik atau Tarik Foto ke area ini</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-500 mt-1 relative z-0">Format: JPG, PNG, WEBP</p>
+                </>
               )}
-
-              <button disabled={isLoading || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
-              </button>
-
-              <button disabled={isLoading || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* --- TAGS FILTER AKTIF --- */}
-      {(filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua') && (
-        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
-          {filters.status !== 'Semua' && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[10px] font-bold rounded-lg border border-amber-200 dark:border-amber-500/20">
-              Status: {filters.status}
-              <button onClick={() => clearFilter('status')} className="hover:bg-amber-200 dark:hover:bg-amber-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
-            </span>
-          )}
-          {filters.kategori !== 'Semua' && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold rounded-lg border border-purple-200 dark:border-purple-500/20">
-              Kat: {filters.kategori}
-              <button onClick={() => clearFilter('kategori')} className="hover:bg-purple-200 dark:hover:bg-purple-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
-            </span>
-          )}
-          {canViewFinance && filters.sumber_dana !== 'Semua' && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20">
-              Dana: {filters.sumber_dana}
-              <button onClick={() => clearFilter('sumber_dana')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
-            </span>
-          )}
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
-          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* --- KONTEN TABEL & LOADING --- */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
-          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data proyek...</p>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4 w-[40%]">Informasi Proyek</th>
-                  <th className="p-4 w-[25%]">Konsultan Pengawas & Administrasi</th>
-                  <th className="p-4 w-[20%] text-center">Progress S-Curve</th>
-                  <th className="p-4 text-center w-[15%]">Aksi Proyek</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
-                  const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
-                  const isDelayed = displayStatus === 'Delayed';
-
-                  return (
-                    <tr 
-                      key={proj.id} 
-                      className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
-                    >
-                      <td className="p-4 align-top flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
-                          {proj.foto_sampul ? (
-                            <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
-                          ) : (
-                            proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
-                          )}
-                        </div>
-                        
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                             <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
-                               isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
-                             }`}>{displayStatus}</span>
-                             
-                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
-                               {proj.tahun_anggaran || 'Tahun N/A'}
-                             </span>
-
-                             <span className={`px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate max-w-[180px] ${getCategoryStyle(proj.kategori)}`}>
-                               {proj.kategori || 'Belum Ditentukan'}
-                             </span>
-                          </div>
-                          
-                          <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{proj.nama_proyek}</div>
-                          <div className="text-[10px] text-amber-600 dark:text-amber-500/90 font-mono mt-1 font-bold">{proj.kode_kontrak || '-'}</div>
-                          <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/>{proj.lokasi_wilayah || 'Lokasi belum diset'}</div>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-top space-y-2">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                          <HardHat className="w-3.5 h-3.5 text-blue-500 shrink-0" /> 
-                          <span className="truncate" title={proj.konsultan || 'Belum diset'}>{proj.konsultan || 'Konsultan Belum Diset'}</span>
-                        </div>
-                        
-                        {canViewFinance && (
-                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                            <span>Sumber : <strong className="text-slate-700 dark:text-slate-300">{proj.sumber_dana || 'N/A'}</strong></span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-700/60 pt-1.5">
-                           <Calendar className="w-3.5 h-3.5 text-amber-500" /> 
-                           <span>{proj.tanggal_mulai || '?'} <span className="text-slate-400 font-mono">s/d</span> {proj.tanggal_selesai || '?'}</span>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-top">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
-                            <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Plan</span>
-                            <span className="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
-                              {proj.progress_plan !== undefined ? parseFloat(proj.progress_plan).toFixed(2) : '0.00'}%
-                            </span>
-                          </div>
-                          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block mb-0.5 tracking-wider">Actual</span>
-                            <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                              {proj.progress_actual !== undefined ? parseFloat(proj.progress_actual).toFixed(2) : '0.00'}%
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="p-4 align-middle">
-                        {isEditMode ? (
-                           <div className="flex flex-col gap-2">
-                             <button 
-                               onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)}
-                               className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in"
-                             >
-                               <Trash2 className="w-3.5 h-3.5" /> Hapus
-                             </button>
-                           </div>
-                        ) : (
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} 
-                             className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
-                           >
-                             <Info className="w-3.5 h-3.5" /> Buka Data
-                           </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
-                      <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                      <p className="text-sm font-medium">Data tidak ditemukan.</p>
-                      <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau tidak cocok dengan filter pencarian.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL KONFIRMASI DRAFT HAPUS --- */}
-      {deleteConfig.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/30">
-              <Trash2 className="w-6 h-6 text-rose-600 dark:text-rose-400" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Proyek Ini?</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Proyek <strong>{deleteConfig.name}</strong> akan dihilangkan sementara dari layar.
-              <br/><br/>
-              <span className="italic text-rose-500 font-medium">Data akan dihapus permanen dari Database saat Anda menekan tombol "Eksekusi Hapus".</span>
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
-              <button onClick={executeDraftDelete} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors">
-                <Trash2 className="w-4 h-4"/> Sembunyikan
-              </button>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* --- MODAL IMPORT EXCEL --- */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-200 dark:border-emerald-500/20">
-              <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
+          {/* CARD 2: DOKUMEN LAMPIRAN */}
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
+              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Dokumen Administrasi<span className="text-rose-500">*</span>
+              </h2>
+              <>
+                <input type="file" id="docUploadAdd" className="hidden" multiple accept=".pdf,.xlsx,.xls,.dwg,.rar,.zip" onChange={handleDokumenChange} />
+                <button type="button" onClick={() => document.getElementById('docUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium rounded-lg border border-emerald-200 dark:border-emerald-500/20 transition-all">
+                  <UploadCloud className="w-3.5 h-3.5" /> Upload File<span className="text-rose-500">*</span>
+                </button>
+              </>
             </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Import Project via Excel</h3>
             
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-500/50 rounded-xl p-8 mb-4 bg-slate-50 dark:bg-slate-900/50 relative transition-all group overflow-hidden">
-              <input 
-                type="file" 
-                accept=".xlsx, .xls" 
-                onChange={(e) => setImportFile(e.target.files[0])}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-              />
-              <UploadCloud className="w-10 h-10 mx-auto text-slate-400 group-hover:text-emerald-500 transition-colors mb-3" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1 truncate px-4">
-                {importFile ? importFile.name : "Seret file excel disini atau Klik"}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Format yang didukung: .xlsx, .xls</p>
-            </div>
-
-            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl mb-6 text-left shadow-sm">
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed font-medium">
-                Note: Pastikan format kolom excel sudah benar dan sesuai template sebelum di-import agar data terbaca oleh sistem.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button 
-                disabled={isImporting}
-                onClick={() => { setShowImportModal(false); setImportFile(null); }} 
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button 
-                disabled={isImporting || !importFile}
-                onClick={handleImportFile} 
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl flex justify-center items-center gap-2 shadow-md transition-colors disabled:opacity-50"
-              >
-                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4"/>} 
-                {isImporting ? 'Mengimpor...' : 'Import Data'}
-              </button>
+            <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
+              {dokumenLampiran.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                   <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                   <p className="text-slate-500 font-medium">Belum ada berkas terlampir</p>
+                 </div>
+              ) : (
+                dokumenLampiran.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-all">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
+                    </div>
+                    
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveDokumen(idx)} 
+                      title="Batal Unggah" 
+                      className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5"/>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
-      )}
 
+        {/* Action Submit & Cancel Button */}
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs active:scale-95 border border-slate-200 dark:border-slate-600 shadow-sm"
+          >
+            <X className="w-4 h-4" /> Batal
+          </button>
+          <button 
+            type="submit" 
+            disabled={submitting} 
+            className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs disabled:opacity-50"
+          >
+            {submitting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-slate-950 dark:text-white" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            {submitting ? 'Memproses Data...' : 'Simpan & Daftarkan Proyek'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
