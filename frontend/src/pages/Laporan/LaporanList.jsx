@@ -363,8 +363,8 @@ export default function LaporanList() {
                 const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
 
                 return (
-                    <div key={laporan.id} className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm">
-                      <div className="overflow-x-auto">
+                  <div key={laporan.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
+                    <div className="flex items-start gap-3">
                       {/* Icon Avatar Box yang selaras dengan ProjectList */}
                       <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                         <FileSpreadsheet className="w-6 h-6 text-amber-500" />
