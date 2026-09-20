@@ -5,9 +5,10 @@ import {
   ArrowLeft, Calendar, MapPin, Building2, Download, 
   Edit3, Paperclip, Image as ImageIcon, UserCheck, 
   ExternalLink, Sun, Users, Wrench, ListTodo, Trash2, FileSpreadsheet, 
-  Plus, UploadCloud, AlertTriangle, CheckCircle2, Save, X, Loader2, Copy, Clock, ChevronDown
+  Plus, UploadCloud, AlertTriangle, CheckCircle2, Save, X, Loader2, Copy, Clock, ShieldAlert
 } from 'lucide-react';
 
+// FUNGSI BANTUAN UNTUK FORMAT TAMPILAN KOORDINAT
 const formatKoordTampil = (staString) => {
   if (!staString) return null;
   if (staString.includes(',')) {
@@ -17,10 +18,24 @@ const formatKoordTampil = (staString) => {
   return staString;
 };
 
+// FUNGSI BANTUAN UNTUK MEMECAH STRING KE INPUT FORM
+const parseInitKoord = (staString) => {
+  if (!staString) return { lat: '', long: '' };
+  if (staString.includes(',')) {
+    const [lat, long] = staString.split(',');
+    return { lat: lat.trim(), long: long.trim() };
+  }
+  return { lat: staString, long: '' };
+};
+
 export default function LaporanData() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams(); 
+
+  useEffect(() => {
+      document.title = "Prisma Group - Data Laporan";
+    }, []);
 
   const initialData = location.state?.laporan;
   const reportId = id || initialData?.id || initialData?.originalData?.id;
@@ -33,10 +48,11 @@ export default function LaporanData() {
   const [isSaving, setIsSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     tanggal: '', pengawas: '', lokasi: '',
-    cuacaItems: [], // Fitur Cuaca Baru
+    cuaca: '', 
     activities: [], personnels: [], equipments: []
   });
   
+  // STATE EXPORT LOADING
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -52,11 +68,8 @@ export default function LaporanData() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
-
-  useEffect(() => {
-    document.title = "Prisma Group - Data Laporan";
-  }, []);
 
   useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
@@ -64,10 +77,13 @@ export default function LaporanData() {
       try {
         const user = JSON.parse(userDataStr);
         setUserRole(user.role || 'Tamu');
-      } catch (error) {}
+      } catch (error) {
+        console.error("Gagal membaca data user:", error);
+      }
     }
   }, []);
 
+  // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const canVerify = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
@@ -89,30 +105,12 @@ export default function LaporanData() {
 
   const toggleEditMode = () => {
     if (!isEditMode) {
-      // Mengonversi data cuaca menjadi format Array (Backward Compatibility)
-      let parsedCuaca = [{ id: Date.now(), kondisi: 'Cerah', keterangan: reportData.cuaca || '' }];
-      
-      try {
-        if (reportData.kondisi_cuaca && reportData.kondisi_cuaca.startsWith('[')) {
-          parsedCuaca = JSON.parse(reportData.kondisi_cuaca);
-        } else if (reportData.cuaca) {
-          // Fallback parsing sederhana jika data berasal dari format string lama
-          const cuacaOpts = ['Cerah', 'Berawan', 'Hujan Gerimis', 'Hujan Lebat'];
-          for (const opt of cuacaOpts) {
-            if (reportData.cuaca.startsWith(opt)) {
-              parsedCuaca[0].kondisi = opt;
-              parsedCuaca[0].keterangan = reportData.cuaca.replace(opt + ' - ', '').replace(opt, '').trim();
-              break;
-            }
-          }
-        }
-      } catch(e) {}
-
+      // DEEP COPY data ke Draft
       setEditForm({
         tanggal: reportData.tanggal,
         pengawas: reportData.pengawas,
         lokasi: reportData.lokasi,
-        cuacaItems: parsedCuaca,
+        cuaca: reportData.cuaca || '', 
         activities: JSON.parse(JSON.stringify(reportData.activities || [])),
         personnels: JSON.parse(JSON.stringify(reportData.personnels || [])),
         equipments: JSON.parse(JSON.stringify(reportData.equipments || [])),
@@ -126,14 +124,11 @@ export default function LaporanData() {
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      const cuacaGabungan = editForm.cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
-      
       const payload = {
         tanggal: editForm.tanggal,
         pengawas: editForm.pengawas,
         lokasi: editForm.lokasi,
-        cuaca: cuacaGabungan, 
-        kondisi_cuaca: JSON.stringify(editForm.cuacaItems), // Persiapan update struktur DB
+        cuaca: editForm.cuaca, 
         kegiatan: JSON.stringify(editForm.activities),
         personil: JSON.stringify(editForm.personnels),
         peralatan: JSON.stringify(editForm.equipments),
@@ -151,13 +146,16 @@ export default function LaporanData() {
   };
 
   const handleVerifyLaporan = async () => {
-    const confirmVerif = window.confirm("Apakah Anda yakin ingin menyetujui laporan ini? \n\nData volume yang disetujui akan permanen dan langsung masuk ke hitungan realisasi Kurva S.");
+    const confirmVerif = window.confirm(
+      "Apakah Anda yakin ingin menyetujui laporan ini? \n\nData volume yang disetujui akan permanen dan langsung masuk ke hitungan realisasi Kurva S."
+    );
     if (!confirmVerif) return;
     try {
       await api.put(`/daily-reports/${reportId}/verify`);
       alert("Laporan berhasil disetujui!");
       fetchReport(); 
     } catch (error) {
+      console.error("Gagal verifikasi:", error);
       alert("Terjadi kesalahan saat memverifikasi laporan.");
     }
   };
@@ -200,47 +198,107 @@ export default function LaporanData() {
     }
   };
 
+  // --- HANDLER COPY TO CLIPBOARD ---
   const handleCopyText = () => {
     if (!reportData) return;
+
     const dateObj = new Date(reportData.tanggal);
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('id-ID', options);
 
-    let pekerjaanText = reportData.activities?.length ? reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan})`).join('\n') : "1. Tidak Ada Pekerjaan";
-    let manpowerText = reportData.personnels?.length ? reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n') : "1. Tidak Ada Pekerja = -";
-    let alatText = reportData.equipments?.length ? reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n') : "1. Tidak Ada Alat = -";
+    let pekerjaanText = "";
+    if (reportData.activities && reportData.activities.length > 0) {
+      pekerjaanText = reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan})`).join('\n');
+    } else {
+      pekerjaanText = "1. Tidak Ada Pekerjaan";
+    }
 
-    const textToCopy = `*Daily Report ${formattedDate}*\n\n*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*\n\nPekerjaan :\n${pekerjaanText}\n\nMANPOWER :\n${manpowerText}\n\nAlat : \n${alatText}\n\nCuaca Harian : \n${reportData.cuaca || '-'}\n           \nJam Kerja : -\n \nCatatan : \n* -`;
+    let manpowerText = "";
+    if (reportData.personnels && reportData.personnels.length > 0) {
+      manpowerText = reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n');
+    } else {
+      manpowerText = "1. Tidak Ada Pekerja = -";
+    }
 
-    navigator.clipboard.writeText(textToCopy).then(() => alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.")).catch(() => alert("Gagal menyalin text."));
+    let alatText = "";
+    if (reportData.equipments && reportData.equipments.length > 0) {
+      alatText = reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n');
+    } else {
+      alatText = "1. Tidak Ada Alat = -";
+    }
+
+    const textToCopy = `*Daily Report ${formattedDate}*
+
+*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*
+
+Pekerjaan :
+${pekerjaanText}
+
+MANPOWER :
+${manpowerText}
+
+Alat : 
+${alatText}
+
+Cuaca Harian : 
+${reportData.cuaca || '-'}
+           
+Jam Kerja : -
+ 
+Catatan : 
+* -`;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.");
+    }).catch(err => {
+      console.error("Gagal menyalin text: ", err);
+      alert("Gagal menyalin text.");
+    });
   };
 
+  // --- HANDLER EXPORT EXCEL ---
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
     try {
       const response = await api.get(`/daily-reports/${reportId}/export/excel`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a'); link.href = url;
-      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.xlsx`); document.body.appendChild(link); link.click(); link.remove();
-    } catch (error) { alert("Gagal mengunduh file Excel."); } finally { setIsExportingExcel(false); }
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Gagal export Excel:", error);
+      alert("Gagal mengunduh file Excel.");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
+  // --- HANDLER EXPORT PDF ---
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
     try {
       const response = await api.get(`/daily-reports/${reportId}/export/pdf`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a'); link.href = url;
-      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.pdf`); document.body.appendChild(link); link.click(); link.remove();
-    } catch (error) { alert("Gagal mengunduh file PDF."); } finally { setIsExportingPdf(false); }
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Laporan_Harian_${reportData.tanggal}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Gagal export PDF:", error);
+      alert("Gagal mengunduh file PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
-  // --- RAILWAY URL FIX ---
-  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getDocUrl = (path) => {
     if (!path) return '#';
-    // Mencegah double slash pada URL
-    return path.startsWith('http') ? path : `${BASE_URL}/${path.replace(/^\//, '')}`;
+    return path.startsWith('http') ? path : `http://127.0.0.1:8000/${path}`;
   };
 
   if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /></div>;
@@ -253,12 +311,13 @@ export default function LaporanData() {
   const activePersonnels = isEditMode ? editForm.personnels : reportData.personnels;
   const activeEquipments = isEditMode ? editForm.equipments : reportData.equipments;
 
+  // PENYAMARAN STATUS UNTUK TAMU
   const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
 
   return (
     <div className="w-full space-y-5 relative pb-20">
       
-      {/* HEADER SECTION */}
+      {/* --- TOP HEADER / ACTION BAR --- */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all cursor-pointer shadow-sm">
@@ -274,18 +333,25 @@ export default function LaporanData() {
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 font-mono font-bold">LAP/{reportData.tanggal.replace(/-/g, '/')}/00{reportData.id}</p>
               
+              {/* STATUS BADGE */}
               {!isEditMode && (
-                displayStatus === 'approved' ? <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
-                : displayStatus === 'rejected' ? <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
-                : <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
+                displayStatus === 'approved' ? (
+                  <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
+                ) : displayStatus === 'rejected' ? (
+                  <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
+                ) : (
+                  <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
+                )
               )}
             </div>
           </div>
         </div>
 
+        {/* CONTAINER ACTION BUTTONS (DISEMBUNYIKAN SEPENUHNYA UNTUK TAMU) */}
         {!isGuest && (
           <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto">
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto hide-scrollbar transition-all duration-300">
+              
               {isEditMode ? (
                 <>
                   <button onClick={toggleEditMode} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600">
@@ -317,6 +383,7 @@ export default function LaporanData() {
 
                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
 
+                  {/* TOMBOL EDIT & HAPUS HANYA UNTUK ROLE TERTENTU */}
                   {canCreateData && (
                     <>
                       <button onClick={toggleEditMode} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap">
@@ -352,7 +419,7 @@ export default function LaporanData() {
       {/* Grid Informasi Utama */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Info Proyek & Pengawas */}
-        <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative backdrop-blur-sm`}>
+        <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
@@ -392,86 +459,26 @@ export default function LaporanData() {
           </div>
         </div>
 
-        {/* Info Cuaca (Dropdown Dinamis & Keterangan Mode Draf) */}
-        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative backdrop-blur-sm`}>
+        {/* Info Cuaca Tunggal */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Sun className="w-4 h-4"/> Kondisi Cuaca Lapangan
             </h3>
-            {isEditMode && (
-              <button 
-                type="button" 
-                onClick={() => {
-                  if (editForm.cuacaItems.length < 4) {
-                    setEditForm({ ...editForm, cuacaItems: [...editForm.cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }] });
-                  } else {
-                    alert("Maksimal 4 entri cuaca per hari.");
-                  }
-                }} 
-                className="text-[10px] bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-amber-200 dark:border-amber-500/20 z-20 relative"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tambah
-              </button>
-            )}
           </div>
           
-          <div className="pt-2 flex-1 flex flex-col">
+          <div className="pt-4 flex-1 flex flex-col">
              {isEditMode ? (
-               <div className="space-y-3">
-                 {editForm.cuacaItems.map((item, index) => (
-                   <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 relative group">
-                     {editForm.cuacaItems.length > 1 && (
-                       <button 
-                         type="button" 
-                         onClick={() => {
-                           const newC = editForm.cuacaItems.filter(c => c.id !== item.id);
-                           setEditForm({ ...editForm, cuacaItems: newC });
-                         }} 
-                         className="absolute -top-2 -right-2 p-1.5 bg-rose-500 text-white rounded-full transition-transform hover:scale-110 shadow-md z-10"
-                       >
-                         <Trash2 className="w-3 h-3" />
-                       </button>
-                     )}
-                     <div className="space-y-1.5">
-                       <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Cuaca <span className="text-rose-500">*</span></label>
-                       <div className="relative">
-                         <select 
-                           value={item.kondisi}
-                           onChange={(e) => { 
-                             const newC = [...editForm.cuacaItems]; 
-                             newC[index].kondisi = e.target.value; 
-                             setEditForm({ ...editForm, cuacaItems: newC }); 
-                           }}
-                           className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
-                         >
-                           <option value="Cerah">Cerah</option>
-                           <option value="Berawan">Berawan</option>
-                           <option value="Hujan Gerimis">Hujan Gerimis</option>
-                           <option value="Hujan Lebat">Hujan Lebat</option>
-                         </select>
-                         <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                       </div>
-                     </div>
-                     
-                     <div className="sm:col-span-2 space-y-1.5">
-                       <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Waktu / Durasi / Keterangan</label>
-                       <input 
-                         type="text" 
-                         value={item.keterangan} 
-                         onChange={(e) => { 
-                           const newC = [...editForm.cuacaItems]; 
-                           newC[index].keterangan = e.target.value; 
-                           setEditForm({ ...editForm, cuacaItems: newC }); 
-                         }} 
-                         placeholder="Contoh: 08:00 - 12:00..." 
-                         className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-sm" 
-                       />
-                     </div>
-                   </div>
-                 ))}
-               </div>
+                 <textarea 
+                   name="cuaca" 
+                   rows="4" 
+                   value={editForm.cuaca} 
+                   onChange={e => setEditForm({...editForm, cuaca: e.target.value})} 
+                   placeholder="Rangkuman cuaca harian..." 
+                   className="w-full flex-1 bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none shadow-inner" 
+                 />
              ) : (
                  <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1">
                      {reportData.cuaca || 'Tidak ada catatan cuaca harian.'}
@@ -482,7 +489,7 @@ export default function LaporanData() {
       </div>
 
       {/* Rincian Kegiatan */}
-      <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
+      <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative`}>
         {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
         
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 pr-8 gap-2">
@@ -520,6 +527,7 @@ export default function LaporanData() {
                   )}
                 </div>
                 
+                {/* --- MENAMPILKAN TITIK KOORDINAT TUNGGAL --- */}
                 <div className="ml-9 mt-3 flex flex-wrap items-center gap-3">
                   {(keg.sta_awal || keg.sta_akhir) && (
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-sm text-[10px] w-full sm:w-auto">
@@ -556,8 +564,11 @@ export default function LaporanData() {
 
       {/* Personil & Peralatan */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative backdrop-blur-sm`}>
+        
+        {/* Personil */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+          
           <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
             <h3 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2">
               <Users className="w-4 h-4" /> Personil Lapangan
@@ -601,8 +612,10 @@ export default function LaporanData() {
           </div>
         </div>
         
-        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative backdrop-blur-sm`}>
+        {/* Peralatan */}
+        <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl overflow-hidden flex flex-col transition-all relative`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
+
           <div className="px-4 md:px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between pr-12">
             <h3 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
               <Wrench className="w-4 h-4" /> Pemakaian Alat
@@ -645,11 +658,13 @@ export default function LaporanData() {
             </table>
           </div>
         </div>
+
       </div>
 
       {/* SECTION 5: Upload Foto & Lampiran */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
+        
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
@@ -663,6 +678,7 @@ export default function LaporanData() {
               </>
             )}
           </div>
+          
           <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
             {fotoDokumentasi.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
@@ -676,14 +692,25 @@ export default function LaporanData() {
                     <p className="font-medium text-slate-800 dark:text-white truncate">{foto.nama_file}</p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Telah Diunggah</p>
                   </div>
+                  
                   <div className="flex gap-2">
                     {!isEditMode && (
-                      <button type="button" onClick={() => window.open(getDocUrl(foto.path_file), '_blank')} title="Lihat Foto" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
+                      <button 
+                        type="button"
+                        onClick={() => window.open(getDocUrl(foto.path_file), '_blank')} 
+                        title="Lihat Foto" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
                         <ExternalLink className="w-3.5 h-3.5"/>
                       </button>
                     )}
                     {isEditMode && (
-                      <button type="button" onClick={() => handleDeleteFile(foto.id)} title="Hapus Foto" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteFile(foto.id)} 
+                        title="Hapus Foto" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
                         <Trash2 className="w-3.5 h-3.5"/>
                       </button>
                     )}
@@ -694,7 +721,7 @@ export default function LaporanData() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
@@ -708,6 +735,7 @@ export default function LaporanData() {
               </>
             )}
           </div>
+          
           <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
             {lampiranFiles.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
@@ -721,14 +749,25 @@ export default function LaporanData() {
                     <p className="font-medium text-slate-800 dark:text-white truncate">{file.nama_file}</p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Telah Diunggah</p>
                   </div>
+                  
                   <div className="flex gap-2">
                     {!isEditMode && (
-                      <button type="button" onClick={() => window.open(getDocUrl(file.path_file), '_blank')} title="Download / Buka File" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
+                      <button 
+                        type="button"
+                        onClick={() => window.open(getDocUrl(file.path_file), '_blank')} 
+                        title="Download / Buka File" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-amber-500 rounded hover:bg-amber-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
                         <Download className="w-3.5 h-3.5"/>
                       </button>
                     )}
                     {isEditMode && (
-                      <button type="button" onClick={() => handleDeleteFile(file.id)} title="Hapus File" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteFile(file.id)} 
+                        title="Hapus File" 
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
+                      >
                         <Trash2 className="w-3.5 h-3.5"/>
                       </button>
                     )}
@@ -740,89 +779,9 @@ export default function LaporanData() {
         </div>
       </div>
 
-      {/* Action Submit & Cancel Button */}
-      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
-        <button
-          type="button"
-          onClick={() => navigate('/laporan')}
-          className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs active:scale-95 border border-slate-200 dark:border-slate-600 shadow-sm"
-        >
-          <X className="w-4 h-4" /> Batal
-        </button>
-        <button 
-          type="button" 
-          onClick={isEditMode ? handleSaveChanges : toggleEditMode}
-          disabled={isSaving || (isEditMode && Object.keys(editForm.activities).length === 0)} 
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs disabled:opacity-50"
-        >
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Save className="w-4 h-4" />}
-          {isSaving ? 'Menyimpan...' : 'Simpan Perubahan Draf'}
-        </button>
-      </div>
-
-      {/* MODALS PERSONIL & PERALATAN */}
-      {showPersonilModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> Form Personil Draf</h3>
-              <button onClick={() => setShowPersonilModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-            </div>
-            <div className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Posisi / Nama Jabatan <span className="text-rose-500">*</span></label>
-                <input type="text" required list="peran-options" value={perItem.peran} onChange={(e) => setPerItem({...perItem, peran: e.target.value})} placeholder="Contoh: Pekerja, Tukang..." className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Orang <span className="text-rose-500">*</span></label>
-                <input type="number" required min="1" value={perItem.jumlah} onChange={(e) => setPerItem({...perItem, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
-              </div>
-            </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-              <button onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
-              <button onClick={() => {
-                if(!perItem.peran || !perItem.jumlah) return alert("Semua wajib diisi!");
-                const newArr = [...editForm.personnels];
-                if(perItem.index !== null) newArr[perItem.index] = perItem; else newArr.push(perItem);
-                setEditForm({...editForm, personnels: newArr});
-                setShowPersonilModal(false);
-              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showEqModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> Form Peralatan Draf</h3>
-              <button onClick={() => setShowEqModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
-            </div>
-            <div className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Nama Alat <span className="text-rose-500">*</span></label>
-                <input type="text" required list="alat-options" value={eqItem.nama_alat} onChange={(e) => setEqItem({...eqItem, nama_alat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Unit <span className="text-rose-500">*</span></label>
-                <input type="number" required min="1" value={eqItem.jumlah} onChange={(e) => setEqItem({...eqItem, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
-              </div>
-            </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-              <button onClick={() => setShowEqModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
-              <button onClick={() => {
-                if(!eqItem.nama_alat || !eqItem.jumlah) return alert("Semua wajib diisi!");
-                const newArr = [...editForm.equipments];
-                if(eqItem.index !== null) newArr[eqItem.index] = eqItem; else newArr.push(eqItem);
-                setEditForm({...editForm, equipments: newArr});
-                setShowEqModal(false);
-              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH KEGIATAN                  */}
+      {/* ========================================== */}
       {showActModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
@@ -872,12 +831,82 @@ export default function LaporanData() {
         </div>
       )}
 
-      {/* --- MODAL KONFIRMASI HAPUS LAPORAN FULL --- */}
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH PERSONIL                  */}
+      {/* ========================================== */}
+      {showPerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> Form Personil Draf</h3>
+              <button onClick={() => setShowPerModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Peran / Jabatan <span className="text-rose-500">*</span></label>
+                <input type="text" required value={perItem.peran} onChange={(e) => setPerItem({...perItem, peran: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Orang <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={perItem.jumlah} onChange={(e) => setPerItem({...perItem, jumlah: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowPerModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!perItem.peran || !perItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.personnels];
+                if(perItem.index !== null) newArr[perItem.index] = perItem; else newArr.push(perItem);
+                setEditForm({...editForm, personnels: newArr});
+                setShowPerModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL: EDIT/TAMBAH PERALATAN                 */}
+      {/* ========================================== */}
+      {showEqModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> Form Peralatan Draf</h3>
+              <button onClick={() => setShowEqModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Nama Alat <span className="text-rose-500">*</span></label>
+                <input type="text" required value={eqItem.nama_alat} onChange={(e) => setEqItem({...eqItem, nama_alat: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Unit <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={eqItem.jumlah} onChange={(e) => setEqItem({...eqItem, jumlah: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowEqModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!eqItem.nama_alat || !eqItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.equipments];
+                if(eqItem.index !== null) newArr[eqItem.index] = eqItem; else newArr.push(eqItem);
+                setEditForm({...editForm, equipments: newArr});
+                setShowEqModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL: KONFIRMASI HAPUS LAPORAN FULL         */}
+      {/* ========================================== */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/20 animate-pulse">
-              <Trash2 size={28} className="text-rose-500 dark:text-rose-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
+            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/20 animate-pulse">
+              <AlertTriangle className="w-6 h-6 text-rose-500 dark:text-rose-400" />
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan Harian?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Tindakan ini permanen. Semua data, foto, dan lampiran di dalam laporan ini akan hilang dan tidak dapat dikembalikan.</p>
