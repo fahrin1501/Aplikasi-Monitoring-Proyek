@@ -186,13 +186,20 @@ class ProjectScheduleController extends Controller
         }
     }
 
-    // --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
+// --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
     private function saveChartImage($base64String)
     {
         if (!$base64String) return null;
         $imageParts = explode(";base64,", $base64String);
+
+        // FIX ERROR 500: Deteksi otomatis apakah itu jpeg atau png dari header Base64
+        $extension = 'png';
+        if (str_contains($imageParts[0], 'jpeg') || str_contains($imageParts[0], 'jpg')) {
+            $extension = 'jpg';
+        }
+
         $decoded = base64_decode($imageParts[1]);
-        $filename = 'kurva_' . time() . '.png';
+        $filename = 'kurva_' . time() . '.' . $extension;
 
         // Simpan sementara di storage/app/public/temp
         Storage::disk('public')->put('temp/' . $filename, $decoded);
@@ -208,9 +215,13 @@ class ProjectScheduleController extends Controller
         // Tangkap array dari Frontend
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'mingguan';
+        $viewMode = $request->view_mode ?? 'harian';
 
-        $pdf = Pdf::loadView('exports.kurva-s', compact('project', 'imagePath', 'itemProgress', 'chartData', 'viewMode'))->setPaper('a4', 'landscape');
+        // Tangkap Range Tanggal Filter
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
+
+        $pdf = Pdf::loadView('exports.kurva-s', compact('project', 'imagePath', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))->setPaper('a4', 'landscape');
         return $pdf->download('Kurva_S_' . $project->kode_kontrak . '.pdf');
     }
 
@@ -223,8 +234,12 @@ class ProjectScheduleController extends Controller
         // Tangkap array dari Frontend
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'mingguan';
+        $viewMode = $request->view_mode ?? 'harian';
 
-        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath), 'Kurva_S_' . $project->kode_kontrak . '.xlsx');
+        // Tangkap Range Tanggal Filter
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
+
+        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate), 'Kurva_S_' . $project->kode_kontrak . '.xlsx');
     }
 }
