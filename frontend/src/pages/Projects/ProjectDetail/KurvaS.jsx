@@ -79,9 +79,9 @@ export default function KurvaS({ selectedProject }) {
       case 'Preservasi Jalan': return 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
       default: return 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800/50';
     }
-  };
+  }
 
-  const executeExport = async () => {
+const executeExport = async () => {
     const type = exportModal.type;
     setExportModal({ show: false, type: '' }); 
 
@@ -92,20 +92,25 @@ export default function KurvaS({ selectedProject }) {
     else setIsExportingPdf(true);
 
     try {
-      // PENYELESAIAN ERROR 500: Scale diturunkan menjadi 1 agar string Base64 lebih kecil
-      // Hal ini mencegah memori backend Laravel jebol saat membuat file PDF.
-      const canvas = await html2canvas(chartElement, { scale: 1, backgroundColor: '#ffffff' });
+      // Scale 2 dikembalikan agar gambar PDF resolusinya tajam dan tidak blur
+      const canvas = await html2canvas(chartElement, { scale: 2, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/png');
 
       const filteredChartData = chartData.filter(row => !row.isFuture);
 
+      // --- PERBAIKAN UTAMA DI SINI ---
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
         item_progress: itemProgressData,
         chart_data: filteredChartData, 
+        
+        // Kita tetap kirim tanggal untuk info tambahan (jika backend butuh)
         start_date: startDateFilter,
         end_date: endDateFilter,
-        view_mode: 'rentang_tanggal' // Menjaga kompabilitas validasi backend
+        
+        // KUNCI FIX: Paksa kembalikan view_mode menjadi 'harian' agar 
+        // Backend Laravel mengenalinya dan tidak memunculkan Error 500
+        view_mode: 'harian' 
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
