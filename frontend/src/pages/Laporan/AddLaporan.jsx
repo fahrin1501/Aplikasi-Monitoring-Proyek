@@ -4,7 +4,7 @@ import api from '../../api';
 import { 
   ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, Edit3, X, FileSpreadsheet
+  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, Edit3, X, FileSpreadsheet, ChevronDown
 } from 'lucide-react';
 
 const defaultPersonilList = [
@@ -20,18 +20,15 @@ const defaultPeralatanList = [
 export default function AddLaporan() {
   const navigate = useNavigate();
   const location = useLocation();
+  const editData = location.state?.editData || null;
 
+  // ==========================================
+  // 1. SEMUA USE-STATE BERADA DI PALING ATAS
+  // ==========================================
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-      document.title = "Prisma Group - Laporan Baru";
-    }, []);
-  
-  const editData = location.state?.editData || null;
-
-  // --- STATE DATA PROYEK & RAB ---
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(editData?.project_id || '');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
@@ -39,9 +36,43 @@ export default function AddLaporan() {
   const [rabOptions, setRabOptions] = useState([]);
   const [isLoadingRab, setIsLoadingRab] = useState(false);
 
-  // --- STATE SCHEDULE & MINGGU KE- ---
   const [scheduleData, setScheduleData] = useState(null);
   const [mingguKe, setMingguKe] = useState(null);
+
+  // Perubahan Fitur Cuaca: Dipecah menjadi kondisi & keterangan
+  const [formData, setFormData] = useState({
+    tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
+    namaPengawas: editData?.namaPengawas || '',
+    lokasi: editData?.lokasi || '',
+    kondisiCuaca: 'Cerah', 
+    keteranganCuaca: editData?.cuaca || '' 
+  });
+
+  const [kegiatanItems, setKegiatanItems] = useState(
+    editData?.kegiatan?.length > 0 
+      ? editData.kegiatan.map((k, i) => {
+          return { id: i, rab_item_id: k.rab_item_id || '', uraian: k.uraian || '', koordinat_awal: k.sta_awal || '', koordinat_akhir: k.sta_akhir || '', volume: k.volume || '', satuan: k.satuan || '' };
+      })
+      : [{ id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '' }]
+  );
+
+  const [personilItems, setPersonilItems] = useState(editData?.personil || []);
+  const [peralatanItems, setPeralatanItems] = useState(editData?.peralatan || []);
+  const [fotoLampiran, setFotoLampiran] = useState([]);
+  const [dokumenLampiran, setDokumenLampiran] = useState([]);
+  
+  const [showPersonilModal, setShowPersonilModal] = useState(false);
+  const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '' });
+  
+  const [showPeralatanModal, setShowPeralatanModal] = useState(false);
+  const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '' });
+
+  // ==========================================
+  // 2. SEMUA USE-EFFECT
+  // ==========================================
+  useEffect(() => {
+    document.title = "Prisma Group - Input Laporan Harian";
+  }, []);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -57,13 +88,6 @@ export default function AddLaporan() {
     };
     fetchProjects();
   }, []);
-
-  const [formData, setFormData] = useState({
-    tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
-    namaPengawas: editData?.namaPengawas || '',
-    lokasi: editData?.lokasi || '',
-    cuaca: editData?.cuaca || '' 
-  });
 
   const selectedProject = projects.find(p => p.id.toString() === selectedProjectId.toString());
   
@@ -104,12 +128,7 @@ export default function AddLaporan() {
         data.rab_data.forEach(kategori => {
           kategori.items.forEach(item => {
             if (!item.is_subheader) {
-              flattenedItems.push({
-                id: item.id,
-                uraian: item.uraian_pekerjaan,
-                satuan: item.satuan,
-                kategori_nama: kategori.nama_kategori
-              });
+              flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
             }
           });
         });
@@ -120,10 +139,13 @@ export default function AddLaporan() {
         setIsLoadingRab(false);
       }
     };
-
     fetchScheduleAndRAB();
   }, [selectedProjectId]);
 
+
+  // ==========================================
+  // 3. LOGIKA JADWAL & HANDLER FORM
+  // ==========================================
   let optionsMingguIni = [];
   let optionsMingguLain = [];
 
@@ -131,27 +153,18 @@ export default function AddLaporan() {
 
   if (scheduleData && scheduleData.schedules && scheduleData.schedules.length > 0) {
     const scheduledItemsMap = new Map();
-    
     scheduleData.schedules.forEach(sched => {
       let detailItem = null;
       let namaKategori = '';
-      
       scheduleData.rab_data.forEach(cat => {
         const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
-        if (itemMatch) {
-          detailItem = itemMatch;
-          namaKategori = cat.nama_kategori;
-        }
+        if (itemMatch) { detailItem = itemMatch; namaKategori = cat.nama_kategori; }
       });
 
       if (detailItem) {
         const isThisWeek = parseInt(sched.minggu_ke) === parseInt(mingguKe);
         if (!scheduledItemsMap.has(sched.rab_item_id)) {
-          scheduledItemsMap.set(sched.rab_item_id, {
-            ...detailItem,
-            kategori: namaKategori,
-            is_this_week: isThisWeek
-          });
+          scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
         } else if (isThisWeek) {
           scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
         }
@@ -164,34 +177,6 @@ export default function AddLaporan() {
     });
   }
 
-  // --- STATE KEGIATAN DENGAN KOORDINAT TUNGGAL ---
-  const [kegiatanItems, setKegiatanItems] = useState(
-    editData?.kegiatan?.length > 0 
-      ? editData.kegiatan.map((k, i) => {
-          return { 
-            id: i, 
-            rab_item_id: k.rab_item_id || '', 
-            uraian: k.uraian || '', 
-            koordinat_awal: k.sta_awal || '',  
-            koordinat_akhir: k.sta_akhir || '',
-            volume: k.volume || '', 
-            satuan: k.satuan || '' 
-          };
-      })
-      : [{ id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '' }]
-  );
-
-  const [personilItems, setPersonilItems] = useState(editData?.personil || []);
-  const [peralatanItems, setPeralatanItems] = useState(editData?.peralatan || []);
-  const [fotoLampiran, setFotoLampiran] = useState([]);
-  const [dokumenLampiran, setDokumenLampiran] = useState([]);
-  
-  const [showPersonilModal, setShowPersonilModal] = useState(false);
-  const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '' });
-  
-  const [showPeralatanModal, setShowPeralatanModal] = useState(false);
-  const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '' });
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -200,92 +185,64 @@ export default function AddLaporan() {
   const handleKegiatanSelect = (index, selectedRabId) => {
     const newK = [...kegiatanItems];
     if (selectedRabId === "manual") {
-      newK[index].rab_item_id = null;
-      newK[index].uraian = '';
-      newK[index].satuan = '';
+      newK[index].rab_item_id = null; newK[index].uraian = ''; newK[index].satuan = '';
     } else {
       const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId);
       if (selectedRab) {
-        newK[index].rab_item_id = selectedRab.id;
-        newK[index].uraian = selectedRab.uraian;
-        newK[index].satuan = selectedRab.satuan || '';
+        newK[index].rab_item_id = selectedRab.id; newK[index].uraian = selectedRab.uraian; newK[index].satuan = selectedRab.satuan || '';
       }
     }
     setKegiatanItems(newK);
   };
 
+  // Handler CRUD Personil & Alat (Tidak diubah logikanya)
   const openPersonilModal = (item = null) => {
-    if (item) setPersonilForm(item);
-    else setPersonilForm({ id: Date.now(), peran: '', jumlah: '' });
+    if (item) setPersonilForm(item); else setPersonilForm({ id: Date.now(), peran: '', jumlah: '' });
     setShowPersonilModal(true);
   };
-
   const savePersonil = (e) => {
     e.preventDefault();
     const existingIndex = personilItems.findIndex(p => p.id === personilForm.id);
     if (existingIndex >= 0) {
-      const updated = [...personilItems];
-      updated[existingIndex] = personilForm;
-      setPersonilItems(updated);
-    } else {
-      setPersonilItems([...personilItems, personilForm]);
-    }
+      const updated = [...personilItems]; updated[existingIndex] = personilForm; setPersonilItems(updated);
+    } else { setPersonilItems([...personilItems, personilForm]); }
     setShowPersonilModal(false);
   };
 
   const openPeralatanModal = (item = null) => {
-    if (item) setPeralatanForm(item);
-    else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '' });
+    if (item) setPeralatanForm(item); else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '' });
     setShowPeralatanModal(true);
   };
-
   const savePeralatan = (e) => {
     e.preventDefault();
     const existingIndex = peralatanItems.findIndex(p => p.id === peralatanForm.id);
     if (existingIndex >= 0) {
-      const updated = [...peralatanItems];
-      updated[existingIndex] = peralatanForm;
-      setPeralatanItems(updated);
-    } else {
-      setPeralatanItems([...peralatanItems, peralatanForm]);
-    }
+      const updated = [...peralatanItems]; updated[existingIndex] = peralatanForm; setPeralatanItems(updated);
+    } else { setPeralatanItems([...peralatanItems, peralatanForm]); }
     setShowPeralatanModal(false);
   };
 
-  // --- HANDLER UPLOAD FILE (DENGAN VALIDASI UKURAN MAX 2MB) ---
   const handleFotoLampiranChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
-      // Validasi maksimal 2MB per foto (mencegah error 413 Payload Too Large)
-      if (file.size > 2 * 1024 * 1024) {
-        alert(`File ${file.name} terlalu besar. Maksimal 2MB per foto.`);
-        return false;
-      }
+      if (file.size > 2 * 1024 * 1024) { alert(`File ${file.name} terlalu besar. Maksimal 2MB per foto.`); return false; }
       return true;
     });
     setFotoLampiran([...fotoLampiran, ...validFiles]);
   };
-
-  const handleRemoveFoto = (index) => {
-    setFotoLampiran(fotoLampiran.filter((_, i) => i !== index));
-  };
+  const handleRemoveFoto = (index) => setFotoLampiran(fotoLampiran.filter((_, i) => i !== index));
 
   const handleDokumenLampiranChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} terlalu besar. Maksimal 5MB per dokumen.`);
-        return false;
-      }
+      if (file.size > 5 * 1024 * 1024) { alert(`File ${file.name} terlalu besar. Maksimal 5MB per dokumen.`); return false; }
       return true;
     });
     setDokumenLampiran([...dokumenLampiran, ...validFiles]);
   };
+  const handleRemoveDokumen = (index) => setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
 
-  const handleRemoveDokumen = (index) => {
-    setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
-  };
-
+  // --- SUBMIT DATA KE LARAVEL ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -302,7 +259,12 @@ export default function AddLaporan() {
       payload.append('pengawas', formData.namaPengawas);
       payload.append('lokasi', formData.lokasi);
       
-      payload.append('cuaca', formData.cuaca);
+      // Menggabungkan Kondisi dan Keterangan Cuaca agar kompatibel dengan database saat ini
+      const cuacaGabungan = formData.keteranganCuaca ? `${formData.kondisiCuaca} - ${formData.keteranganCuaca}` : formData.kondisiCuaca;
+      payload.append('cuaca', cuacaGabungan);
+      
+      // Kirim field spesifik untuk persiapan update di backend
+      payload.append('kondisi_cuaca', formData.kondisiCuaca); 
 
       const payloadKegiatan = kegiatanItems.map(k => ({
         rab_item_id: k.rab_item_id,
@@ -332,10 +294,8 @@ export default function AddLaporan() {
 
     } catch (error) {
       console.error("Gagal mengirim laporan:", error);
-      
-      // Deteksi Error 413 Khusus
       if (error.response?.status === 413) {
-        setErrorMsg("Gagal: Total ukuran file (Foto/Dokumen) terlalu besar. Batas maksimal server (PHP) terlampaui. Kurangi jumlah/ukuran file Anda.");
+        setErrorMsg("Gagal: Total ukuran file (Foto/Dokumen) terlalu besar. Batas maksimal server terlampaui.");
       } else if (error.response?.data?.errors) {
         const errorList = Object.values(error.response.data.errors).flat().join(' | ');
         setErrorMsg(`Gagal Validasi: ${errorList}`);
@@ -358,19 +318,14 @@ export default function AddLaporan() {
         {defaultPeralatanList.map(a => <option key={a} value={a} />)}
       </datalist>
 
-      {/* HEADER SECTION (Seragam dengan AddProject) */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => navigate('/laporan')}
-            className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
-            title="Batal & Kembali"
-          >
+          <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0" title="Batal & Kembali">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
               <ListTodo className="w-5 h-5 md:w-6 md:h-6 text-amber-500 shrink-0 mt-1 md:mt-0 hidden sm:block" /> 
               <span>Input Laporan Harian Baru</span>
             </h1>
@@ -381,7 +336,6 @@ export default function AddLaporan() {
         </div>
       </div>
 
-      {/* PEMBERITAHUAN ERROR */}
       {errorMsg && (
         <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-3 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in shadow-sm">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -389,7 +343,6 @@ export default function AddLaporan() {
         </div>
       )}
 
-      {/* PEMBERITAHUAN SUKSES */}
       {submittedSuccess && (
         <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-xs animate-fade-in shadow-sm">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
@@ -400,7 +353,7 @@ export default function AddLaporan() {
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {/* SECTION 1: Info Proyek & Pengawas */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
               <Building2 className="w-4 h-4" /> Informasi Pengawasan
@@ -428,7 +381,6 @@ export default function AddLaporan() {
                 ))}
               </select>
             )}
-
             {isScheduleEmpty && selectedProjectId && (
               <div className="mt-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-600 dark:text-rose-400 animate-fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -471,29 +423,49 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* SECTION 2: Cuaca (Tunggal) */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+        {/* SECTION 2: Cuaca (Fitur Baru: Dropdown + Textarea) */}
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
               <Sun className="w-4 h-4" /> Kondisi Cuaca Lapangan
             </h2>
           </div>
           
-          <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 flex flex-col space-y-2">
-            <label className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase mb-1">Rangkuman Cuaca Harian <span className="text-rose-500">*</span></label>
-            <textarea 
-              name="cuaca" required
-              rows="3" 
-              value={formData.cuaca} 
-              onChange={handleInputChange} 
-              placeholder="Contoh: Pagi Cerah, Siang Hujan Gerimis (12:00 - 14:00), Sore Hujan Deras..." 
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none transition-colors shadow-inner" 
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50">
+            <div className="space-y-2">
+              <label className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase">Pilih Cuaca Dasar <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <select 
+                  name="kondisiCuaca"
+                  value={formData.kondisiCuaca}
+                  onChange={handleInputChange}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
+                >
+                  <option value="Cerah">Cerah</option>
+                  <option value="Berawan">Berawan</option>
+                  <option value="Hujan Gerimis">Hujan Gerimis</option>
+                  <option value="Hujan Lebat">Hujan Lebat</option>
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase">Keterangan / Rincian Waktu Hujan</label>
+              <textarea 
+                name="keteranganCuaca" 
+                rows="2" 
+                value={formData.keteranganCuaca} 
+                onChange={handleInputChange} 
+                placeholder="Contoh: Pagi cerah, hujan gerimis dari jam 14:00 s/d 16:00..." 
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none transition-colors shadow-sm" 
+              />
+            </div>
           </div>
         </div>
 
         {/* SECTION 3: Kegiatan & Volume Lapangan */}
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
               <ListTodo className="w-4 h-4" /> Kegiatan & Geografis
@@ -527,7 +499,6 @@ export default function AddLaporan() {
                   )}
                 </div>
                 
-                {/* Uraian Pekerjaan */}
                 <div className="md:col-span-12">
                   <label className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold mb-1.5 flex items-center justify-between">
                     <span>Uraian Pekerjaan <span className="text-rose-500">*</span></span>
@@ -578,7 +549,6 @@ export default function AddLaporan() {
                   )}
                 </div>
                 
-                {/* --- KOORDINAT AWAL & AKHIR --- */}
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80">
                   <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Titik Koordinat Awal (STA Awal)</label>
                   <input type="text" placeholder="-3.3191, 114.5911" value={item.koordinat_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
@@ -589,7 +559,6 @@ export default function AddLaporan() {
                   <input type="text" placeholder="-3.3215, 114.6102" value={item.koordinat_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
                 </div>
 
-                {/* --- VOLUME & SATUAN --- */}
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center">
                   <div className="flex gap-3 w-full">
                     <div className="flex-1">
@@ -610,8 +579,7 @@ export default function AddLaporan() {
 
         {/* SECTION 4: Personil & Peralatan */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
               <h2 className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2">
                 <Users className="w-4 h-4" /> Personil Lapangan
@@ -649,7 +617,7 @@ export default function AddLaporan() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative flex flex-col backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
               <h2 className="text-sm font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
                 <Wrench className="w-4 h-4" /> Pemakaian Peralatan
@@ -688,10 +656,9 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* SECTION 5: Upload Foto & Lampiran (MATCHES ADDPROJECT.JSX STYLE) */}
+        {/* SECTION 5: Upload Foto & Lampiran */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
               <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
                 <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
@@ -703,7 +670,6 @@ export default function AddLaporan() {
                 </button>
               </>
             </div>
-            
             <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
               {fotoLampiran.length === 0 ? (
                  <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
@@ -717,13 +683,7 @@ export default function AddLaporan() {
                       <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
                     </div>
-                    
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveFoto(idx)} 
-                      title="Batal Unggah" 
-                      className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
-                    >
+                    <button type="button" onClick={() => handleRemoveFoto(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
                       <Trash2 className="w-3.5 h-3.5"/>
                     </button>
                   </div>
@@ -732,7 +692,7 @@ export default function AddLaporan() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
               <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
                 <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
@@ -744,7 +704,6 @@ export default function AddLaporan() {
                 </button>
               </>
             </div>
-            
             <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto pr-1">
               {dokumenLampiran.length === 0 ? (
                  <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40">
@@ -758,13 +717,7 @@ export default function AddLaporan() {
                       <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
                     </div>
-                    
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveDokumen(idx)} 
-                      title="Batal Unggah" 
-                      className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"
-                    >
+                    <button type="button" onClick={() => handleRemoveDokumen(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
                       <Trash2 className="w-3.5 h-3.5"/>
                     </button>
                   </div>
@@ -772,10 +725,9 @@ export default function AddLaporan() {
               )}
             </div>
           </div>
-
         </div>
 
-        {/* --- BOTTOM ACTION BUTTON --- */}
+        {/* Action Submit & Cancel Button */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
           <button
             type="button"
@@ -793,105 +745,62 @@ export default function AddLaporan() {
             {submitting ? 'Memproses Data...' : 'Simpan Laporan Harian'}
           </button>
         </div>
-
       </form>
 
-      {/* ========================================== */}
-      {/* MODAL: TAMBAH / EDIT PERSONIL                */}
-      {/* ========================================== */}
+      {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-500"/> {personilForm.id === Date.now() ? 'Data Personil Lapangan' : 'Edit Personil'}
-              </h3>
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> {personilForm.id === Date.now() ? 'Data Personil Lapangan' : 'Edit Personil'}</h3>
               <button onClick={() => setShowPersonilModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
             </div>
-            
             <form onSubmit={savePersonil}>
               <div className="p-5 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Posisi / Nama Jabatan <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="text" required list="peran-options"
-                    value={personilForm.peran}
-                    onChange={(e) => setPersonilForm({...personilForm, peran: e.target.value})}
-                    placeholder="Contoh: Pekerja, Tukang..." 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" 
-                  />
-                  <p className="text-[9px] text-slate-500 italic">Bisa dipilih atau ketik manual.</p>
+                  <input type="text" required list="peran-options" value={personilForm.peran} onChange={(e) => setPersonilForm({...personilForm, peran: e.target.value})} placeholder="Contoh: Pekerja, Tukang..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Orang <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="number" required min="1"
-                    value={personilForm.jumlah}
-                    onChange={(e) => setPersonilForm({...personilForm, jumlah: e.target.value})}
-                    placeholder="0" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono transition-colors" 
-                  />
+                  <input type="number" required min="1" value={personilForm.jumlah} onChange={(e) => setPersonilForm({...personilForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono transition-colors" />
                 </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md transition-colors">
-                  Simpan Personil
-                </button>
+                <button type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Personil</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: TAMBAH / EDIT PERALATAN               */}
-      {/* ========================================== */}
       {showPeralatanModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-blue-500"/> {peralatanForm.id === Date.now() ? 'Data Peralatan' : 'Edit Peralatan'}
-              </h3>
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> {peralatanForm.id === Date.now() ? 'Data Peralatan' : 'Edit Peralatan'}</h3>
               <button onClick={() => setShowPeralatanModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
             </div>
-            
             <form onSubmit={savePeralatan}>
               <div className="p-5 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Peralatan <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="text" required list="alat-options"
-                    value={peralatanForm.namaAlat}
-                    onChange={(e) => setPeralatanForm({...peralatanForm, namaAlat: e.target.value})}
-                    placeholder="Contoh: Excavator, Concrete Mixer..." 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
-                  />
-                  <p className="text-[9px] text-slate-500 italic">Bisa dipilih atau ketik manual.</p>
+                  <input type="text" required list="alat-options" value={peralatanForm.namaAlat} onChange={(e) => setPeralatanForm({...peralatanForm, namaAlat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Unit <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="number" required min="1"
-                    value={peralatanForm.jumlah}
-                    onChange={(e) => setPeralatanForm({...peralatanForm, jumlah: e.target.value})}
-                    placeholder="0" 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" 
-                  />
+                  <input type="number" required min="1" value={peralatanForm.jumlah} onChange={(e) => setPeralatanForm({...peralatanForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" />
                 </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">
-                  Simpan Alat
-                </button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Alat</button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }
