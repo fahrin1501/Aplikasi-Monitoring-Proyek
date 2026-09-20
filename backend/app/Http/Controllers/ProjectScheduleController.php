@@ -187,7 +187,7 @@ class ProjectScheduleController extends Controller
     }
 
 // ==========================================================
-    // 1. FUNGSI PENYIMPANAN GAMBAR ANTI-ERROR DI LINUX/RAILWAY
+    // --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
     // ==========================================================
     private function saveChartImage($base64String)
     {
@@ -198,15 +198,15 @@ class ProjectScheduleController extends Controller
 
         $decoded = base64_decode($parts[1]);
 
-        // BYPASS STORAGE LARAVEL: Simpan langsung ke sistem OS
-        $tempPath = sys_get_temp_dir() . '/' . uniqid('kurva_') . '.png';
+        // MENGGUNAKAN TEMP DIRECTORY OS UNTUK BYPASS FOLDER STORAGE
+        $tempPath = sys_get_temp_dir() . '/' . uniqid('kurva_') . '.jpg';
         file_put_contents($tempPath, $decoded);
 
         return $tempPath;
     }
 
-// ==========================================================
-    // 2. EXPORT PDF KURVA S
+    // ==========================================================
+    // --- EXPORT PDF KURVA S ---
     // ==========================================================
     public function exportKurvaPdf(Request $request, $projectId)
     {
@@ -215,24 +215,27 @@ class ProjectScheduleController extends Controller
 
         $project = Project::findOrFail($projectId);
 
+        // Untuk PDF, langsung baca Base64 di blade agar tidak perlu memanggil file fisik
         $chartImageBase64 = $request->chart_image;
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'mingguan';
+        $viewMode = $request->view_mode ?? 'harian';
+
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
 
         $pdf = Pdf::setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true])
-                  ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode'))
+                  ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
                   ->setPaper('a4', 'landscape');
 
-        // FIX: Bersihkan nama dari karakter terlarang (seperti garis miring /)
+        // Mencegah error garis miring pada nama file
         $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
-
         return $pdf->download('Kurva_S_' . $safeName . '.pdf');
     }
 
     // ==========================================================
-    // 3. EXPORT EXCEL KURVA S
+    // --- EXPORT EXCEL KURVA S ---
     // ==========================================================
     public function exportKurvaExcel(Request $request, $projectId)
     {
@@ -241,15 +244,17 @@ class ProjectScheduleController extends Controller
 
         $project = Project::findOrFail($projectId);
 
+        // Excel butuh file fisik
         $imagePath = $this->saveChartImage($request->chart_image);
 
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
-        $viewMode = $request->view_mode ?? 'mingguan';
+        $viewMode = $request->view_mode ?? 'harian';
 
-        // FIX: Bersihkan nama dari karakter terlarang (seperti garis miring /)
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
+
         $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
-
-        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath), 'Kurva_S_' . $safeName . '.xlsx');
+        return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate), 'Kurva_S_' . $safeName . '.xlsx');
     }
 }
