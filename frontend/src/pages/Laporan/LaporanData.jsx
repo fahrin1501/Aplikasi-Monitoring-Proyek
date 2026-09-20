@@ -33,8 +33,7 @@ export default function LaporanData() {
   const [isSaving, setIsSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     tanggal: '', pengawas: '', lokasi: '',
-    kondisiCuaca: 'Cerah', // Fitur Cuaca Baru
-    keteranganCuaca: '',   // Fitur Cuaca Baru
+    cuacaItems: [], // Fitur Cuaca Baru
     activities: [], personnels: [], equipments: []
   });
   
@@ -90,27 +89,30 @@ export default function LaporanData() {
 
   const toggleEditMode = () => {
     if (!isEditMode) {
-      // Parse kondisi cuaca dari format lama saat masuk draf
-      let parsedKondisi = 'Cerah';
-      let parsedKeterangan = reportData.cuaca || '';
+      // Mengonversi data cuaca menjadi format Array (Backward Compatibility)
+      let parsedCuaca = [{ id: Date.now(), kondisi: 'Cerah', keterangan: reportData.cuaca || '' }];
       
-      if (reportData.cuaca) {
-         const cuacaOpts = ['Cerah', 'Berawan', 'Hujan Gerimis', 'Hujan Lebat'];
-         for (const opt of cuacaOpts) {
+      try {
+        if (reportData.kondisi_cuaca && reportData.kondisi_cuaca.startsWith('[')) {
+          parsedCuaca = JSON.parse(reportData.kondisi_cuaca);
+        } else if (reportData.cuaca) {
+          // Fallback parsing sederhana jika data berasal dari format string lama
+          const cuacaOpts = ['Cerah', 'Berawan', 'Hujan Gerimis', 'Hujan Lebat'];
+          for (const opt of cuacaOpts) {
             if (reportData.cuaca.startsWith(opt)) {
-               parsedKondisi = opt;
-               parsedKeterangan = reportData.cuaca.replace(opt + ' - ', '').replace(opt, '').trim();
-               break;
+              parsedCuaca[0].kondisi = opt;
+              parsedCuaca[0].keterangan = reportData.cuaca.replace(opt + ' - ', '').replace(opt, '').trim();
+              break;
             }
-         }
-      }
+          }
+        }
+      } catch(e) {}
 
       setEditForm({
         tanggal: reportData.tanggal,
         pengawas: reportData.pengawas,
         lokasi: reportData.lokasi,
-        kondisiCuaca: parsedKondisi,
-        keteranganCuaca: parsedKeterangan,
+        cuacaItems: parsedCuaca,
         activities: JSON.parse(JSON.stringify(reportData.activities || [])),
         personnels: JSON.parse(JSON.stringify(reportData.personnels || [])),
         equipments: JSON.parse(JSON.stringify(reportData.equipments || [])),
@@ -124,14 +126,14 @@ export default function LaporanData() {
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      const cuacaGabungan = editForm.keteranganCuaca ? `${editForm.kondisiCuaca} - ${editForm.keteranganCuaca}` : editForm.kondisiCuaca;
+      const cuacaGabungan = editForm.cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
       
       const payload = {
         tanggal: editForm.tanggal,
         pengawas: editForm.pengawas,
         lokasi: editForm.lokasi,
         cuaca: cuacaGabungan, 
-        kondisi_cuaca: editForm.kondisiCuaca, // Backend preparation
+        kondisi_cuaca: JSON.stringify(editForm.cuacaItems), // Persiapan update struktur DB
         kegiatan: JSON.stringify(editForm.activities),
         personil: JSON.stringify(editForm.personnels),
         peralatan: JSON.stringify(editForm.equipments),
@@ -233,10 +235,11 @@ export default function LaporanData() {
     } catch (error) { alert("Gagal mengunduh file PDF."); } finally { setIsExportingPdf(false); }
   };
 
-  // RAILWAY URL FIX
+  // --- RAILWAY URL FIX ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getDocUrl = (path) => {
     if (!path) return '#';
+    // Mencegah double slash pada URL
     return path.startsWith('http') ? path : `${BASE_URL}/${path.replace(/^\//, '')}`;
   };
 
@@ -389,7 +392,7 @@ export default function LaporanData() {
           </div>
         </div>
 
-        {/* Info Cuaca (Dropdown + Keterangan Mode Draf) */}
+        {/* Info Cuaca (Dropdown Dinamis & Keterangan Mode Draf) */}
         <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative backdrop-blur-sm`}>
           {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
           
@@ -397,31 +400,77 @@ export default function LaporanData() {
             <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Sun className="w-4 h-4"/> Kondisi Cuaca Lapangan
             </h3>
+            {isEditMode && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (editForm.cuacaItems.length < 4) {
+                    setEditForm({ ...editForm, cuacaItems: [...editForm.cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }] });
+                  } else {
+                    alert("Maksimal 4 entri cuaca per hari.");
+                  }
+                }} 
+                className="text-[10px] bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-amber-200 dark:border-amber-500/20 z-20 relative"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            )}
           </div>
           
-          <div className="pt-4 flex-1 flex flex-col">
+          <div className="pt-2 flex-1 flex flex-col">
              {isEditMode ? (
                <div className="space-y-3">
-                 <div className="relative">
-                   <select 
-                     value={editForm.kondisiCuaca}
-                     onChange={e => setEditForm({...editForm, kondisiCuaca: e.target.value})}
-                     className="w-full bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer"
-                   >
-                     <option value="Cerah">Cerah</option>
-                     <option value="Berawan">Berawan</option>
-                     <option value="Hujan Gerimis">Hujan Gerimis</option>
-                     <option value="Hujan Lebat">Hujan Lebat</option>
-                   </select>
-                   <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                 </div>
-                 <textarea 
-                   rows="2" 
-                   value={editForm.keteranganCuaca} 
-                   onChange={e => setEditForm({...editForm, keteranganCuaca: e.target.value})} 
-                   placeholder="Rincian waktu hujan/cuaca..." 
-                   className="w-full flex-1 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-lg px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none shadow-inner" 
-                 />
+                 {editForm.cuacaItems.map((item, index) => (
+                   <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 relative group">
+                     {editForm.cuacaItems.length > 1 && (
+                       <button 
+                         type="button" 
+                         onClick={() => {
+                           const newC = editForm.cuacaItems.filter(c => c.id !== item.id);
+                           setEditForm({ ...editForm, cuacaItems: newC });
+                         }} 
+                         className="absolute -top-2 -right-2 p-1.5 bg-rose-500 text-white rounded-full transition-transform hover:scale-110 shadow-md z-10"
+                       >
+                         <Trash2 className="w-3 h-3" />
+                       </button>
+                     )}
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Cuaca <span className="text-rose-500">*</span></label>
+                       <div className="relative">
+                         <select 
+                           value={item.kondisi}
+                           onChange={(e) => { 
+                             const newC = [...editForm.cuacaItems]; 
+                             newC[index].kondisi = e.target.value; 
+                             setEditForm({ ...editForm, cuacaItems: newC }); 
+                           }}
+                           className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
+                         >
+                           <option value="Cerah">Cerah</option>
+                           <option value="Berawan">Berawan</option>
+                           <option value="Hujan Gerimis">Hujan Gerimis</option>
+                           <option value="Hujan Lebat">Hujan Lebat</option>
+                         </select>
+                         <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                       </div>
+                     </div>
+                     
+                     <div className="sm:col-span-2 space-y-1.5">
+                       <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Waktu / Durasi / Keterangan</label>
+                       <input 
+                         type="text" 
+                         value={item.keterangan} 
+                         onChange={(e) => { 
+                           const newC = [...editForm.cuacaItems]; 
+                           newC[index].keterangan = e.target.value; 
+                           setEditForm({ ...editForm, cuacaItems: newC }); 
+                         }} 
+                         placeholder="Contoh: 08:00 - 12:00..." 
+                         className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-sm" 
+                       />
+                     </div>
+                   </div>
+                 ))}
                </div>
              ) : (
                  <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1">
@@ -691,6 +740,26 @@ export default function LaporanData() {
         </div>
       </div>
 
+      {/* Action Submit & Cancel Button */}
+      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
+        <button
+          type="button"
+          onClick={() => navigate('/laporan')}
+          className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs active:scale-95 border border-slate-200 dark:border-slate-600 shadow-sm"
+        >
+          <X className="w-4 h-4" /> Batal
+        </button>
+        <button 
+          type="button" 
+          onClick={isEditMode ? handleSaveChanges : toggleEditMode}
+          disabled={isSaving || (isEditMode && Object.keys(editForm.activities).length === 0)} 
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs disabled:opacity-50"
+        >
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Save className="w-4 h-4" />}
+          {isSaving ? 'Menyimpan...' : 'Simpan Perubahan Draf'}
+        </button>
+      </div>
+
       {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -699,66 +768,122 @@ export default function LaporanData() {
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Users className="w-4 h-4 text-emerald-500"/> Form Personil Draf</h3>
               <button onClick={() => setShowPersonilModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={savePersonil}>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Posisi / Nama Jabatan <span className="text-rose-500">*</span></label>
-                  <input type="text" required list="peran-options" value={personilForm.peran} onChange={(e) => setPersonilForm({...personilForm, peran: e.target.value})} placeholder="Contoh: Pekerja, Tukang..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Orang <span className="text-rose-500">*</span></label>
-                  <input type="number" required min="1" value={personilForm.jumlah} onChange={(e) => setPersonilForm({...personilForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono transition-colors" />
-                </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Posisi / Nama Jabatan <span className="text-rose-500">*</span></label>
+                <input type="text" required list="peran-options" value={perItem.peran} onChange={(e) => setPerItem({...perItem, peran: e.target.value})} placeholder="Contoh: Pekerja, Tukang..." className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Personil</button>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Orang <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={perItem.jumlah} onChange={(e) => setPerItem({...perItem, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
               </div>
-            </form>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!perItem.peran || !perItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.personnels];
+                if(perItem.index !== null) newArr[perItem.index] = perItem; else newArr.push(perItem);
+                setEditForm({...editForm, personnels: newArr});
+                setShowPersonilModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
           </div>
         </div>
       )}
 
-      {showPeralatanModal && (
+      {showEqModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Wrench className="w-4 h-4 text-blue-500"/> Form Peralatan Draf</h3>
-              <button onClick={() => setShowPeralatanModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
+              <button onClick={() => setShowEqModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={savePeralatan}>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nama Peralatan <span className="text-rose-500">*</span></label>
-                  <input type="text" required list="alat-options" value={peralatanForm.namaAlat} onChange={(e) => setPeralatanForm({...peralatanForm, namaAlat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Jumlah Unit <span className="text-rose-500">*</span></label>
-                  <input type="number" required min="1" value={peralatanForm.jumlah} onChange={(e) => setPeralatanForm({...peralatanForm, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono transition-colors" />
-                </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Nama Alat <span className="text-rose-500">*</span></label>
+                <input type="text" required list="alat-options" value={eqItem.nama_alat} onChange={(e) => setEqItem({...eqItem, nama_alat: e.target.value})} placeholder="Contoh: Excavator..." className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Alat</button>
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Jumlah Unit <span className="text-rose-500">*</span></label>
+                <input type="number" required min="1" value={eqItem.jumlah} onChange={(e) => setEqItem({...eqItem, jumlah: e.target.value})} placeholder="0" className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono" />
               </div>
-            </form>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowEqModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!eqItem.nama_alat || !eqItem.jumlah) return alert("Semua wajib diisi!");
+                const newArr = [...editForm.equipments];
+                if(eqItem.index !== null) newArr[eqItem.index] = eqItem; else newArr.push(eqItem);
+                setEditForm({...editForm, equipments: newArr});
+                setShowEqModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
           </div>
         </div>
       )}
 
+      {showActModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><ListTodo className="w-4 h-4 text-amber-500"/> Form Kegiatan Draf</h3>
+              <button onClick={() => setShowActModal(false)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Uraian Pekerjaan <span className="text-rose-500">*</span></label>
+                <textarea rows="2" required value={actItem.uraian} onChange={(e) => setActItem({...actItem, uraian: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none transition-colors" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="font-bold text-[10px] text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Koordinat Awal (Opsional)</label>
+                    <input type="text" placeholder="-3.3191, 114.5911" value={actItem.sta_awal} onChange={(e) => setActItem({...actItem, sta_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-[11px]" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                    <label className="font-bold text-[10px] text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> Koordinat Akhir (Opsional)</label>
+                    <input type="text" placeholder="-3.3215, 114.6102" value={actItem.sta_akhir} onChange={(e) => setActItem({...actItem, sta_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-[11px]" />
+                </div>
+                
+                <div>
+                  <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Volume Tercapai <span className="text-rose-500">*</span></label>
+                  <input type="number" step="any" required value={actItem.volume} onChange={(e) => setActItem({...actItem, volume: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-emerald-600 dark:text-emerald-400 rounded-lg px-3 py-2 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 block">Satuan (M3/Ls dll)</label>
+                  <input type="text" value={actItem.satuan} onChange={(e) => setActItem({...actItem, satuan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 text-slate-800 dark:text-white rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setShowActModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
+              <button onClick={() => {
+                if(!actItem.uraian || !actItem.volume) return alert("Uraian dan Volume wajib diisi!");
+                const updatedItem = { ...actItem };
+                const newArr = [...editForm.activities];
+                if(actItem.index !== null) newArr[actItem.index] = updatedItem; else newArr.push(updatedItem);
+                
+                setEditForm({...editForm, activities: newArr});
+                setShowActModal(false);
+              }} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md">Simpan ke Draf</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL KONFIRMASI HAPUS LAPORAN FULL --- */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/20">
-              <Trash2 size={28} className="text-rose-600 dark:text-rose-400" />
+            <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-500/20 animate-pulse">
+              <Trash2 size={28} className="text-rose-500 dark:text-rose-400" />
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan Harian?</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Tindakan ini permanen. Semua data, foto, dan lampiran di dalam laporan ini akan hilang dan tidak dapat dikembalikan.
-            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Tindakan ini permanen. Semua data, foto, dan lampiran di dalam laporan ini akan hilang dan tidak dapat dikembalikan.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={handleDeleteReport} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-xs transition-colors shadow-md flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Ya, Hapus</button>
+              <button onClick={handleDeleteReport} className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-xs transition-colors shadow-md shadow-rose-500/20 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Ya, Hapus</button>
             </div>
           </div>
         </div>

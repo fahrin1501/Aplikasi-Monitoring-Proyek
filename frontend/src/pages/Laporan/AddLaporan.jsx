@@ -22,9 +22,6 @@ export default function AddLaporan() {
   const location = useLocation();
   const editData = location.state?.editData || null;
 
-  // ==========================================
-  // 1. SEMUA USE-STATE BERADA DI PALING ATAS
-  // ==========================================
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -39,14 +36,16 @@ export default function AddLaporan() {
   const [scheduleData, setScheduleData] = useState(null);
   const [mingguKe, setMingguKe] = useState(null);
 
-  // Perubahan Fitur Cuaca: Dipecah menjadi kondisi & keterangan
   const [formData, setFormData] = useState({
     tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
     namaPengawas: editData?.namaPengawas || '',
-    lokasi: editData?.lokasi || '',
-    kondisiCuaca: 'Cerah', 
-    keteranganCuaca: editData?.cuaca || '' 
+    lokasi: editData?.lokasi || ''
   });
+
+  // --- STATE CUACA (ARRAY MULTIPLE) ---
+  const [cuacaItems, setCuacaItems] = useState([
+    { id: Date.now(), kondisi: 'Cerah', keterangan: '' }
+  ]);
 
   const [kegiatanItems, setKegiatanItems] = useState(
     editData?.kegiatan?.length > 0 
@@ -67,9 +66,6 @@ export default function AddLaporan() {
   const [showPeralatanModal, setShowPeralatanModal] = useState(false);
   const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '' });
 
-  // ==========================================
-  // 2. SEMUA USE-EFFECT
-  // ==========================================
   useEffect(() => {
     document.title = "Prisma Group - Input Laporan Harian";
   }, []);
@@ -139,13 +135,10 @@ export default function AddLaporan() {
         setIsLoadingRab(false);
       }
     };
+
     fetchScheduleAndRAB();
   }, [selectedProjectId]);
 
-
-  // ==========================================
-  // 3. LOGIKA JADWAL & HANDLER FORM
-  // ==========================================
   let optionsMingguIni = [];
   let optionsMingguLain = [];
 
@@ -153,18 +146,27 @@ export default function AddLaporan() {
 
   if (scheduleData && scheduleData.schedules && scheduleData.schedules.length > 0) {
     const scheduledItemsMap = new Map();
+    
     scheduleData.schedules.forEach(sched => {
       let detailItem = null;
       let namaKategori = '';
+      
       scheduleData.rab_data.forEach(cat => {
         const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
-        if (itemMatch) { detailItem = itemMatch; namaKategori = cat.nama_kategori; }
+        if (itemMatch) {
+          detailItem = itemMatch;
+          namaKategori = cat.nama_kategori;
+        }
       });
 
       if (detailItem) {
         const isThisWeek = parseInt(sched.minggu_ke) === parseInt(mingguKe);
         if (!scheduledItemsMap.has(sched.rab_item_id)) {
-          scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
+          scheduledItemsMap.set(sched.rab_item_id, {
+            ...detailItem,
+            kategori: namaKategori,
+            is_this_week: isThisWeek
+          });
         } else if (isThisWeek) {
           scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
         }
@@ -185,64 +187,90 @@ export default function AddLaporan() {
   const handleKegiatanSelect = (index, selectedRabId) => {
     const newK = [...kegiatanItems];
     if (selectedRabId === "manual") {
-      newK[index].rab_item_id = null; newK[index].uraian = ''; newK[index].satuan = '';
+      newK[index].rab_item_id = null;
+      newK[index].uraian = '';
+      newK[index].satuan = '';
     } else {
       const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId);
       if (selectedRab) {
-        newK[index].rab_item_id = selectedRab.id; newK[index].uraian = selectedRab.uraian; newK[index].satuan = selectedRab.satuan || '';
+        newK[index].rab_item_id = selectedRab.id;
+        newK[index].uraian = selectedRab.uraian;
+        newK[index].satuan = selectedRab.satuan || '';
       }
     }
     setKegiatanItems(newK);
   };
 
-  // Handler CRUD Personil & Alat (Tidak diubah logikanya)
   const openPersonilModal = (item = null) => {
-    if (item) setPersonilForm(item); else setPersonilForm({ id: Date.now(), peran: '', jumlah: '' });
+    if (item) setPersonilForm(item);
+    else setPersonilForm({ id: Date.now(), peran: '', jumlah: '' });
     setShowPersonilModal(true);
   };
+
   const savePersonil = (e) => {
     e.preventDefault();
     const existingIndex = personilItems.findIndex(p => p.id === personilForm.id);
     if (existingIndex >= 0) {
-      const updated = [...personilItems]; updated[existingIndex] = personilForm; setPersonilItems(updated);
-    } else { setPersonilItems([...personilItems, personilForm]); }
+      const updated = [...personilItems];
+      updated[existingIndex] = personilForm;
+      setPersonilItems(updated);
+    } else {
+      setPersonilItems([...personilItems, personilForm]);
+    }
     setShowPersonilModal(false);
   };
 
   const openPeralatanModal = (item = null) => {
-    if (item) setPeralatanForm(item); else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '' });
+    if (item) setPeralatanForm(item);
+    else setPeralatanForm({ id: Date.now(), namaAlat: '', jumlah: '' });
     setShowPeralatanModal(true);
   };
+
   const savePeralatan = (e) => {
     e.preventDefault();
     const existingIndex = peralatanItems.findIndex(p => p.id === peralatanForm.id);
     if (existingIndex >= 0) {
-      const updated = [...peralatanItems]; updated[existingIndex] = peralatanForm; setPeralatanItems(updated);
-    } else { setPeralatanItems([...peralatanItems, peralatanForm]); }
+      const updated = [...peralatanItems];
+      updated[existingIndex] = peralatanForm;
+      setPeralatanItems(updated);
+    } else {
+      setPeralatanItems([...peralatanItems, peralatanForm]);
+    }
     setShowPeralatanModal(false);
   };
 
   const handleFotoLampiranChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
-      if (file.size > 2 * 1024 * 1024) { alert(`File ${file.name} terlalu besar. Maksimal 2MB per foto.`); return false; }
+      if (file.size > 2 * 1024 * 1024) {
+        alert(`File ${file.name} terlalu besar. Maksimal 2MB per foto.`);
+        return false;
+      }
       return true;
     });
     setFotoLampiran([...fotoLampiran, ...validFiles]);
   };
-  const handleRemoveFoto = (index) => setFotoLampiran(fotoLampiran.filter((_, i) => i !== index));
+
+  const handleRemoveFoto = (index) => {
+    setFotoLampiran(fotoLampiran.filter((_, i) => i !== index));
+  };
 
   const handleDokumenLampiranChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
-      if (file.size > 5 * 1024 * 1024) { alert(`File ${file.name} terlalu besar. Maksimal 5MB per dokumen.`); return false; }
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`File ${file.name} terlalu besar. Maksimal 5MB per dokumen.`);
+        return false;
+      }
       return true;
     });
     setDokumenLampiran([...dokumenLampiran, ...validFiles]);
   };
-  const handleRemoveDokumen = (index) => setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
 
-  // --- SUBMIT DATA KE LARAVEL ---
+  const handleRemoveDokumen = (index) => {
+    setDokumenLampiran(dokumenLampiran.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -259,12 +287,13 @@ export default function AddLaporan() {
       payload.append('pengawas', formData.namaPengawas);
       payload.append('lokasi', formData.lokasi);
       
-      // Menggabungkan Kondisi dan Keterangan Cuaca agar kompatibel dengan database saat ini
-      const cuacaGabungan = formData.keteranganCuaca ? `${formData.kondisiCuaca} - ${formData.keteranganCuaca}` : formData.kondisiCuaca;
+      // MENGGABUNGKAN SELURUH ITEM CUACA MENJADI 1 TEKS AGAR DB LAMA TIDAK ERROR
+      // Format: "Cerah (08:00 - 12:00) | Hujan Lebat (13:00 - Selesai)"
+      const cuacaGabungan = cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
       payload.append('cuaca', cuacaGabungan);
       
-      // Kirim field spesifik untuk persiapan update di backend
-      payload.append('kondisi_cuaca', formData.kondisiCuaca); 
+      // Kirim JSON mentahnya (untuk persiapan backend nanti jika database sudah diperbarui ke kolom JSON)
+      payload.append('kondisi_cuaca', JSON.stringify(cuacaItems));
 
       const payloadKegiatan = kegiatanItems.map(k => ({
         rab_item_id: k.rab_item_id,
@@ -294,8 +323,9 @@ export default function AddLaporan() {
 
     } catch (error) {
       console.error("Gagal mengirim laporan:", error);
+      
       if (error.response?.status === 413) {
-        setErrorMsg("Gagal: Total ukuran file (Foto/Dokumen) terlalu besar. Batas maksimal server terlampaui.");
+        setErrorMsg("Gagal: Total ukuran file (Foto/Dokumen) terlalu besar. Batas maksimal server (PHP) terlampaui. Kurangi jumlah/ukuran file Anda.");
       } else if (error.response?.data?.errors) {
         const errorList = Object.values(error.response.data.errors).flat().join(' | ');
         setErrorMsg(`Gagal Validasi: ${errorList}`);
@@ -321,11 +351,16 @@ export default function AddLaporan() {
       {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0" title="Batal & Kembali">
+          <button
+            type="button"
+            onClick={() => navigate('/laporan')}
+            className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
+            title="Batal & Kembali"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
               <ListTodo className="w-5 h-5 md:w-6 md:h-6 text-amber-500 shrink-0 mt-1 md:mt-0 hidden sm:block" /> 
               <span>Input Laporan Harian Baru</span>
             </h1>
@@ -381,6 +416,7 @@ export default function AddLaporan() {
                 ))}
               </select>
             )}
+
             {isScheduleEmpty && selectedProjectId && (
               <div className="mt-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-600 dark:text-rose-400 animate-fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -423,44 +459,68 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* SECTION 2: Cuaca (Fitur Baru: Dropdown + Textarea) */}
+        {/* SECTION 2: Cuaca (Dinamis Multiple) */}
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Sun className="w-4 h-4" /> Kondisi Cuaca Lapangan
             </h2>
+            <button 
+              type="button" 
+              onClick={() => {
+                if (cuacaItems.length < 4) {
+                  setCuacaItems([...cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }]);
+                } else {
+                  alert("Maksimal 4 entri cuaca per hari.");
+                }
+              }} 
+              className="text-[10px] bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-amber-200 dark:border-amber-500/20"
+            >
+              <Plus className="w-3.5 h-3.5" /> Tambah
+            </button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50">
-            <div className="space-y-2">
-              <label className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase">Pilih Cuaca Dasar <span className="text-rose-500">*</span></label>
-              <div className="relative">
-                <select 
-                  name="kondisiCuaca"
-                  value={formData.kondisiCuaca}
-                  onChange={handleInputChange}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
-                >
-                  <option value="Cerah">Cerah</option>
-                  <option value="Berawan">Berawan</option>
-                  <option value="Hujan Gerimis">Hujan Gerimis</option>
-                  <option value="Hujan Lebat">Hujan Lebat</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <div className="space-y-3">
+            {cuacaItems.map((item, index) => (
+              <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 relative group">
+                {cuacaItems.length > 1 && (
+                  <button 
+                    type="button" 
+                    onClick={() => setCuacaItems(cuacaItems.filter(c => c.id !== item.id))} 
+                    className="absolute -top-2 -right-2 p-1.5 bg-rose-500 text-white rounded-full transition-transform hover:scale-110 shadow-md z-10"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Cuaca <span className="text-rose-500">*</span></label>
+                  <div className="relative">
+                    <select 
+                      value={item.kondisi}
+                      onChange={(e) => { const newC = [...cuacaItems]; newC[index].kondisi = e.target.value; setCuacaItems(newC); }}
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-sm transition-all"
+                    >
+                      <option value="Cerah">Cerah</option>
+                      <option value="Berawan">Berawan</option>
+                      <option value="Hujan Gerimis">Hujan Gerimis</option>
+                      <option value="Hujan Lebat">Hujan Lebat</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+                
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase">Waktu / Durasi / Keterangan</label>
+                  <input 
+                    type="text" 
+                    value={item.keterangan} 
+                    onChange={(e) => { const newC = [...cuacaItems]; newC[index].keterangan = e.target.value; setCuacaItems(newC); }} 
+                    placeholder="Contoh: 08:00 - 12:00..." 
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-sm" 
+                  />
+                </div>
               </div>
-            </div>
-            
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase">Keterangan / Rincian Waktu Hujan</label>
-              <textarea 
-                name="keteranganCuaca" 
-                rows="2" 
-                value={formData.keteranganCuaca} 
-                onChange={handleInputChange} 
-                placeholder="Contoh: Pagi cerah, hujan gerimis dari jam 14:00 s/d 16:00..." 
-                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none transition-colors shadow-sm" 
-              />
-            </div>
+            ))}
           </div>
         </div>
 
@@ -767,7 +827,7 @@ export default function AddLaporan() {
                 </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
+                <button type="button" onClick={() => setShowPersonilModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
                 <button type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Personil</button>
               </div>
             </form>
@@ -794,7 +854,7 @@ export default function AddLaporan() {
                 </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
+                <button type="button" onClick={() => setShowPeralatanModal(false)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition-colors shadow-sm">Batal</button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors">Simpan Alat</button>
               </div>
             </form>
