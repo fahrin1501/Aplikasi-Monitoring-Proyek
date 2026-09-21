@@ -58,7 +58,7 @@ export default function App() {
         <Route path="/projects/:id/peta-gis" element={<PetaGIS />} />
 
         {/* MODUL JADWAL */}
-        <Route path="/schedules/input" element={<AddSchedule />} />
+        <Route path="/schedules/:id/data/input" element={<AddSchedule />} />
         <Route path="/schedules/:id/data" element={<ScheduleData />} />
         
         {/* MODUL LAPORAN */}

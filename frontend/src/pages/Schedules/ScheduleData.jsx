@@ -335,7 +335,7 @@ export default function ScheduleData() {
               {!isEditMode && (
                 <button 
                   disabled={isLoading} 
-                  onClick={() => navigate('/schedules/input', { state: { projectId: id } })} 
+                  onClick={() => navigate('/schedules/:id/data/input', { state: { projectId: id } })} 
                   className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ListPlus className="w-4 h-4" /> Buat Jadwal Mingguan

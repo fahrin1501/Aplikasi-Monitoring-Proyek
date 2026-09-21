@@ -157,7 +157,7 @@ export default function AddSchedule() {
         <AlertTriangle className="w-16 h-16 text-rose-500 mb-4" />
         <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Akses Tidak Valid</h2>
         <p className="text-slate-500 dark:text-slate-400 mb-6">Harap buka menu ini melalui tombol "Buat Jadwal Mingguan" di dalam Data Jadwal Proyek.</p>
-        <button onClick={() => navigate('/projects')} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md transition-all">Kembali ke Daftar Proyek</button>
+        <button onClick={() => navigate('/:id/data')} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md transition-all">Kembali ke Daftar Proyek</button>
       </div>
     );
   }
