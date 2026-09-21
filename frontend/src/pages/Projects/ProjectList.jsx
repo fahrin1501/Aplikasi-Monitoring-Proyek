@@ -50,7 +50,6 @@ export default function ProjectList() {
     }
   }, []);
 
-  // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
@@ -80,7 +79,6 @@ export default function ProjectList() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- LOGIKA HAPUS (DRAFT & PERMANENT) ---
   const confirmDelete = (e, id, name) => {
     e.stopPropagation();
     setDeleteConfig({ show: true, id, name });
@@ -118,7 +116,6 @@ export default function ProjectList() {
     setIsEditMode(false);
   };
 
-  // --- LOGIKA IMPORT EXCEL ---
   const handleImportFile = async () => {
     if (!importFile) return;
     setIsImporting(true);
@@ -142,7 +139,6 @@ export default function ProjectList() {
     }
   };
 
-  // --- ROUTING URL FOTO ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getImageUrl = (filename) => {
     if (!filename) return null;
@@ -386,7 +382,8 @@ export default function ProjectList() {
                          <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
                            <Info className="w-4 h-4 shrink-0" /> Data
                          </button>
-                         <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}`, { state: proj }); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                         {/* PENYESUAIAN RUTING BUKA JADWAL KE /schedules/ID/data */}
+                         <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
                            <CalendarDays className="w-4 h-4 shrink-0" /> Jadwal
                          </button>
                        </div>
@@ -488,7 +485,8 @@ export default function ProjectList() {
                                <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
                                  <Info className="w-3.5 h-3.5" /> Buka Data
                                </button>
-                               <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}`, { state: proj }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                               {/* PENYESUAIAN RUTING BUKA JADWAL KE /schedules/ID/data */}
+                               <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
                                  <CalendarDays className="w-3.5 h-3.5" /> Buka Jadwal
                                </button>
                              </div>
