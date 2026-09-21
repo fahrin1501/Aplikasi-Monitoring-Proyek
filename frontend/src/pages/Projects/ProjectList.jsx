@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { 
   Search, Plus, Edit3, Trash2, Filter, X, 
-  MapPin, Calendar, HardHat, 
+  MapPin, Calendar, HardHat, CalendarDays,
   Loader2, AlertTriangle, Info, FileBox, CheckCircle2,
   UploadCloud, FileSpreadsheet
 } from 'lucide-react';
@@ -48,7 +48,6 @@ export default function ProjectList() {
         setUserRole(user.role || 'Tamu');
       } catch (error) {}
     }
-    document.title = "PrismaGroup - Daftar Project";
   }, []);
 
   // Definisi Hak Akses
@@ -198,7 +197,6 @@ export default function ProjectList() {
       {/* --- TOP ACTION BAR --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          {/* Header Typography Font Extrabold */}
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Project
           </h1>
@@ -206,7 +204,7 @@ export default function ProjectList() {
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          {/* Bagian input pencarian, filter, dan tombol aksi dibiarkan sama agar logic tetap jalan */}
+          
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -223,10 +221,9 @@ export default function ProjectList() {
             <button disabled={isLoading} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
               <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
             </button>
-            {/* Modal Filter (Logic Tetap) */}
+
             {showFilter && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
-                {/* Isi Filter tidak diubah untuk menjaga fungsionalitas */}
                 <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Proyek</h4>
                 <div className="space-y-4">
                   <div>
@@ -329,7 +326,7 @@ export default function ProjectList() {
         </div>
       ) : (
         <>
-          {/* TAMPILAN MOBILE: Desain Card ditambahkan di sini mengikuti format AccountList */}
+          {/* TAMPILAN MOBILE: Desain Card */}
           <div className="block md:hidden space-y-4">
             {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
               const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
@@ -385,9 +382,14 @@ export default function ProjectList() {
                          <Trash2 className="w-4 h-4" /> Hapus
                        </button>
                     ) : (
-                       <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2.5 w-full justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
-                         <Info className="w-4 h-4" /> Buka Data Proyek
-                       </button>
+                       <div className="flex gap-2 w-full">
+                         <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                           <Info className="w-4 h-4 shrink-0" /> Data
+                         </button>
+                         <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}`, { state: proj }); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
+                           <CalendarDays className="w-4 h-4 shrink-0" /> Jadwal
+                         </button>
+                       </div>
                     )}
                   </div>
                 </div>
@@ -400,7 +402,7 @@ export default function ProjectList() {
             )}
           </div>
 
-          {/* TAMPILAN DESKTOP: Disamakan Styling dan Backdrop dengan AccountList */}
+          {/* TAMPILAN DESKTOP: Styling dan Backdrop blur */}
           <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
@@ -409,7 +411,7 @@ export default function ProjectList() {
                     <th className="p-4 w-[40%]">Informasi Proyek</th>
                     <th className="p-4 w-[25%]">Konsultan Pengawas & Administrasi</th>
                     <th className="p-4 w-[20%] text-center">Progress S-Curve</th>
-                    <th className="p-4 text-center w-[15%]">Aksi Proyek</th>
+                    <th className="p-4 text-center w-[15%]">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
@@ -474,7 +476,7 @@ export default function ProjectList() {
                             </div>
                           </div>
                         </td>
-                        <td className="p-4 align-middle">
+                        <td className="p-4 align-middle text-center">
                           {isEditMode ? (
                              <div className="flex flex-col gap-2">
                                <button onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
@@ -482,9 +484,14 @@ export default function ProjectList() {
                                </button>
                              </div>
                           ) : (
-                             <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
-                               <Info className="w-3.5 h-3.5" /> Buka Data
-                             </button>
+                             <div className="flex flex-col gap-2">
+                               <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                                 <Info className="w-3.5 h-3.5" /> Buka Data
+                               </button>
+                               <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}`, { state: proj }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
+                                 <CalendarDays className="w-3.5 h-3.5" /> Buka Jadwal
+                               </button>
+                             </div>
                           )}
                         </td>
                       </tr>
@@ -507,11 +514,12 @@ export default function ProjectList() {
 
       {/* --- INFO LEGEND (FOOTER) --- */}
       <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
-        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Status Proyek:</span>
+        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Keterangan & Aksi:</span>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Sesuai / Mendahului Rencana</span>
           <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div> Delayed / Keterlambatan</span>
-          <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5 text-blue-500" /> Buka Data untuk melihat kelengkapan</span>
+          <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5 text-amber-500" /> Buka Data Utama</span>
+          <span className="flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 text-blue-500" /> Buka Jadwal Time Schedule</span>
         </div>
       </div>
 

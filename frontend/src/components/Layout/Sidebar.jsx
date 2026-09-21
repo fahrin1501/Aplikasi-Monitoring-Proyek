@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { 
   Map, FolderKanban, ClipboardList, LogOut, Menu, X, 
-  Users, Sun, Moon, CalendarDays
+  Users, Sun, Moon
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -75,11 +75,10 @@ export default function Sidebar() {
   const userRole = userData?.role || 'Tamu';
   const isAdmin = userRole === 'Administrator';
 
-  // --- MENU ITEMS ---
+  // --- MENU ITEMS (Time Schedule Dihapus) ---
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard Utama', icon: Map },
     { path: '/projects', label: 'Daftar Project', icon: FolderKanban },
-    { path: '/schedules', label: 'Time Schedule', icon: CalendarDays }, 
     { path: '/laporan', label: 'Daftar Laporan', icon: ClipboardList },
     ...(isAdmin ? [{ path: '/accounts', label: 'Manajemen Akun', icon: Users }] : []),
   ];
