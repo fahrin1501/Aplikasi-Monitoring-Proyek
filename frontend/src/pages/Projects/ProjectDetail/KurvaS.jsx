@@ -31,7 +31,7 @@ export default function KurvaS({ selectedProject }) {
   
   const [activeWeek, setActiveWeek] = useState('Semua');
   const [showWeekFilter, setShowWeekFilter] = useState(false);
-  const filterRef = useRef(null);
+  const weekFilterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -48,10 +48,10 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
-  // Tutup Pop-up Filter Jika Klik di Luar
+  // --- TUTUP POP-UP FILTER JIKA KLIK DI LUAR ---
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (filterRef.current && !filterRef.current.contains(event.target)) {
+      if (weekFilterRef.current && !weekFilterRef.current.contains(event.target)) {
         setShowWeekFilter(false);
       }
     };
@@ -100,7 +100,7 @@ export default function KurvaS({ selectedProject }) {
 
     if (!projectBounds.start) return;
 
-    // Hitung range tanggal spesifik untuk minggu tersebut
+    // Menghitung tanggal mulai dan akhir untuk minggu yang dipilih
     const startDate = new Date(projectBounds.start);
     startDate.setHours(0, 0, 0, 0);
 
@@ -322,11 +322,11 @@ export default function KurvaS({ selectedProject }) {
       {/* ========================================== */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
+          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
+            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5">
               <span>Monitoring Kurva S</span>
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -343,24 +343,23 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* FITUR BARU: FILTER MINGGUAN POP-UP */}
-            <div className="relative" ref={filterRef}>
+            {/* POP-UP FILTER MINGGUAN DITAMBAHKAN DI SINI */}
+            <div className="relative" ref={weekFilterRef}>
               <button 
-                disabled={isLoading}
-                onClick={() => setShowWeekFilter(!showWeekFilter)} 
+                disabled={isLoading || isScheduleEmpty}
+                onClick={() => setShowWeekFilter(!showWeekFilter)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                  showWeekFilter || activeWeek !== 'Semua' 
+                  showWeekFilter || (activeWeek !== 'Semua' && activeWeek !== 'Kustom')
                     ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' 
-                    : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
               >
-                <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Periode</span>
+                <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Minggu</span>
               </button>
 
               {showWeekFilter && (
-                <div className="absolute right-0 top-full mt-2 w-[280px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
-                  <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-100 dark:border-slate-700/60 pb-2">Pilih Minggu</h4>
-                  
+                <div className="absolute right-0 md:left-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
+                  <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Mingguan</h4>
                   <div className="flex flex-wrap gap-1.5 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
                     <button 
                       onClick={() => handleWeekSelect('Semua')}
@@ -419,10 +418,10 @@ export default function KurvaS({ selectedProject }) {
             {!isGuest && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-center"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
                 </button>
               </>
@@ -623,7 +622,7 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       {/* ========================================== */}
-      {/* 3. MODAL (Di Luar Conditional Rendering)     */}
+      {/* 3. MODAL EXPORT PDF/EXCEL                    */}
       {/* ========================================== */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
