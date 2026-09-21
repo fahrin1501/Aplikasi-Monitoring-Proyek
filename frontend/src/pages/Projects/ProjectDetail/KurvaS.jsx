@@ -31,7 +31,7 @@ export default function KurvaS({ selectedProject }) {
   
   const [activeWeek, setActiveWeek] = useState('Semua');
   const [showWeekFilter, setShowWeekFilter] = useState(false);
-  const weekFilterRef = useRef(null);
+  const filterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -48,10 +48,10 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
-  // --- TUTUP POP-UP FILTER JIKA KLIK DI LUAR ---
+  // Tutup Pop-up Filter Jika Klik di Luar
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (weekFilterRef.current && !weekFilterRef.current.contains(event.target)) {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
         setShowWeekFilter(false);
       }
     };
@@ -100,7 +100,7 @@ export default function KurvaS({ selectedProject }) {
 
     if (!projectBounds.start) return;
 
-    // Menghitung tanggal mulai dan akhir untuk minggu yang dipilih
+    // Hitung range tanggal spesifik untuk minggu tersebut
     const startDate = new Date(projectBounds.start);
     startDate.setHours(0, 0, 0, 0);
 
@@ -142,7 +142,8 @@ export default function KurvaS({ selectedProject }) {
       const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
-      const filteredChartData = chartData.filter(row => !row.isFuture);
+      // Hanya ekspor baris deviasi yang benar-benar memiliki realisasi
+      const filteredChartData = chartData.filter(row => row.bobotRealisasi > 0);
 
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
@@ -183,12 +184,23 @@ export default function KurvaS({ selectedProject }) {
       });
     });
 
+    // PERBAIKAN: Hanya tampilkan Item yang sudah memiliki data realisasi > 0
     const progressList = allItems.map(item => {
       const baseBobot = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
       const itemRealisasi = (scheduleData.realizations || [])?.filter(r => r.rab_item_id === item.id)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
       const progressPercent = baseBobot > 0 ? (itemRealisasi / baseBobot) * 100 : 0;
-      return { id: item.id, nama: item.uraian_pekerjaan, volume: item.volume || 0, satuan: item.satuan || '-', bobot: baseBobot, progress: Math.min(progressPercent, 100) };
-    });
+      
+      return { 
+        id: item.id, 
+        nama: item.uraian_pekerjaan, 
+        volume: item.volume || 0, 
+        satuan: item.satuan || '-', 
+        bobot: baseBobot, 
+        progress: Math.min(progressPercent, 100),
+        realisasiAktual: itemRealisasi // Menyimpan total realisasi untuk filter
+      };
+    }).filter(item => item.realisasiAktual > 0); // FILTER AKTIF: Buang yang realisasinya 0
+    
     setItemProgressData(progressList);
 
     const startDate = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date();
@@ -306,6 +318,9 @@ export default function KurvaS({ selectedProject }) {
 
   const isScheduleEmpty = !scheduleData?.schedules || scheduleData.schedules.length === 0;
 
+  // Variabel untuk menyaring baris deviasi yang benar-benar ada laporan masuk
+  const deviasiTableData = chartData.filter(row => row.bobotRealisasi > 0);
+
   return (
     <div className="w-full space-y-5 pb-20 relative">
       
@@ -322,11 +337,11 @@ export default function KurvaS({ selectedProject }) {
       {/* ========================================== */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm">
+          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5">
+            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Monitoring Kurva S</span>
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -343,8 +358,8 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* POP-UP FILTER MINGGUAN DITAMBAHKAN DI SINI */}
-            <div className="relative" ref={weekFilterRef}>
+            {/* FITUR BARU: FILTER MINGGUAN POP-UP */}
+            <div className="relative" ref={filterRef}>
               <button 
                 disabled={isLoading || isScheduleEmpty}
                 onClick={() => setShowWeekFilter(!showWeekFilter)}
@@ -474,6 +489,7 @@ export default function KurvaS({ selectedProject }) {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 z-10 relative">
+            {/* CHART AREA */}
             <div id="chart-area" className="lg:col-span-7 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
                 <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -506,6 +522,7 @@ export default function KurvaS({ selectedProject }) {
               </div>
             </div>
 
+            {/* TABEL ITEM PROGRESS (HANYA MUNCUL JIKA ADA REALISASI) */}
             <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex flex-col overflow-hidden shadow-sm">
               <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
                 <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-500" /> Total Progress Pekerjaan</h3>
@@ -522,7 +539,7 @@ export default function KurvaS({ selectedProject }) {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40 text-xs">
                     {itemProgressData.length === 0 ? (
-                      <tr><td colSpan="4" className="text-center py-8 text-slate-500 italic">RAB belum dibuat.</td></tr>
+                      <tr><td colSpan="4" className="text-center py-10 text-slate-500 italic px-4 leading-relaxed">Belum ada realisasi pekerjaan.<br/>Buat <strong>Laporan Harian</strong> terlebih dahulu agar data progress muncul di sini.</td></tr>
                     ) : (
                       itemProgressData.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
@@ -550,10 +567,11 @@ export default function KurvaS({ selectedProject }) {
             </div>
           </div>
 
+          {/* TABEL DEVIASI (HANYA MUNCUL HARI YANG ADA LAPORANNYA) */}
           <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
               <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-amber-500" /> Parameter Evaluasi Deviasi
+                <FileSpreadsheet className="w-4 h-4 text-amber-500" /> Parameter Evaluasi Deviasi (Data Terlapor Saja)
               </h3>
             </div>
             <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
@@ -571,10 +589,10 @@ export default function KurvaS({ selectedProject }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300 font-mono">
-                  {chartData.filter(row => !row.isFuture).length === 0 ? (
-                    <tr><td colSpan="8" className="text-center py-6 text-slate-500 italic">Tidak ada data deviasi di rentang ini.</td></tr>
+                  {deviasiTableData.length === 0 ? (
+                    <tr><td colSpan="8" className="text-center py-10 text-slate-500 italic">Belum ada laporan harian yang mengisi data progres realisasi.</td></tr>
                   ) : (
-                    chartData.filter(row => !row.isFuture).map((row, idx) => {
+                    deviasiTableData.map((row, idx) => {
                       const isDevNegative = row.deviasi < 0;
                       return (
                         <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
@@ -582,25 +600,21 @@ export default function KurvaS({ selectedProject }) {
                           <td className="p-3 text-center text-[10px] text-slate-500">{row.label}</td>
                           
                           <td className="p-3 text-right">{row.isPlanEmpty ? '-' : row.bobotRencana.toFixed(2)}</td>
-                          <td className="p-3 text-right">{row.isActEmpty ? '-' : row.bobotRealisasi.toFixed(2)}</td>
+                          <td className="p-3 text-right">{row.bobotRealisasi.toFixed(2)}</td>
                           
                           <td className="p-3 text-right text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/30 dark:bg-blue-950/10">
                             {row.isPlanEmpty ? '-' : row.rencanaKumulatif.toFixed(2)}
                           </td>
                           <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50/30 dark:bg-emerald-950/10">
-                            {row.isActEmpty ? '-' : row.realisasiKumulatif.toFixed(2)}
+                            {row.realisasiKumulatif.toFixed(2)}
                           </td>
                           
-                          <td className={`p-3 text-center font-bold ${row.isActEmpty ? 'text-slate-400' : isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {row.isActEmpty ? '-' : (row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}` : row.deviasi.toFixed(2))}
+                          <td className={`p-3 text-center font-bold ${isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}` : row.deviasi.toFixed(2)}
                           </td>
                           
                           <td className="p-3 text-center">
-                            {row.isPlanEmpty && row.isActEmpty ? (
-                              <span className="text-slate-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Belum Berjalan</span>
-                            ) : row.isActEmpty && !row.isPlanEmpty ? (
-                              <span className="text-amber-500 dark:text-amber-400 flex justify-center items-center gap-1 italic text-[10px]"><Clock className="w-3 h-3"/> Menunggu Lap.</span>
-                            ) : isDevNegative ? (
+                            {isDevNegative ? (
                               <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 shadow-sm">
                                 <AlertTriangle className="w-3 h-3" /> Terlambat
                               </span>
