@@ -11,10 +11,14 @@ class ProjectSchedule extends Model
 
     protected $table = 'project_schedules';
 
+    // WAJIB: Tambahkan kolom baru agar tidak di-block oleh MassAssignmentException Laravel
     protected $fillable = [
         'project_id',
         'rab_item_id',
         'minggu_ke',
+        'bulan',
+        'tanggal_awal',
+        'tanggal_akhir',
         'bobot_rencana'
     ];
 

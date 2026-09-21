@@ -162,14 +162,12 @@ class ProjectScheduleController extends Controller
 
         DB::beginTransaction();
         try {
-            // TEKNIK BULK SYNC:
-            // 1. Hapus bersih semua jadwal proyek ini (Termasuk yang di-delete User di React)
+            // TEKNIK BULK SYNC: Hapus bersih lalu insert ulang agar cepat
             ProjectSchedule::where('project_id', $projectId)->delete();
 
             $insertData = [];
             $now = now();
 
-            // 2. Timpa dengan semua isi array baru dari React
             if (!empty($request->schedules)) {
                 foreach ($request->schedules as $sched) {
                     $insertData[] = [
@@ -184,7 +182,7 @@ class ProjectScheduleController extends Controller
                         'updated_at' => $now,
                     ];
                 }
-                // Eksekusi Massal (Ribuan data pun hanya butuh 1 query ke Database)
+                // Eksekusi Massal
                 ProjectSchedule::insert($insertData);
             }
 
@@ -199,24 +197,6 @@ class ProjectScheduleController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal menyimpan jadwal: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function destroySchedules($projectId)
-    {
-        try {
-            // Hapus semua data jadwal (Time Schedule) milik proyek ini
-            ProjectSchedule::where('project_id', $projectId)->delete();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Seluruh jadwal time schedule proyek berhasil dihapus (Reset).'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal menghapus jadwal: ' . $e->getMessage()
             ], 500);
         }
     }
