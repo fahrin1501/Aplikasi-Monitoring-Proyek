@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
-  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock
+  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock, Filter, X
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -13,7 +13,7 @@ export default function KurvaS({ selectedProject }) {
   const location = useLocation();
   const { id } = useParams();
 
-    useEffect(() => {
+  useEffect(() => {
     document.title = "Prisma Group - Kurva S";
   }, []);
 
@@ -22,13 +22,16 @@ export default function KurvaS({ selectedProject }) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [scheduleData, setScheduleData] = useState(null);
-  
   const [userRole, setUserRole] = useState('Tamu');
 
-  // --- STATE FILTER TANGGAL ---
+  // --- STATE FILTER TANGGAL & MINGGUAN ---
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
+  
+  const [activeWeek, setActiveWeek] = useState('Semua');
+  const [showWeekFilter, setShowWeekFilter] = useState(false);
+  const filterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -45,32 +48,74 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
+  // Tutup Pop-up Filter Jika Klik di Luar
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setShowWeekFilter(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const formatIndoDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      setIsLoading(true);
-      try {
-        const res = await api.get(`/projects/${projectId}/schedules`);
-        setScheduleData(res.data.data);
+  const fetchSchedule = async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.get(`/projects/${projectId}/schedules`);
+      setScheduleData(res.data.data);
 
-        if (res.data.data?.project_info) {
-          setProjectBounds({
-            start: res.data.data.project_info.tanggal_mulai || '',
-            end: res.data.data.project_info.tanggal_selesai || ''
-          });
-        }
-      } catch (error) {
-        console.error("Gagal menarik data Kurva S:", error);
-      } finally {
-        setIsLoading(false);
+      if (res.data.data?.project_info) {
+        setProjectBounds({
+          start: res.data.data.project_info.tanggal_mulai || '',
+          end: res.data.data.project_info.tanggal_selesai || ''
+        });
       }
-    };
+    } catch (error) {
+      console.error("Gagal menarik data Kurva S:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (projectId) fetchSchedule();
   }, [projectId]);
+
+  // --- HANDLER FILTER MINGGUAN DINAMIS ---
+  const handleWeekSelect = (weekNum) => {
+    setActiveWeek(weekNum);
+    setShowWeekFilter(false);
+
+    if (weekNum === 'Semua') {
+      setStartDateFilter(projectBounds.start);
+      setEndDateFilter(projectBounds.end);
+      return;
+    }
+
+    if (!projectBounds.start) return;
+
+    // Hitung range tanggal spesifik untuk minggu tersebut
+    const startDate = new Date(projectBounds.start);
+    startDate.setHours(0, 0, 0, 0);
+
+    const weekStart = new Date(startDate.getTime() + (weekNum - 1) * 7 * 24 * 3600 * 1000);
+    const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 3600 * 1000);
+
+    setStartDateFilter(weekStart.toISOString().split('T')[0]);
+    setEndDateFilter(weekEnd.toISOString().split('T')[0]);
+  };
+
+  const handleManualDateChange = (type, value) => {
+    if (type === 'start') setStartDateFilter(value);
+    else setEndDateFilter(value);
+    setActiveWeek('Kustom');
+  };
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -105,13 +150,13 @@ export default function KurvaS({ selectedProject }) {
         chart_data: filteredChartData, 
         start_date: startDateFilter,
         end_date: endDateFilter,
-        view_mode: 'harian' // Penyelamat Validasi Backend
+        view_mode: 'harian' 
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Kurva_S_${type === 'excel' ? 'Lengkap.xlsx' : 'Lengkap.pdf'}`);
+      link.setAttribute('download', `Kurva_S_${activeWeek !== 'Semua' && activeWeek !== 'Kustom' ? `Minggu_${activeWeek}_` : ''}${type === 'excel' ? 'Lengkap.xlsx' : 'Lengkap.pdf'}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -277,11 +322,11 @@ export default function KurvaS({ selectedProject }) {
       {/* ========================================== */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm">
+          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5">
+            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Monitoring Kurva S</span>
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -298,18 +343,64 @@ export default function KurvaS({ selectedProject }) {
           
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* KAPSUL DATE RANGE FILTER */}
-            <div className="flex flex-col">
+            {/* FITUR BARU: FILTER MINGGUAN POP-UP */}
+            <div className="relative" ref={filterRef}>
+              <button 
+                disabled={isLoading}
+                onClick={() => setShowWeekFilter(!showWeekFilter)} 
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  showWeekFilter || activeWeek !== 'Semua' 
+                    ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' 
+                    : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Periode</span>
+              </button>
+
+              {showWeekFilter && (
+                <div className="absolute right-0 top-full mt-2 w-[280px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
+                  <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-100 dark:border-slate-700/60 pb-2">Pilih Minggu</h4>
+                  
+                  <div className="flex flex-wrap gap-1.5 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                    <button 
+                      onClick={() => handleWeekSelect('Semua')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border shadow-sm ${
+                        activeWeek === 'Semua' ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    {Array.from({ length: scheduleData?.project_info?.total_minggu || 0 }).map((_, i) => {
+                      const week = i + 1;
+                      return (
+                        <button 
+                          key={week}
+                          onClick={() => handleWeekSelect(week)}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border shadow-sm ${
+                            activeWeek === week ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          Minggu Ke-{week}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* KAPSUL DATE RANGE FILTER (MANUAL KUSTOM TANGGAL) */}
+            <div className="flex flex-col ml-1">
               <div className={`flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden transition-opacity ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input 
                   type="date" 
                   value={startDateFilter} 
                   min={projectBounds.start}
                   max={endDateFilter || projectBounds.end}
-                  onChange={e => setStartDateFilter(e.target.value)} 
+                  onChange={e => handleManualDateChange('start', e.target.value)} 
                   disabled={isLoading}
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
-                  title="Tanggal Mulai Filter"
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2.5 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
+                  title="Tanggal Mulai"
                 />
                 <span className="text-slate-400 text-[10px] font-bold px-1.5 bg-slate-100 dark:bg-slate-800/50 py-1.5 border-x border-slate-200 dark:border-slate-700/60">s/d</span>
                 <input 
@@ -317,33 +408,28 @@ export default function KurvaS({ selectedProject }) {
                   value={endDateFilter} 
                   min={startDateFilter || projectBounds.start}
                   max={projectBounds.end}
-                  onChange={e => setEndDateFilter(e.target.value)} 
+                  onChange={e => handleManualDateChange('end', e.target.value)} 
                   disabled={isLoading}
-                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-3 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
-                  title="Tanggal Akhir Filter"
+                  className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none px-2.5 py-1.5 cursor-pointer disabled:cursor-not-allowed [color-scheme:light_dark]" 
+                  title="Tanggal Akhir"
                 />
               </div>
-              {projectBounds.start && projectBounds.end && (
-                <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-1 ml-1 font-medium tracking-wide">
-                  Batas Info: {formatIndoDate(projectBounds.start)} - {formatIndoDate(projectBounds.end)}
-                </span>
-              )}
             </div>
 
             {!isGuest && (
               <>
-                <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-start mt-2"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-1 shrink-0 self-center"></div>
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 self-start mt-0.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
                 </button>
               </>
             )}
           </div>
 
-          <div className="flex items-center w-full lg:w-auto justify-between gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
+          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-10">
             <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
             <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
             <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><TrendingUp className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Kurva S</span></button>
@@ -351,6 +437,16 @@ export default function KurvaS({ selectedProject }) {
           </div>
         </div>
       </div>
+
+      {/* --- TAGS FILTER AKTIF --- */}
+      {(activeWeek !== 'Semua') && (
+        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
+            Tampilan: {activeWeek === 'Kustom' ? 'Kustomisasi Tanggal' : `Minggu Ke-${activeWeek}`}
+            <button onClick={() => handleWeekSelect('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors"><X className="w-3 h-3"/></button>
+          </span>
+        </div>
+      )}
 
       {/* ========================================== */}
       {/* 2. LOADING STATE VS KONTEN UTAMA             */}
