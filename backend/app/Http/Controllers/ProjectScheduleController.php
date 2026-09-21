@@ -68,23 +68,26 @@ class ProjectScheduleController extends Controller
             ->get();
 
         $realizations = [];
+        $realizedVolumes = []; // Menampung agregat volume aktual per item
+
         foreach ($approvedReports as $report) {
-            // Tentukan laporan ini masuk di Minggu Ke-Berapa?
             $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
             $reportDate = Carbon::parse($report->tanggal)->startOfDay();
             $diffDays = $start->diffInDays($reportDate, false);
-
-            // Jika ada laporan sebelum tanggal SPMK, masukkan ke minggu ke-0/1
             $mingguKe = ($diffDays >= 0) ? floor($diffDays / 7) + 1 : 0;
 
             foreach ($report->activities as $act) {
                 if ($act->rab_item_id) {
+
+                    // Akumulasi volume per RAB item untuk perhitungan sisa bobot
+                    if (!isset($realizedVolumes[$act->rab_item_id])) {
+                        $realizedVolumes[$act->rab_item_id] = 0;
+                    }
+                    $realizedVolumes[$act->rab_item_id] += (float)$act->volume;
+
                     $rabItem = RabItem::find($act->rab_item_id);
 
-                    // Amankan dari Error Division by Zero (Bagi dengan 0)
                     if ($rabItem && $grandTotalRAB > 0) {
-
-                        // RUMUS EMAS MANAJEMEN KONSTRUKSI (Nilai Bobot Serapan Aktual)
                         $bobotTotalRAB = ($rabItem->total_harga / $grandTotalRAB) * 100;
                         $volumeTotalRAB = $rabItem->volume > 0 ? $rabItem->volume : 1;
 
@@ -99,6 +102,35 @@ class ProjectScheduleController extends Controller
                             'tgl_verifikasi' => Carbon::parse($report->verified_at)->format('Y-m-d'),
                         ];
                     }
+                }
+            }
+        }
+
+        // C. SUNTIKAN DATA KE MASTER RAB (Backend yang menghitung semuanya!)
+        foreach($rabData as $cat) {
+            foreach($cat->items as $item) {
+                if(!$item->is_subheader && $grandTotalRAB > 0) {
+                    // 1. Bobot Standar Murni (Target RAB 100%)
+                    $bobotStandar = ($item->total_harga / $grandTotalRAB) * 100;
+
+                    // 2. Bobot yang telah berhasil direalisasikan di Lapangan
+                    $volRealisasi = $realizedVolumes[$item->id] ?? 0;
+                    $volTotal = $item->volume > 0 ? $item->volume : 1;
+                    $bobotRealisasi = ($volRealisasi / $volTotal) * $bobotStandar;
+
+                    // 3. Bobot yang sedang diagendakan di kalender (Time Schedule)
+                    $totalDijadwalkan = $schedules->where('rab_item_id', $item->id)->sum('bobot_rencana');
+
+                    // Injeksi properti dinamis ke objek agar React tinggal pakai
+                    $item->bobot_standar = round($bobotStandar, 4);
+                    $item->bobot_realisasi = round($bobotRealisasi, 4);
+                    $item->total_dijadwalkan = round($totalDijadwalkan, 4);
+                    $item->sisa_plafon_tersedia = max(0, round($bobotStandar - $bobotRealisasi, 4));
+                } else {
+                    $item->bobot_standar = 0;
+                    $item->bobot_realisasi = 0;
+                    $item->total_dijadwalkan = 0;
+                    $item->sisa_plafon_tersedia = 0;
                 }
             }
         }
@@ -144,6 +176,9 @@ class ProjectScheduleController extends Controller
                         'project_id' => $projectId,
                         'rab_item_id' => $sched['rab_item_id'],
                         'minggu_ke' => $sched['minggu_ke'],
+                        'bulan' => $sched['bulan'] ?? null,
+                        'tanggal_awal' => $sched['tanggal_awal'] ?? null,
+                        'tanggal_akhir' => $sched['tanggal_akhir'] ?? null,
                         'bobot_rencana' => $sched['bobot_rencana'],
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -186,7 +221,7 @@ class ProjectScheduleController extends Controller
         }
     }
 
-// ==========================================================
+    // ==========================================================
     // --- FUNGSI BANTUAN UNTUK MENYIMPAN GAMBAR CHART ---
     // ==========================================================
     private function saveChartImage($base64String)
