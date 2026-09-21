@@ -125,7 +125,7 @@ export default function ScheduleData() {
     }));
   };
 
-  // --- HANDLER MODAL KERANJANG PEKERJAAN (MIRIP ADDSCHEDULE) ---
+  // --- HANDLER MODAL KERANJANG PEKERJAAN ---
   const openAddItemModal = (weekGroup) => {
     setTargetPeriod({
       bulan: weekGroup.bulan,
@@ -258,6 +258,8 @@ export default function ScheduleData() {
     weeksToRender = allWeeks.filter(w => w.minggu_ke === parseInt(filterWeek));
   }
 
+  const projectTotalWeeks = scheduleData?.project_info?.total_minggu || 0;
+
   return (
     <div className="w-full space-y-5 pb-20 relative">
 
@@ -332,10 +334,11 @@ export default function ScheduleData() {
           {canCreateData && (
             <div className="flex items-center bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
               
+              {/* PENYESUAIAN RUTE TOMBOL INPUT */}
               {!isEditMode && (
                 <button 
                   disabled={isLoading} 
-                  onClick={() => navigate('/schedules/:id/data/input', { state: { projectId: id } })} 
+                  onClick={() => navigate(`/schedules/${id}/data/input`)} 
                   className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ListPlus className="w-4 h-4" /> Buat Jadwal Mingguan
@@ -369,14 +372,21 @@ export default function ScheduleData() {
           <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat Data Jadwal...</p>
         </div>
-      ) : allWeeks.length === 0 ? (
+      ) : (!scheduleData || projectTotalWeeks === 0) ? (
+        <div className="p-8 text-center bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl animate-fade-in shadow-sm">
+          <AlertTriangle className="w-10 h-10 mx-auto text-rose-500 dark:text-rose-400 mb-2" />
+          <h3 className="font-bold text-rose-700 dark:text-rose-300">Tanggal Proyek Tidak Valid</h3>
+          <p className="text-xs text-rose-600 mt-1">Kembali ke Menu Data Utama untuk mensetting tanggal mulai dan selesai.</p>
+        </div>
+      ) : weeksToRender.length === 0 ? (
         <div className="p-16 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in backdrop-blur-sm">
           <CalendarDays className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">Jadwal Belum Disusun</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">Anda belum merencanakan pekerjaan apapun ke dalam kalender Time Schedule.</p>
           
           {canCreateData && (
-            <button onClick={() => navigate('/schedules/input', { state: { projectId: id } })} className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md hover:bg-amber-600 transition-colors flex items-center gap-2 mx-auto">
+            // PENYESUAIAN RUTE TOMBOL INPUT
+            <button onClick={() => navigate(`/schedules/${id}/data/input`)} className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md hover:bg-amber-600 transition-colors flex items-center gap-2 mx-auto">
               <Plus className="w-4 h-4" /> Mulai Rencanakan Jadwal
             </button>
           )}
@@ -639,14 +649,11 @@ export default function ScheduleData() {
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3 shrink-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Total: <strong className="text-emerald-600 dark:text-emerald-400 text-sm">{totalModalDraftBobot.toFixed(2)}%</strong></span>
-              <div className="flex gap-2">
-                <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-                <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
-                  <Save className="w-4 h-4" /> Simpan ke Minggu {targetPeriod.minggu_ke}
-                </button>
-              </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 shrink-0">
+              <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
+              <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
+                <Save className="w-4 h-4" /> Simpan Keranjang ke Minggu {targetPeriod.minggu_ke}
+              </button>
             </div>
           </div>
         </div>
