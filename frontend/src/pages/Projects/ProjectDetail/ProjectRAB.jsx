@@ -86,7 +86,15 @@ export default function ProjectRAB() {
 
   useEffect(() => { fetchData(); }, [id, isGuest]);
 
-  const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka || 0);
+  // --- PERBAIKAN: Format Rupiah lengkap dengan ,00 ---
+  const formatRupiah = (angka) => {
+    return new Intl.NumberFormat('id-ID', { 
+      style: 'currency', 
+      currency: 'IDR', 
+      minimumFractionDigits: 2, // Memaksa agar selalu ada 2 angka di belakang koma (misal: ,00)
+      maximumFractionDigits: 2 
+    }).format(Number(angka) || 0);
+  };
 
   const saveCategory = async (e) => {
     e.preventDefault();
@@ -204,7 +212,6 @@ export default function ProjectRAB() {
   return (
     <div className="w-full space-y-5 relative pb-20 animate-fade-in">
       
-      {/* MENGATASI BUG JARAK MARGIN HEADER */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -213,7 +220,6 @@ export default function ProjectRAB() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* SEMUA KOMPONEN SELALU DI RENDER SECARA BERURUTAN (ISOLASI LOADING DI DALAMNYA) */}
       <NavigasiRAB 
         id={id} 
         projectData={safeProjectData} 

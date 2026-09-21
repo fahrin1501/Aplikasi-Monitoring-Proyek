@@ -60,134 +60,153 @@ export default function TabelRAB({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {filteredRabsView.map((divisi) => (
-        <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
-          
-          <div className="bg-slate-50 dark:bg-slate-900/80 px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-            <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-400 tracking-wide uppercase flex items-center gap-2">
-              <div className="w-1.5 h-4 bg-amber-500 rounded-full shrink-0"></div> 
-              <span>
-                {divisi.kode_divisi && (
-                  <span className="mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-500 rounded font-mono text-[11px] border border-amber-200 dark:border-amber-500/30">
-                    {divisi.kode_divisi}
-                  </span>
-                )}
-                {divisi.nama_kategori}
-              </span>
-            </h3>
-            
-            {isEditMode && (
-              <div className="flex flex-wrap items-center gap-2 animate-fade-in w-full xl:w-auto shrink-0">
-                <button onClick={() => openItemModal(divisi.id, false)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-slate-700/80 transition-all">
-                  <ListPlus className="w-3.5 h-3.5" /> Tambah Item
-                </button>
-                <button onClick={() => openItemModal(divisi.id, true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-lg border border-emerald-200 dark:border-slate-700/80 transition-all">
-                  <Type className="w-3.5 h-3.5" /> Tambah Sub-Header
-                </button>
-                <button onClick={() => openCatModal(divisi)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-700/80 transition-all">
-                  <Edit3 className="w-3.5 h-3.5" /> Edit Divisi
-                </button>
-                <button onClick={() => confirmDelete('category', divisi.id, divisi.nama_kategori)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-lg border border-rose-200 dark:border-rose-500/20 transition-all">
-                  <Trash2 className="w-3.5 h-3.5" /> Hapus
-                </button>
-              </div>
-            )}
-          </div>
+      {filteredRabsView.map((divisi) => {
+        // Kalkulasi Total Divisi dengan PPN 11% khusus realisasi
+        const totalRealisasiDivisiPPN = divisi.totalRealisasiDivisi + (divisi.totalRealisasiDivisi * 0.11);
 
-          {/* Table Custom Scrollbar Injection */}
-          <div className="hidden lg:block overflow-x-auto custom-scrollbar">
-            <table className="w-full table-fixed text-left border-collapse min-w-[800px]">
-              <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
-                <tr>
-                  <th className={`px-4 py-2.5 ${canViewPrices ? 'w-[10%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Kode</th>
-                  <th className={`px-3 py-2.5 ${canViewPrices ? 'w-[25%]' : 'w-[40%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Uraian Pekerjaan</th>
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[6%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold`}>SAT</th>
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10`}>Vol (R)</th>
-                  {canViewPrices && <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>}
-                  {canViewPrices && <th className="px-3 py-2.5 w-[14%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jumlah (R)</th>}
-                  <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10`}>Vol (A)</th>
-                  {canViewPrices && <th className="px-3 py-2.5 w-[17%] text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jumlah Realisasi (A)</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-[11px] text-slate-700 dark:text-slate-300">
-                {divisi.items.length === 0 ? (
-                  <tr><td colSpan={canViewPrices ? 8 : 5} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
-                ) : (
-                  divisi.items.map((item) => {
-                    if (item.is_subheader) {
+        return (
+          <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
+            
+            <div className="bg-slate-50 dark:bg-slate-900/80 px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+              <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-400 tracking-wide uppercase flex items-center gap-2">
+                <div className="w-1.5 h-4 bg-amber-500 rounded-full shrink-0"></div> 
+                <span>
+                  {divisi.kode_divisi && (
+                    <span className="mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-500 rounded font-mono text-[11px] border border-amber-200 dark:border-amber-500/30">
+                      {divisi.kode_divisi}
+                    </span>
+                  )}
+                  {divisi.nama_kategori}
+                </span>
+              </h3>
+              
+              {isEditMode && (
+                <div className="flex flex-wrap items-center gap-2 animate-fade-in w-full xl:w-auto shrink-0">
+                  <button onClick={() => openItemModal(divisi.id, false)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-slate-700/80 transition-all">
+                    <ListPlus className="w-3.5 h-3.5" /> Tambah Item
+                  </button>
+                  <button onClick={() => openItemModal(divisi.id, true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-lg border border-emerald-200 dark:border-slate-700/80 transition-all">
+                    <Type className="w-3.5 h-3.5" /> Tambah Sub-Header
+                  </button>
+                  <button onClick={() => openCatModal(divisi)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-700/80 transition-all">
+                    <Edit3 className="w-3.5 h-3.5" /> Edit Divisi
+                  </button>
+                  <button onClick={() => confirmDelete('category', divisi.id, divisi.nama_kategori)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-lg border border-rose-200 dark:border-rose-500/20 transition-all">
+                    <Trash2 className="w-3.5 h-3.5" /> Hapus
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto custom-scrollbar">
+              <table className="w-full table-fixed text-left border-collapse min-w-[950px]">
+                <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                  <tr>
+                    <th className={`px-4 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Kode</th>
+                    <th className={`px-3 py-2.5 ${canViewPrices ? 'w-[23%]' : 'w-[40%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Uraian Pekerjaan</th>
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[5%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold`}>SAT</th>
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10`}>Vol (R)</th>
+                    {canViewPrices && <th className="px-3 py-2.5 w-[12%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>}
+                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jumlah (R)</th>}
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10`}>Vol (A)</th>
+                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jml Realisasi (A)</th>}
+                    {/* --- KOLOM BARU PPN 11% --- */}
+                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] text-right font-bold text-amber-600 dark:text-amber-500/90 bg-amber-50 dark:bg-amber-950/20">Realisasi + PPN 11%</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-[11px] text-slate-700 dark:text-slate-300">
+                  {divisi.items.length === 0 ? (
+                    <tr><td colSpan={canViewPrices ? 9 : 5} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
+                  ) : (
+                    divisi.items.map((item) => {
+                      if (item.is_subheader) {
+                        return (
+                          <tr key={item.id} className="bg-slate-100 dark:bg-slate-800/40 group">
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40 font-mono text-amber-600 dark:text-amber-500 font-bold">
+                              {item.kode_pekerjaan}
+                            </td>
+                            <td colSpan={canViewPrices ? 8 : 4} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                                  {item.uraian_pekerjaan}
+                                </span>
+                                {isEditMode && (
+                                  <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 animate-fade-in shrink-0">
+                                    <button onClick={() => openItemModal(divisi.id, true, item)} className="text-blue-500 hover:text-blue-600 dark:text-blue-400"><Edit3 className="w-3.5 h-3.5"/></button>
+                                    <button onClick={() => confirmDelete('item', item.id, item.uraian_pekerjaan)} className="text-rose-500 hover:text-rose-600 dark:text-rose-400"><Trash2 className="w-3.5 h-3.5"/></button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      // --- LOGIKA KALKULASI PPN PER ITEM ---
+                      const actualTotalWithPPN = item.actualTotal + (item.actualTotal * 0.11);
+
                       return (
-                        <tr key={item.id} className="bg-slate-100 dark:bg-slate-800/40 group">
-                          <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40 font-mono text-amber-600 dark:text-amber-500 font-bold">
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                          <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 font-mono text-slate-500 dark:text-slate-400">
                             {item.kode_pekerjaan}
                           </td>
-                          <td colSpan={canViewPrices ? 7 : 4} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
+                          <td className="px-3 py-3 border-r border-slate-200 dark:border-slate-700/40 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" title={item.uraian_pekerjaan}>
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                              <span className="truncate pr-2 font-medium">
                                 {item.uraian_pekerjaan}
                               </span>
                               {isEditMode && (
                                 <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 animate-fade-in shrink-0">
-                                  <button onClick={() => openItemModal(divisi.id, true, item)} className="text-blue-500 hover:text-blue-600 dark:text-blue-400"><Edit3 className="w-3.5 h-3.5"/></button>
+                                  <button onClick={() => openItemModal(divisi.id, false, item)} className="text-blue-500 hover:text-blue-600 dark:text-blue-400"><Edit3 className="w-3.5 h-3.5"/></button>
                                   <button onClick={() => confirmDelete('item', item.id, item.uraian_pekerjaan)} className="text-rose-500 hover:text-rose-600 dark:text-rose-400"><Trash2 className="w-3.5 h-3.5"/></button>
                                 </div>
                               )}
                             </div>
                           </td>
+                          <td className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700/40 text-slate-500 dark:text-slate-400 font-mono text-[10px]">{item.satuan}</td>
+                          <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
+                          
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>}
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>}
+                          
+                          <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{item.actualVol}</td>
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>}
+                          
+                          {/* --- DATA KOLOM BARU PPN 11% --- */}
+                          {canViewPrices && <td className="px-3 py-3 text-right font-mono text-[10px] bg-amber-50/50 dark:bg-amber-950/10 text-amber-700 dark:text-amber-500 font-bold">{formatRupiah(actualTotalWithPPN)}</td>}
                         </tr>
                       );
-                    }
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                        <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700/40 font-mono text-slate-500 dark:text-slate-400">
-                          {item.kode_pekerjaan}
-                        </td>
-                        <td className="px-3 py-3 border-r border-slate-200 dark:border-slate-700/40 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" title={item.uraian_pekerjaan}>
-                          <div className="flex items-center justify-between">
-                            <span className="truncate pr-2 font-medium">
-                              {item.uraian_pekerjaan}
-                            </span>
-                            {isEditMode && (
-                              <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 animate-fade-in shrink-0">
-                                <button onClick={() => openItemModal(divisi.id, false, item)} className="text-blue-500 hover:text-blue-600 dark:text-blue-400"><Edit3 className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => confirmDelete('item', item.id, item.uraian_pekerjaan)} className="text-rose-500 hover:text-rose-600 dark:text-rose-400"><Trash2 className="w-3.5 h-3.5"/></button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700/40 text-slate-500 dark:text-slate-400 font-mono text-[10px]">{item.satuan}</td>
-                        <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
-                        {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>}
-                        {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>}
-                        <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{item.actualVol}</td>
-                        {canViewPrices && <td className="px-3 py-3 text-right font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Subtotal View */}
-          {canViewPrices && (
-            <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
-              <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>
-              <div className="flex items-center justify-between md:justify-end gap-6 font-mono font-bold w-full md:w-auto">
-                <div className="flex flex-col items-start md:items-end">
-                  <span className="text-[9px] text-slate-500 uppercase">Rencana (Plan)</span>
-                  <span className="text-blue-600 dark:text-blue-400 text-sm">{formatRupiah(divisi.totalRencanaDivisi)}</span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[9px] text-slate-500 uppercase">Realisasi (Actual)</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 text-sm">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
+            {/* Subtotal View */}
+            {canViewPrices && (
+              <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
+                <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>
+                <div className="flex items-center justify-between md:justify-end gap-6 font-mono font-bold w-full md:w-auto">
+                  <div className="flex flex-col items-start md:items-end">
+                    <span className="text-[9px] text-slate-500 uppercase">Rencana (Plan)</span>
+                    <span className="text-blue-600 dark:text-blue-400 text-sm">{formatRupiah(divisi.totalRencanaDivisi)}</span>
+                  </div>
+                  <div className="flex flex-col items-start md:items-end">
+                    <span className="text-[9px] text-slate-500 uppercase">Realisasi (Actual)</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-sm">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
+                  </div>
+                  {/* --- TOTAL REALISASI + PPN DI FOOTER DIVISI --- */}
+                  <div className="flex flex-col items-end">
+                    <span className="text-[9px] text-amber-600 dark:text-amber-500 uppercase bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Realisasi + PPN 11%</span>
+                    <span className="text-amber-700 dark:text-amber-400 text-sm mt-0.5">{formatRupiah(totalRealisasiDivisiPPN)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
