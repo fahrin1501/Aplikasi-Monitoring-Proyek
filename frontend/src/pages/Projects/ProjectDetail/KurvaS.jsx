@@ -142,8 +142,7 @@ export default function KurvaS({ selectedProject }) {
       const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
-      // Hanya ekspor baris deviasi yang benar-benar memiliki realisasi
-      const filteredChartData = chartData.filter(row => row.bobotRealisasi > 0);
+      const filteredChartData = chartData.filter(row => !row.isFuture);
 
       const response = await api.post(`/projects/${id}/export-kurva/${type}`, {
         chart_image: base64Image,
@@ -197,9 +196,9 @@ export default function KurvaS({ selectedProject }) {
         satuan: item.satuan || '-', 
         bobot: baseBobot, 
         progress: Math.min(progressPercent, 100),
-        realisasiAktual: itemRealisasi // Menyimpan total realisasi untuk filter
+        realisasiAktual: itemRealisasi 
       };
-    }).filter(item => item.realisasiAktual > 0); // FILTER AKTIF: Buang yang realisasinya 0
+    }).filter(item => item.realisasiAktual > 0); 
     
     setItemProgressData(progressList);
 
@@ -258,6 +257,7 @@ export default function KurvaS({ selectedProject }) {
       if (!isPlanEmpty) cumRencana += planVal;
       if (!isActEmpty) cumRealisasi += actVal;
 
+      // PERBAIKAN: Gunakan `null` alih-alih `0` agar garis tidak turun ke dasar grafik jika data kosong
       tempChartData.push({
         hariKe: i,
         label: `H-${i.toString().padStart(2,'0')}`,
@@ -268,10 +268,10 @@ export default function KurvaS({ selectedProject }) {
         isActEmpty,
         isFuture,
         bobotRencana: planVal,
-        rencanaKumulatif: isPlanEmpty ? 0 : Number(cumRencana.toFixed(2)),
+        rencanaKumulatif: isPlanEmpty ? null : Number(cumRencana.toFixed(2)),
         bobotRealisasi: actVal,
-        realisasiKumulatif: isActEmpty ? 0 : Number(cumRealisasi.toFixed(2)),
-        deviasi: isActEmpty ? 0 : Number((cumRealisasi - cumRencana).toFixed(2))
+        realisasiKumulatif: isActEmpty ? null : Number(cumRealisasi.toFixed(2)),
+        deviasi: isActEmpty ? null : Number((cumRealisasi - cumRencana).toFixed(2))
       });
     }
 
@@ -489,7 +489,6 @@ export default function KurvaS({ selectedProject }) {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 z-10 relative">
-            {/* CHART AREA */}
             <div id="chart-area" className="lg:col-span-7 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
                 <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -522,7 +521,6 @@ export default function KurvaS({ selectedProject }) {
               </div>
             </div>
 
-            {/* TABEL ITEM PROGRESS (HANYA MUNCUL JIKA ADA REALISASI) */}
             <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex flex-col overflow-hidden shadow-sm">
               <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
                 <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-500" /> Total Progress Pekerjaan</h3>
@@ -567,7 +565,6 @@ export default function KurvaS({ selectedProject }) {
             </div>
           </div>
 
-          {/* TABEL DEVIASI (HANYA MUNCUL HARI YANG ADA LAPORANNYA) */}
           <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
               <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
