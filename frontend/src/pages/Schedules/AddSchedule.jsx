@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, CalendarDays, Save, Loader2, 
-  Layers, Plus, Trash2, ListPlus
+  Layers, Plus, Trash2, ListPlus, AlertTriangle
 } from 'lucide-react';
 
 export default function AddSchedule() {
@@ -16,7 +16,6 @@ export default function AddSchedule() {
     document.title = "Prisma Group - Jadwal Baru";
   }, []);
 
-  const [projectData, setProjectData] = useState(null);
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -44,14 +43,8 @@ export default function AddSchedule() {
     const fetchTimeSchedule = async () => {
       setIsLoadingSchedule(true);
       try {
-        // PERBAIKAN: Ambil juga nama dan detail proyek dari API
-        const [projRes, schedRes] = await Promise.all([
-          api.get(`/projects/${projectId}`),
-          api.get(`/projects/${projectId}/schedules`)
-        ]);
-        
-        setProjectData(projRes.data);
-        setScheduleData(schedRes.data.data);
+        const res = await api.get(`/projects/${projectId}/schedules`);
+        setScheduleData(res.data.data);
       } catch (error) {
         console.error("Gagal menarik data jadwal:", error);
       } finally {
@@ -66,12 +59,8 @@ export default function AddSchedule() {
     setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
   };
 
-  // --- RUMUS PENGHITUNG BOBOT OTOMATIS ---
-  const totalItemsCount = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
-    sum + cat.items.filter(i => !i.is_subheader).length
-  , 0) : 1;
-
-  const bobotOtomatis = totalItemsCount > 0 ? (100 / totalItemsCount) : 0;
+  // --- RUMUS PENGHITUNG BOBOT OTOMATIS (MENGAMBIL DARI BACKEND) ---
+  // Tidak ada lagi perhitungan manual 100/X. Kita murni mengandalkan data bobot_standar dari Backend.
 
   // --- HANDLER TAMBAH KE KERANJANG ---
   const handleAddItem = () => {
@@ -84,13 +73,19 @@ export default function AddSchedule() {
     const divisi = scheduleData.rab_data.find(d => d.id.toString() === draftDivisiId);
     const itemAsli = divisi.items.find(i => i.id.toString() === draftItemId);
 
+    // Murni mengambil bobot standar atau sisa plafon dari backend
+    const sisaPlafon = Number(itemAsli.sisa_plafon_tersedia) || 0;
+    const bobotStandar = Number(itemAsli.bobot_standar) || 0;
+    
+    const assignedBobot = sisaPlafon > 0 ? sisaPlafon : bobotStandar;
+
     const newItem = {
       rab_item_id: itemAsli.id,
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: divisi.nama_kategori,
-      bobot_rencana: itemAsli.sisa_plafon_tersedia > 0 ? itemAsli.sisa_plafon_tersedia : itemAsli.bobot_standar,
-      max_bobot: itemAsli.sisa_plafon_tersedia > 0 ? itemAsli.sisa_plafon_tersedia : itemAsli.bobot_standar
+      bobot_rencana: assignedBobot,
+      max_bobot: assignedBobot
     };
 
     setAddedItems([...addedItems, newItem]);
@@ -127,7 +122,7 @@ export default function AddSchedule() {
   };
 
   const availableItems = getAvailableItems();
-  const totalDraftBobot = addedItems.reduce((sum, item) => sum + (parseFloat(item.bobot_rencana) || 0), 0);
+  const totalDraftBobot = addedItems.reduce((sum, item) => sum + (Number(item.bobot_rencana) || 0), 0);
 
   // --- HANDLER SIMPAN KE BACKEND ---
   const handleSaveSchedule = async () => {
@@ -139,7 +134,7 @@ export default function AddSchedule() {
       return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     }
 
-    if (addedItems.some(item => item.bobot_rencana <= 0)) {
+    if (addedItems.some(item => Number(item.bobot_rencana) <= 0)) {
       return alert("Pastikan semua item di keranjang memiliki bobot lebih dari 0.");
     }
 
@@ -151,7 +146,7 @@ export default function AddSchedule() {
         minggu_ke: parseInt(periodForm.minggu_ke),
         tanggal_awal: periodForm.tanggal_mulai,
         tanggal_akhir: periodForm.tanggal_selesai,
-        bobot_rencana: item.bobot_rencana
+        bobot_rencana: Number(item.bobot_rencana)
       }));
 
       await api.post(`/projects/${projectId}/schedules`, { schedules: payloadArr });
@@ -174,9 +169,6 @@ export default function AddSchedule() {
     );
   }
 
-  // Menarik nama proyek langsung dari Data Proyek
-  const namaProyekAktif = projectData?.nama_proyek || 'Memuat Data...';
-
   return (
     <div className="w-full space-y-6 pb-24 relative animate-fade-in">
       {/* HEADER */}
@@ -197,9 +189,11 @@ export default function AddSchedule() {
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
             Target Proyek
           </label>
-          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-             <span className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider block mb-1">Nama Proyek:</span>
-             <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug line-clamp-3">{namaProyekAktif}</p>
+          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-inner">
+             {/* PERBAIKAN: Langsung render nama proyek dari backend */}
+             <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug line-clamp-3">
+                {scheduleData?.project_info?.nama_proyek || 'Nama Proyek Tidak Ditemukan'}
+             </p>
           </div>
         </div>
 
@@ -238,12 +232,12 @@ export default function AddSchedule() {
             <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-2">
               <Layers className="w-4 h-4" /> 2. Target Pekerjaan & Bobot Otomatis
             </h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Bobot dihitung otomatis: Total 100% dibagi {totalItemsCount} total uraian pekerjaan di RAB = <strong className="text-emerald-600 dark:text-emerald-400">{bobotOtomatis.toFixed(2)}% per item</strong>.</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Bobot dihitung otomatis: Total harga RAB item dibagi Grand Total RAB.</p>
           </div>
           
           <div className="bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex items-center gap-3">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Total Target Minggu Ini:</span>
-            <span className="text-lg font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{totalDraftBobot.toFixed(2)}%</span>
+            <span className="text-lg font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{Number(totalDraftBobot).toFixed(2)}%</span>
           </div>
         </div>
 
@@ -311,7 +305,7 @@ export default function AddSchedule() {
                           onChange={(e) => handleUpdateBobotKeranjang(item.rab_item_id, e.target.value)}
                           className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors" 
                         />
-                        <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{item.max_bobot.toFixed(2)}%)</span>
+                        <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{Number(item.max_bobot || 0).toFixed(2)}%)</span>
                       </div>
                     </td>
                     <td className="p-2 text-center align-middle">
@@ -337,7 +331,7 @@ export default function AddSchedule() {
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 md:p-3 rounded-2xl shadow-2xl flex items-center gap-4 md:gap-6 pointer-events-auto backdrop-blur-md bg-opacity-90 dark:bg-opacity-90">
             <div className="hidden md:flex flex-col">
               <span className="text-[10px] text-slate-500 uppercase font-bold">Total Bobot Ditambahkan</span>
-              <span className="text-lg font-extrabold font-mono text-emerald-600 dark:text-emerald-400">{totalDraftBobot.toFixed(2)}%</span>
+              <span className="text-lg font-extrabold font-mono text-emerald-600 dark:text-emerald-400">{Number(totalDraftBobot || 0).toFixed(2)}%</span>
             </div>
             <button 
               onClick={handleSaveSchedule} 
