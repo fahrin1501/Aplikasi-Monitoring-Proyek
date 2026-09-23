@@ -24,33 +24,14 @@ class ProjectScheduleController extends Controller
     {
         $project = Project::findOrFail($projectId);
 
-        $totalHari = 0;
-        $totalMinggu = 0;
-
-        // 1. Hitung durasi proyek (Total Minggu) berdasarkan kontrak
-        if ($project->tanggal_mulai && $project->tanggal_selesai) {
-            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
-            $end = Carbon::parse($project->tanggal_selesai)->startOfDay();
-
-            if ($end->greaterThanOrEqualTo($start)) {
-                $totalHari = $start->diffInDays($end) + 1;
-                $totalMinggu = ceil($totalHari / 7);
-            }
-        }
-
-        // 2. Ambil Master Data RAB
+        // 1. Ambil Data RAB & Jadwal yang sudah ada di database
         $rabData = RabCategory::with(['items' => function($q) {
             $q->orderBy('id', 'asc');
         }])->where('project_id', $projectId)->get();
 
-        // 3. Ambil Master Jadwal yang sudah pernah diinput (Rencana)
         $schedules = ProjectSchedule::where('project_id', $projectId)->get();
 
-        // ==========================================
-        // 4. KALKULASI REALISASI AKTUAL (LAPANGAN)
-        // ==========================================
-
-        // A. Hitung Grand Total Uang RAB untuk mencari persentase (100%)
+        // 2. Hitung Grand Total Uang RAB (Untuk pembagi 100%)
         $grandTotalRAB = 0;
         foreach($rabData as $cat) {
             foreach($cat->items as $item) {
@@ -60,114 +41,56 @@ class ProjectScheduleController extends Controller
             }
         }
 
-        // B. Tarik laporan harian yang HANYA BERSTATUS APPROVED (Disetujui PPK)
-        $approvedReports = DailyReport::with('activities')
-            ->where('project_id', $projectId)
-            ->where('status', 'approved')
-            ->orderBy('tanggal', 'asc')
-            ->get();
-
-        $realizations = [];
-        $realizedVolumes = []; // Menampung agregat volume aktual per item
-
-        foreach ($approvedReports as $report) {
-            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
-            $reportDate = Carbon::parse($report->tanggal)->startOfDay();
-            $diffDays = $start->diffInDays($reportDate, false);
-            $mingguKe = ($diffDays >= 0) ? floor($diffDays / 7) + 1 : 0;
-
-            foreach ($report->activities as $act) {
-                if ($act->rab_item_id) {
-
-                    // Akumulasi volume per RAB item untuk perhitungan sisa bobot
-                    if (!isset($realizedVolumes[$act->rab_item_id])) {
-                        $realizedVolumes[$act->rab_item_id] = 0;
-                    }
-                    $realizedVolumes[$act->rab_item_id] += (float)$act->volume;
-
-                    $rabItem = RabItem::find($act->rab_item_id);
-
-                    if ($rabItem && $grandTotalRAB > 0) {
-                        $bobotTotalRAB = ($rabItem->total_harga / $grandTotalRAB) * 100;
-                        $volumeTotalRAB = $rabItem->volume > 0 ? $rabItem->volume : 1;
-
-                        $bobotRealisasi = ($act->volume / $volumeTotalRAB) * $bobotTotalRAB;
-
-                        $realizations[] = [
-                            'rab_item_id' => $act->rab_item_id,
-                            'minggu_ke' => $mingguKe,
-                            'volume_laporan' => $act->volume,
-                            'bobot_realisasi' => $bobotRealisasi,
-                            'tgl_input' => $report->tanggal,
-                            'tgl_verifikasi' => Carbon::parse($report->verified_at)->format('Y-m-d'),
-                        ];
-                    }
-                }
-            }
-        }
-
-        // C. SUNTIKAN DATA KE MASTER RAB (Backend yang menghitung semuanya!)
+        // 3. KALKULASI LOGIKA BACKEND (DIKIRIM MATANG KE FRONTEND)
         foreach($rabData as $cat) {
+            $bobotDivisi = 0; // Total persenan untuk Divisi ini
+
             foreach($cat->items as $item) {
                 if(!$item->is_subheader && $grandTotalRAB > 0) {
-                    // 1. Bobot Standar Murni (Target RAB 100%)
+                    // A. Bobot Murni Item (Harga Item / Grand Total * 100)
                     $bobotStandar = ($item->total_harga / $grandTotalRAB) * 100;
+                    $bobotDivisi += $bobotStandar;
 
-                    // 2. Bobot yang telah berhasil direalisasikan di Lapangan
-                    $volRealisasi = $realizedVolumes[$item->id] ?? 0;
-                    $volTotal = $item->volume > 0 ? $item->volume : 1;
-                    $bobotRealisasi = ($volRealisasi / $volTotal) * $bobotStandar;
-
-                    // 3. Bobot yang sedang diagendakan di kalender (Time Schedule)
+                    // B. Berapa yang sudah pernah dimasukkan ke jadwal (Tabel project_schedules)?
                     $totalDijadwalkan = $schedules->where('rab_item_id', $item->id)->sum('bobot_rencana');
 
-                    // Injeksi properti dinamis ke objek agar React tinggal pakai
+                    // C. SISA BOBOT (Ini yang akan diinput user di React)
+                    $sisaBobot = max(0, $bobotStandar - $totalDijadwalkan);
+
+                    // Suntikkan ke JSON
                     $item->bobot_standar = round($bobotStandar, 4);
-                    $item->bobot_realisasi = round($bobotRealisasi, 4);
                     $item->total_dijadwalkan = round($totalDijadwalkan, 4);
-                    $item->sisa_plafon_tersedia = max(0, round($bobotStandar - $bobotRealisasi, 4));
+                    $item->sisa_bobot = round($sisaBobot, 4);
                 } else {
                     $item->bobot_standar = 0;
-                    $item->bobot_realisasi = 0;
                     $item->total_dijadwalkan = 0;
-                    $item->sisa_plafon_tersedia = 0;
+                    $item->sisa_bobot = 0;
                 }
             }
+            // Suntikkan total divisi ke JSON
+            $cat->bobot_divisi = round($bobotDivisi, 4);
         }
 
         return response()->json([
             'status' => 'success',
             'data' => [
-                'project_info' => [
-                    'tanggal_mulai' => $project->tanggal_mulai,
-                    'tanggal_selesai' => $project->tanggal_selesai,
-                    'total_hari' => $totalHari,
-                    'total_minggu' => $totalMinggu
-                ],
+                'project_info' => $project,
                 'rab_data' => $rabData,
-                'schedules' => $schedules,
-                'realizations' => $realizations
+                'schedules' => $schedules
             ]
         ]);
     }
 
-    /**
-     * Menyimpan/Memperbarui Data Jadwal (Bulk Sync Mode)
-     */
     public function saveSchedules(Request $request, $projectId)
     {
-        $request->validate([
-            'schedules' => 'array'
-        ]);
+        $request->validate(['schedules' => 'array']);
 
         DB::beginTransaction();
         try {
-            // TEKNIK BULK SYNC: Hapus bersih lalu insert ulang agar cepat
-            ProjectSchedule::where('project_id', $projectId)->delete();
-
             $insertData = [];
             $now = now();
 
+            // Insert data baru (Tanpa menghapus data lama, karena ini penambahan jadwal)
             if (!empty($request->schedules)) {
                 foreach ($request->schedules as $sched) {
                     $insertData[] = [
@@ -182,22 +105,15 @@ class ProjectScheduleController extends Controller
                         'updated_at' => $now,
                     ];
                 }
-                // Eksekusi Massal
                 ProjectSchedule::insert($insertData);
             }
 
             DB::commit();
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Time Schedule berhasil disinkronkan!'
-            ]);
+            return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan Berhasil Ditambahkan!']);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal menyimpan jadwal: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
 
