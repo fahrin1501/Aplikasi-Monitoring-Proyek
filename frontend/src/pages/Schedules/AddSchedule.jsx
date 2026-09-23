@@ -56,7 +56,6 @@ export default function AddSchedule() {
     const divisi = scheduleData.rab_data.find(d => d.id.toString() === draftDivisiId);
     const itemAsli = divisi.items.find(i => i.id.toString() === draftItemId);
 
-    // MENGAMBIL SISA BOBOT LANGSUNG DARI BACKEND LARAVEL
     const sisaBobot = Number(itemAsli.sisa_bobot) || 0;
 
     if (sisaBobot <= 0) {
@@ -68,9 +67,9 @@ export default function AddSchedule() {
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: divisi.nama_kategori,
-      bobot_divisi: divisi.bobot_divisi, // Informasi tambahan dari backend
-      bobot_rencana: sisaBobot, // Default value diset full sisa
-      sisa_bobot_asli: sisaBobot // Untuk validasi input
+      bobot_divisi: divisi.bobot_divisi, 
+      bobot_rencana: sisaBobot.toString(), // Disimpan sebagai string agar mudah diedit desimalnya
+      sisa_bobot_asli: sisaBobot 
     };
 
     setAddedItems([...addedItems, newItem]);
@@ -79,19 +78,31 @@ export default function AddSchedule() {
 
   const handleRemoveItem = (idToRemove) => setAddedItems(addedItems.filter(item => item.rab_item_id !== idToRemove));
 
+  // --- PERBAIKAN: HANDLER KETIK MANUAL BOBOT ---
   const handleUpdateBobotKeranjang = (id, newValue) => {
     setAddedItems(addedItems.map(item => {
       if (item.rab_item_id === id) {
-        let val = parseFloat(newValue) || 0;
-        // Mencegah input melebihi sisa bobot
-        if (val > item.sisa_bobot_asli) val = item.sisa_bobot_asli;
-        return { ...item, bobot_rencana: val };
+        // Izinkan string kosong agar user bisa menghapus dan mengetik ulang dengan mudah
+        if (newValue === '') return { ...item, bobot_rencana: '' };
+
+        // Konversi koma menjadi titik (jika user mengetik pakai koma)
+        const sanitizedValue = newValue.replace(',', '.');
+        const valNum = parseFloat(sanitizedValue);
+
+        if (isNaN(valNum)) return item; // Cegah input selain angka
+
+        // Jika angka yang diketik melebihi sisa plafon, kunci di angka sisa plafon
+        if (valNum > item.sisa_bobot_asli) {
+          return { ...item, bobot_rencana: item.sisa_bobot_asli.toString() };
+        }
+        
+        // Simpan nilai aslinya (string) agar bisa ngetik "0." dengan mulus
+        return { ...item, bobot_rencana: sanitizedValue };
       }
       return item;
     }));
   };
 
-  // FILTER DROPDOWN: Hanya tampilkan yang sisa bobotnya > 0 dan belum masuk keranjang
   const getAvailableItems = () => {
     if (!draftDivisiId || !scheduleData) return [];
     const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
@@ -103,14 +114,16 @@ export default function AddSchedule() {
     });
   };
 
-  const totalDraftBobot = addedItems.reduce((sum, item) => sum + (Number(item.bobot_rencana) || 0), 0);
+  const totalDraftBobot = addedItems.reduce((sum, item) => sum + (parseFloat(item.bobot_rencana) || 0), 0);
 
   const handleSaveSchedule = async () => {
     if (!periodForm.bulan || !periodForm.minggu_ke || !periodForm.tanggal_mulai || !periodForm.tanggal_selesai) {
       return alert("Lengkapi data Bulan, Minggu Ke-, serta Tanggal Mulai & Selesai!");
     }
     if (addedItems.length === 0) return alert("Keranjang masih kosong.");
-    if (addedItems.some(item => Number(item.bobot_rencana) <= 0)) return alert("Bobot pekerjaan tidak boleh 0.");
+    if (addedItems.some(item => parseFloat(item.bobot_rencana) <= 0 || item.bobot_rencana === '')) {
+      return alert("Bobot pekerjaan tidak boleh kosong atau 0.");
+    }
 
     setIsSaving(true);
     try {
@@ -120,7 +133,7 @@ export default function AddSchedule() {
         minggu_ke: parseInt(periodForm.minggu_ke),
         tanggal_awal: periodForm.tanggal_mulai,
         tanggal_akhir: periodForm.tanggal_selesai,
-        bobot_rencana: Number(item.bobot_rencana)
+        bobot_rencana: parseFloat(item.bobot_rencana)
       }));
 
       await api.post(`/projects/${projectId}/schedules`, { schedules: payloadArr });
@@ -243,12 +256,18 @@ export default function AddSchedule() {
                     <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/10 dark:bg-emerald-900/5">
                       <div className="flex items-center justify-center gap-2">
                         <input 
-                          type="number" step="any" min="0" max={item.sisa_bobot_asli}
-                          value={item.bobot_rencana || ''}
+                          type="text" 
+                          value={item.bobot_rencana}
                           onChange={(e) => handleUpdateBobotKeranjang(item.rab_item_id, e.target.value)}
+                          onBlur={(e) => {
+                             // Perapian saat klik di luar input
+                             let val = parseFloat(e.target.value) || 0;
+                             if (val > item.sisa_bobot_asli) val = item.sisa_bobot_asli;
+                             handleUpdateBobotKeranjang(item.rab_item_id, val.toString());
+                          }}
                           className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 shadow-inner" 
                         />
-                        <span className="text-[9px] text-slate-400 block w-16 text-left">(Sisa Plafon:<br/>{Number(item.sisa_bobot_asli).toFixed(2)}%)</span>
+                        <span className="text-[9px] text-slate-400 block w-16 text-left">(Max Plafon:<br/>{Number(item.sisa_bobot_asli).toFixed(2)}%)</span>
                       </div>
                     </td>
                     <td className="p-2 text-center align-middle">

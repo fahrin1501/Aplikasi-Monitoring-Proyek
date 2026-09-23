@@ -41,7 +41,7 @@ export default function ScheduleData() {
   const [deleteConfig, setDeleteConfig] = useState({ show: false, rabItemId: null, weekNum: null, itemName: '' });
   const [deleteWeekConfig, setDeleteWeekConfig] = useState({ show: false, weekNum: null });
 
-  // --- STATE MODAL BATCH KERANJANG (SAMA SEPERTI ADDSCHEDULE) ---
+  // --- STATE MODAL BATCH KERANJANG ---
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [targetPeriod, setTargetPeriod] = useState({ bulan: '', minggu_ke: '', start: '', end: '' });
   
@@ -89,13 +89,8 @@ export default function ScheduleData() {
 
   useEffect(() => { fetchTimeSchedule(); }, [id]);
 
-  // RUMUS PENGHITUNG BOBOT OTOMATIS
-  const totalItemsCount = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => sum + cat.items.filter(i => !i.is_subheader).length, 0) : 1;
-  const bobotOtomatis = totalItemsCount > 0 ? (100 / totalItemsCount) : 0;
-
   const handleBatalEdit = () => { setIsEditMode(false); fetchTimeSchedule(); };
 
-  // --- HANDLER HAPUS LOKAL ---
   const executeDelete = () => {
     setLocalSchedules(prev => prev.filter(s => !(s.rab_item_id === deleteConfig.rabItemId && parseInt(s.minggu_ke) === deleteConfig.weekNum)));
     setDeleteConfig({ show: false, rabItemId: null, weekNum: null, itemName: '' });
@@ -108,10 +103,18 @@ export default function ScheduleData() {
   };
 
   const handleInlineChange = (rabItemId, weekNum, value, sisaTersedia) => {
-    if (value && isNaN(value)) return;
-    const valBaru = parseFloat(value) || 0;
+    if (value === '') {
+       setLocalSchedules(prev => prev.map(s => {
+          if (s.rab_item_id === rabItemId && s.minggu_ke === weekNum) return { ...s, bobot_rencana: '' };
+          return s;
+       }));
+       return;
+    }
+
+    const sanitizedValue = value.replace(',', '.');
+    const valBaru = parseFloat(sanitizedValue);
+    if (isNaN(valBaru)) return;
     
-    // Validasi agar tidak melebihi sisa bobot RAB
     if (valBaru > (sisaTersedia + 0.02)) {
        alert(`Gagal! Sisa plafon yang tersedia untuk item ini maksimal ${sisaTersedia.toFixed(2)}%`);
        return; 
@@ -119,7 +122,7 @@ export default function ScheduleData() {
     
     setLocalSchedules(prev => prev.map(s => {
       if (s.rab_item_id === rabItemId && s.minggu_ke === weekNum) {
-        return { ...s, bobot_rencana: valBaru };
+        return { ...s, bobot_rencana: sanitizedValue };
       }
       return s;
     }));
@@ -145,7 +148,7 @@ export default function ScheduleData() {
     if (!divisi) return [];
 
     return divisi.items.filter(item => {
-      if (item.is_subheader) return false;
+      if (item.is_subheader || Number(item.sisa_bobot) <= 0) return false;
       const inModalDraft = modalAddedItems.some(draft => draft.rab_item_id === item.id);
       const inLocalSchedules = localSchedules.some(s => s.rab_item_id === item.id);
       return !inModalDraft && !inLocalSchedules;
@@ -162,13 +165,15 @@ export default function ScheduleData() {
     const divisi = scheduleData.rab_data.find(d => d.id.toString() === draftDivisiId);
     const itemAsli = divisi.items.find(i => i.id.toString() === draftItemId);
 
+    const sisaBobot = Number(itemAsli.sisa_bobot) || 0;
+
     const newItem = {
       rab_item_id: itemAsli.id,
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: divisi.nama_kategori,
-      bobot_rencana: itemAsli.sisa_plafon_tersedia > 0 ? itemAsli.sisa_plafon_tersedia : itemAsli.bobot_standar,
-      max_bobot: itemAsli.sisa_plafon_tersedia > 0 ? itemAsli.sisa_plafon_tersedia : itemAsli.bobot_standar,
+      bobot_rencana: sisaBobot.toString(), // String untuk bypass bug toFixed
+      max_bobot: sisaBobot,
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
@@ -186,7 +191,17 @@ export default function ScheduleData() {
   const handleUpdateBobotModalCart = (id, newValue) => {
     setModalAddedItems(modalAddedItems.map(item => {
       if (item.rab_item_id === id) {
-        return { ...item, bobot_rencana: parseFloat(newValue) || 0 };
+        if (newValue === '') return { ...item, bobot_rencana: '' };
+        
+        const sanitizedValue = newValue.replace(',', '.');
+        const valNum = parseFloat(sanitizedValue);
+        
+        if (isNaN(valNum)) return item;
+        
+        if (valNum > item.max_bobot) {
+           return { ...item, bobot_rencana: item.max_bobot.toString() };
+        }
+        return { ...item, bobot_rencana: sanitizedValue };
       }
       return item;
     }));
@@ -194,19 +209,27 @@ export default function ScheduleData() {
 
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
-    // Masukkan isi keranjang ke state lokal utama yang ditampilkan di layar
+    if(modalAddedItems.some(item => parseFloat(item.bobot_rencana) <= 0 || item.bobot_rencana === '')) {
+       return alert("Bobot rencana tidak boleh kosong atau 0.");
+    }
     setLocalSchedules([...localSchedules, ...modalAddedItems]);
     setShowAddItemModal(false);
   };
 
   const totalModalDraftBobot = modalAddedItems.reduce((sum, item) => sum + (parseFloat(item.bobot_rencana) || 0), 0);
 
-  // --- HANDLER SIMPAN KE BACKEND ---
   const handleSaveSchedule = async () => {
     setSaveModal(false);
     setIsSaving(true);
+    
+    // Konversi string ke desimal final sebelum dikirim ke backend
+    const safeLocalSchedules = localSchedules.map(s => ({
+       ...s,
+       bobot_rencana: parseFloat(s.bobot_rencana) || 0
+    }));
+
     try {
-      await api.post(`/projects/${id}/schedules`, { schedules: localSchedules });
+      await api.post(`/projects/${id}/schedules`, { schedules: safeLocalSchedules });
       alert("Perubahan Target Jadwal Berhasil Disimpan!");
       setIsEditMode(false);
       fetchTimeSchedule();
@@ -223,7 +246,7 @@ export default function ScheduleData() {
       const item = cat.items.find(i => i.id.toString() === rabItemId.toString());
       if (item) return { ...item, kategori_nama: cat.nama_kategori };
     }
-    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-', sisa_plafon_tersedia: 0 };
+    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-', sisa_bobot: 0 };
   };
 
   const formatIndoDate = (dateString) => {
@@ -231,7 +254,6 @@ export default function ScheduleData() {
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // --- LOGIKA GROUPING BERDASARKAN MINGGU KE- ---
   let weekGroups = {};
   if (scheduleData && localSchedules) {
     localSchedules.forEach(s => {
@@ -257,8 +279,6 @@ export default function ScheduleData() {
   } else {
     weeksToRender = allWeeks.filter(w => w.minggu_ke === parseInt(filterWeek));
   }
-
-  const projectTotalWeeks = scheduleData?.project_info?.total_minggu || 0;
 
   return (
     <div className="w-full space-y-5 pb-20 relative">
@@ -334,7 +354,6 @@ export default function ScheduleData() {
           {canCreateData && (
             <div className="flex items-center bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
               
-              {/* PENYESUAIAN RUTE TOMBOL INPUT */}
               {!isEditMode && (
                 <button 
                   disabled={isLoading} 
@@ -372,20 +391,13 @@ export default function ScheduleData() {
           <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat Data Jadwal...</p>
         </div>
-      ) : (!scheduleData || projectTotalWeeks === 0) ? (
-        <div className="p-8 text-center bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl animate-fade-in shadow-sm">
-          <AlertTriangle className="w-10 h-10 mx-auto text-rose-500 dark:text-rose-400 mb-2" />
-          <h3 className="font-bold text-rose-700 dark:text-rose-300">Tanggal Proyek Tidak Valid</h3>
-          <p className="text-xs text-rose-600 mt-1">Kembali ke Menu Data Utama untuk mensetting tanggal mulai dan selesai.</p>
-        </div>
-      ) : weeksToRender.length === 0 ? (
+      ) : allWeeks.length === 0 ? (
         <div className="p-16 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in backdrop-blur-sm">
           <CalendarDays className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">Jadwal Belum Disusun</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">Anda belum merencanakan pekerjaan apapun ke dalam kalender Time Schedule.</p>
           
           {canCreateData && (
-            // PENYESUAIAN RUTE TOMBOL INPUT
             <button onClick={() => navigate(`/schedules/${id}/data/input`)} className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md hover:bg-amber-600 transition-colors flex items-center gap-2 mx-auto">
               <Plus className="w-4 h-4" /> Mulai Rencanakan Jadwal
             </button>
@@ -458,7 +470,7 @@ export default function ScheduleData() {
                       ) : (
                         schedulesThisWeek.map(sched => {
                           const item = getItemInfo(sched.rab_item_id);
-                          const sisaTersedia = item?.sisa_plafon_tersedia || 0;
+                          const sisaTersedia = Number(item?.sisa_bobot || 0) + Number(sched.bobot_rencana);
                           
                           const realisasiMingguIni = scheduleData.realizations
                             ?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)
@@ -479,21 +491,26 @@ export default function ScheduleData() {
                                 {isEditMode ? (
                                   <div className="flex flex-col gap-1 items-center justify-center">
                                     <input 
-                                      type="number" step="any" min="0" 
+                                      type="text" 
                                       value={sched.bobot_rencana || ''} 
                                       onChange={(e) => handleInlineChange(sched.rab_item_id, weekNum, e.target.value, sisaTersedia)} 
+                                      onBlur={(e) => {
+                                        let val = parseFloat(e.target.value) || 0;
+                                        if (val > sisaTersedia) val = sisaTersedia;
+                                        handleInlineChange(sched.rab_item_id, weekNum, val.toString(), sisaTersedia);
+                                      }}
                                       className="w-24 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg text-blue-700 dark:text-blue-400 shadow-inner transition-colors" 
                                     />
                                     <span className="text-[9px] text-slate-400">(Max: {sisaTersedia.toFixed(2)}%)</span>
                                   </div>
                                 ) : (
-                                  <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">{parseFloat(sched.bobot_rencana).toFixed(2)}%</span>
+                                  <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">{Number(sched.bobot_rencana).toFixed(2)}%</span>
                                 )}
                               </td>
 
                               <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/20 dark:bg-emerald-900/10">
                                 <span className={`font-mono font-bold text-sm ${realisasiMingguIni > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                                  {realisasiMingguIni > 0 ? `${realisasiMingguIni.toFixed(2)}%` : '-'}
+                                  {realisasiMingguIni > 0 ? `${Number(realisasiMingguIni).toFixed(2)}%` : '-'}
                                 </span>
                               </td>
                               
@@ -561,7 +578,6 @@ export default function ScheduleData() {
                 <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-2">
                   <Layers className="w-4 h-4" /> Tambah Pekerjaan ke M-{targetPeriod.minggu_ke}
                 </h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Bobot dihitung otomatis: Total 100% dibagi total uraian pekerjaan di RAB.</p>
               </div>
               <button onClick={() => setShowAddItemModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 absolute top-4 right-4"><X className="w-5 h-5"/></button>
             </div>
@@ -584,7 +600,7 @@ export default function ScheduleData() {
                    <select value={draftItemId} onChange={(e) => setDraftItemId(e.target.value)} disabled={!draftDivisiId || getAvailableItemsForModal().length === 0} className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-50 shadow-sm truncate">
                      <option value="" disabled>{!draftDivisiId ? '-- Pilih Divisi Dulu --' : getAvailableItemsForModal().length === 0 ? '-- Semua Pekerjaan Sudah Ditambahkan --' : '-- Klik Pilih Uraian Pekerjaan --'}</option>
                      {getAvailableItemsForModal().map(item => (
-                       <option key={item.id} value={item.id}>{item.uraian_pekerjaan}</option>
+                       <option key={item.id} value={item.id}>{item.uraian_pekerjaan} (Sisa Plafon: {Number(item.sisa_bobot).toFixed(2)}%)</option>
                      ))}
                    </select>
                  </div>
@@ -625,12 +641,17 @@ export default function ScheduleData() {
                         <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/10 dark:bg-emerald-900/5">
                           <div className="flex items-center justify-center gap-2">
                             <input 
-                              type="number" step="any" min="0" max={item.max_bobot}
+                              type="text" 
                               value={item.bobot_rencana || ''}
                               onChange={(e) => handleUpdateBobotModalCart(item.rab_item_id, e.target.value)}
+                              onBlur={(e) => {
+                                 let val = parseFloat(e.target.value) || 0;
+                                 if (val > item.max_bobot) val = item.max_bobot;
+                                 handleUpdateBobotModalCart(item.rab_item_id, val.toString());
+                              }}
                               className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors" 
                             />
-                            <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{item.max_bobot.toFixed(2)}%)</span>
+                            <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{Number(item.max_bobot).toFixed(2)}%)</span>
                           </div>
                         </td>
                         <td className="p-2 text-center align-middle">
@@ -649,11 +670,14 @@ export default function ScheduleData() {
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 shrink-0">
-              <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
-                <Save className="w-4 h-4" /> Simpan Keranjang ke Minggu {targetPeriod.minggu_ke}
-              </button>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3 shrink-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Total: <strong className="text-emerald-600 dark:text-emerald-400 text-sm">{Number(totalModalDraftBobot || 0).toFixed(2)}%</strong></span>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
+                <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
+                  <Save className="w-4 h-4" /> Simpan ke Minggu {targetPeriod.minggu_ke}
+                </button>
+              </div>
             </div>
           </div>
         </div>
