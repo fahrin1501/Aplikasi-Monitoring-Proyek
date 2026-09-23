@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, CalendarDays, Save, Loader2, 
-  Calendar, Layers, Plus, Trash2, ListPlus, AlertTriangle
+  Layers, Plus, Trash2, ListPlus
 } from 'lucide-react';
 
 export default function AddSchedule() {
@@ -16,6 +16,7 @@ export default function AddSchedule() {
     document.title = "Prisma Group - Jadwal Baru";
   }, []);
 
+  const [projectData, setProjectData] = useState(null);
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,8 +44,14 @@ export default function AddSchedule() {
     const fetchTimeSchedule = async () => {
       setIsLoadingSchedule(true);
       try {
-        const res = await api.get(`/projects/${projectId}/schedules`);
-        setScheduleData(res.data.data);
+        // PERBAIKAN: Ambil juga nama dan detail proyek dari API
+        const [projRes, schedRes] = await Promise.all([
+          api.get(`/projects/${projectId}`),
+          api.get(`/projects/${projectId}/schedules`)
+        ]);
+        
+        setProjectData(projRes.data);
+        setScheduleData(schedRes.data.data);
       } catch (error) {
         console.error("Gagal menarik data jadwal:", error);
       } finally {
@@ -167,9 +174,8 @@ export default function AddSchedule() {
     );
   }
 
-  // Mengambil nama proyek untuk ditampilkan di Header
-  // Kita abaikan pesan error undefined dengan optional chaining (?.)
-  const namaProyekAktif = scheduleData?.project_info?.nama_proyek || 'Proyek Terpilih';
+  // Menarik nama proyek langsung dari Data Proyek
+  const namaProyekAktif = projectData?.nama_proyek || 'Memuat Data...';
 
   return (
     <div className="w-full space-y-6 pb-24 relative animate-fade-in">
