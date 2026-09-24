@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, Download, Edit3, Copy, Clock, 
-  CheckCircle2, Save, X, Loader2, Trash2, AlertTriangle, FileSpreadsheet, Users, Wrench 
+  CheckCircle2, Save, X, Loader2, Trash2, FileSpreadsheet 
 } from 'lucide-react';
 
 // IMPORT KOMPONEN TERPISAH
@@ -12,16 +12,6 @@ import CuacaLapangan from './IsiLaporan/CuacaLapangan';
 import KegiatanGeografis from './IsiLaporan/KegiatanGeografis';
 import PersonilAlatLaporan from './IsiLaporan/PersonilAlatLaporan';
 import LampiranDokumentasi from './IsiLaporan/LampiranDokumentasi';
-
-const defaultPersonilList = [
-  'Dinas PUPR', 'Konsultan', 'Kontraktor', 'Kepala Kerja/Mandor', 
-  'Pekerja', 'Tukang', 'Supir', 'Operator', 'Surveyor'
-];
-
-const defaultPeralatanList = [
-  'Excavator', 'Dump Truck', 'Water Past', 'Theodolith', 
-  'Concrete Mixer', 'Jack Hammer', 'Mesin Alcon', 'Mesin Las', 'Alat bantu'
-];
 
 export default function LaporanData() {
   const navigate = useNavigate();
@@ -195,6 +185,9 @@ export default function LaporanData() {
     }
   };
 
+  // --- FIX: MENGAMBIL NILAI MINGGU KE- BERDASARKAN MODE ---
+  const currentMingguKe = isEditMode ? editForm.minggu_ke : reportData?.minggu_ke;
+
   // LOGIKA PENGELOMPOKAN URAIAN PEKERJAAN
   let optionsMingguIni = [];
   let optionsMingguLain = [];
@@ -210,7 +203,7 @@ export default function LaporanData() {
       });
 
       if (detailItem) {
-        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(isEditMode ? editForm.minggu_ke : reportData.minggu_ke);
+        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(currentMingguKe);
         if (!scheduledItemsMap.has(sched.rab_item_id)) {
           scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
         } else if (isThisWeek) {
@@ -328,8 +321,6 @@ export default function LaporanData() {
 
   return (
     <div className="w-full space-y-5 md:space-y-6 relative pb-20 animate-fade-in">
-      <datalist id="peran-options">{defaultPersonilList.map(p => <option key={p} value={p} />)}</datalist>
-      <datalist id="alat-options">{defaultPeralatanList.map(a => <option key={a} value={a} />)}</datalist>
 
       {/* --- TOP HEADER / ACTION BAR --- */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
@@ -432,7 +423,7 @@ export default function LaporanData() {
       {/* COMPONENT 3: KEGIATAN & GEOGRAFIS */}
       <KegiatanGeografis 
         isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
-        rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={mingguKe}
+        rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
         optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
       />
 
@@ -514,6 +505,7 @@ export default function LaporanData() {
         </div>
       )}
 
+      {/* --- MODAL KONFIRMASI HAPUS LAPORAN FULL --- */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -529,6 +521,7 @@ export default function LaporanData() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
