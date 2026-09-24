@@ -118,7 +118,7 @@ class DailyReportController extends Controller
 
             $request->validate([
                 'tanggal' => 'required|date',
-                'minggu_ke' => 'required', // WAJIB ADA
+                'minggu_ke' => 'required',
                 'pengawas' => 'required|string',
                 'lokasi' => 'required|string',
                 'foto.*' => 'image|max:5120',
@@ -129,7 +129,7 @@ class DailyReportController extends Controller
             $report = DailyReport::create([
                 'project_id' => $projectId,
                 'tanggal' => $request->tanggal,
-                'minggu_ke' => $request->minggu_ke, // <--- TAMBAH INI
+                'minggu_ke' => $request->minggu_ke,
                 'pengawas' => $request->pengawas,
                 'lokasi' => $request->lokasi,
                 'cuaca' => $request->cuaca,
@@ -151,7 +151,7 @@ class DailyReportController extends Controller
                         'sta_akhir' => $item['sta_akhir'] ?? null,
                         'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
                         'satuan' => !empty($item['satuan']) ? $item['satuan'] : null,
-                        'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null, // <--- TAMBAH INI
+                        'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null,
                     ]);
                 }
             }
@@ -227,11 +227,12 @@ class DailyReportController extends Controller
             // 1. Update Parent Info
             $report->update([
                 'tanggal' => $request->tanggal ?? $report->tanggal,
+                'minggu_ke' => $request->minggu_ke ?? $report->minggu_ke, // PENAMBAHAN MINGGU_KE
                 'pengawas' => $request->pengawas ?? $report->pengawas,
                 'lokasi' => $request->lokasi ?? $report->lokasi,
                 'cuaca' => $request->cuaca ?? $report->cuaca,
-                'kondisi_cuaca' => $request->kondisi_cuaca ?? $report->kondisi_cuaca, // <-- Update kolom kondisi cuaca
-                'status' => 'pending', // Dikembalikan ke pending (progres turun)
+                'kondisi_cuaca' => $request->kondisi_cuaca ?? $report->kondisi_cuaca,
+                'status' => 'pending',
                 'verified_at' => null
             ]);
 
@@ -248,6 +249,7 @@ class DailyReportController extends Controller
                             'sta_akhir' => $item['sta_akhir'] ?? null,
                             'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
                             'satuan' => $item['satuan'] ?? null,
+                            'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null, // PENAMBAHAN PERSENTASE
                         ]);
                     }
                 }
