@@ -66,42 +66,24 @@ export default function AddSchedule() {
 
   const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
 
-  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
-    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
-  , 0) : 0;
-
-  // --- PERBAIKAN: BISA MENAMPILKAN SEMUA ITEM LINTAS DIVISI SEKALIGUS ---
+  // Filter item yang tersedia
   const getAvailableItems = () => {
     if (!draftDivisiId || !scheduleData) return [];
     
     let allItems = [];
-    
-    // Jika user memilih "Semua Divisi"
     if (draftDivisiId === 'all') {
       scheduleData.rab_data.forEach(cat => {
         cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
       });
     } else {
-      // Jika user memilih spesifik 1 divisi
       const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
       if (divisi) {
         divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
       }
     }
 
-    return allItems.map(item => {
-      if (item.is_subheader) return null;
-      
-      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.realizations
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
-
-      return { ...item, sisaPlafon };
-    }).filter(item => {
-      if (!item) return false;
-      if (item.sisaPlafon <= 0) return false; 
+    return allItems.filter(item => {
+      if (item.is_subheader) return false;
       if (addedItems.some(draft => draft.rab_item_id === item.id)) return false; 
       return true;
     });
@@ -117,7 +99,7 @@ export default function AddSchedule() {
     }
   };
 
-  // --- HANDLER TAMBAH MASSAL ---
+  // Tambah item ke keranjang dengan nilai bobot kosong agar user input manual
   const handleAddItems = () => {
     if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang minimal 1 Uraian Pekerjaan terlebih dahulu!");
 
@@ -127,9 +109,8 @@ export default function AddSchedule() {
       rab_item_id: itemAsli.id,
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
-      kategori_nama: itemAsli.kategori_nama, // Langsung terbaca divisi apa
-      bobot_rencana: itemAsli.sisaPlafon.toString(),
-      sisa_bobot_asli: itemAsli.sisaPlafon
+      kategori_nama: itemAsli.kategori_nama,
+      bobot_rencana: '' // Kosong agar langsung diinput manual oleh user
     }));
 
     setAddedItems([...addedItems, ...newItems]);
@@ -139,16 +120,13 @@ export default function AddSchedule() {
 
   const handleRemoveItem = (idToRemove) => setAddedItems(addedItems.filter(item => item.rab_item_id !== idToRemove));
 
+  // Handler input manual bebas tanpa pembatasan batas atas
   const handleUpdateBobotKeranjang = (id, newValue) => {
     setAddedItems(addedItems.map(item => {
       if (item.rab_item_id === id) {
         if (newValue === '') return { ...item, bobot_rencana: '' };
         const sanitizedValue = newValue.replace(',', '.');
-        const valNum = parseFloat(sanitizedValue);
-        if (isNaN(valNum)) return item;
-        if (valNum > item.sisa_bobot_asli) {
-          return { ...item, bobot_rencana: item.sisa_bobot_asli.toString() };
-        }
+        if (isNaN(sanitizedValue) && sanitizedValue !== '.') return item;
         return { ...item, bobot_rencana: sanitizedValue };
       }
       return item;
@@ -163,7 +141,7 @@ export default function AddSchedule() {
     }
     if (addedItems.length === 0) return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     if (addedItems.some(item => parseFloat(item.bobot_rencana) <= 0 || item.bobot_rencana === '')) {
-      return alert("Pastikan semua item di keranjang memiliki bobot lebih dari 0.");
+      return alert("Pastikan semua item di keranjang telah diisi nilai bobot lebih dari 0.");
     }
 
     setIsSaving(true);
@@ -205,7 +183,7 @@ export default function AddSchedule() {
           <button onClick={() => navigate(`/schedules/${projectId}/data`)} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm"><ArrowLeft className="w-5 h-5" /></button>
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white">Form Rencana Jadwal</h1>
-            <p className="text-xs text-slate-500 mt-1">Masukkan data periode waktu, lalu tambahkan uraian pekerjaan secara masal.</p>
+            <p className="text-xs text-slate-500 mt-1">Masukkan data periode waktu, lalu masukkan target bobot mingguan secara manual.</p>
           </div>
         </div>
       </div>
@@ -236,7 +214,7 @@ export default function AddSchedule() {
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-emerald-50/50 dark:bg-emerald-900/10 flex flex-col md:flex-row justify-between gap-4">
           <div>
             <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-2"><Layers className="w-4 h-4" /> 2. Target Pekerjaan</h3>
-            <p className="text-[10px] text-slate-500 mt-1">Sistem otomatis mengambil sisa pekerjaan dari database.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Pilih pekerjaan yang ditargetkan, lalu ketik nilai persen bobot secara manual pada tabel di bawah.</p>
           </div>
           <div className="bg-white dark:bg-slate-800 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Total Target Diinput:</span>
@@ -246,7 +224,7 @@ export default function AddSchedule() {
 
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
            <div className="flex flex-col lg:flex-row items-end gap-4">
-             {/* KOTAK 1: PILIH DIVISI BATCH */}
+             {/* KOTAK 1: PILIH DIVISI */}
              <div className="w-full lg:w-[35%] space-y-1.5">
                <label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Mode Filter Divisi</label>
                <select 
@@ -286,14 +264,12 @@ export default function AddSchedule() {
                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                </div>
 
-               {/* DROPDOWN CUSTOM MULTI-SELECT */}
                {isDropdownOpen && (
                  <div className="absolute z-50 mt-1.5 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex flex-col overflow-hidden animate-fade-in">
                     <div className="p-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex gap-2">
                        <button onClick={() => setDraftItemIds(availableItems.map(i => i.id))} className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/20 px-2 py-1.5 rounded transition-colors"><CheckSquare className="w-3.5 h-3.5"/> Pilih Semua</button>
                        <button onClick={() => setDraftItemIds([])} className="text-[10px] font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 px-3 py-1.5 rounded transition-colors">Kosongkan</button>
                     </div>
-                    {/* Diperbesar agar muat banyak jika "Tampilkan Semua Divisi" dipilih */}
                     <div className="max-h-72 overflow-y-auto custom-scrollbar">
                       {availableItems.map(item => (
                         <div 
@@ -309,11 +285,9 @@ export default function AddSchedule() {
                           />
                           <div className="flex flex-col">
                             <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-medium mt-1">
-                              {/* Tambahkan Info Divisi jika mode All */}
-                              {draftDivisiId === 'all' && <span className="text-amber-600 dark:text-amber-500 mr-1.5 uppercase font-bold">{item.kategori_nama} •</span>}
-                              Sisa Plafon: {Number(item.sisaPlafon).toFixed(2)}%
-                            </span>
+                            {draftDivisiId === 'all' && (
+                              <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase mt-0.5">{item.kategori_nama}</span>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -335,8 +309,8 @@ export default function AddSchedule() {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 uppercase shadow-sm border-b border-slate-200 dark:border-slate-700/60">
               <tr>
-                <th className="p-3 w-[55%] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan Tersimpan</th>
-                <th className="p-3 text-center w-[30%] border-r border-slate-200 dark:border-slate-700/60 text-emerald-600 dark:text-emerald-400">Target Rencana (%)</th>
+                <th className="p-3 w-[60%] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan Tersimpan</th>
+                <th className="p-3 text-center w-[25%] border-r border-slate-200 dark:border-slate-700/60 text-emerald-600 dark:text-emerald-400">Target Rencana (%)</th>
                 <th className="p-3 text-center w-[15%]">Aksi</th>
               </tr>
             </thead>
@@ -354,19 +328,15 @@ export default function AddSchedule() {
                       </div>
                     </td>
                     <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/10 dark:bg-emerald-900/5">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5">
                         <input 
                           type="text" 
-                          value={item.bobot_rencana !== undefined ? item.bobot_rencana : ''}
+                          placeholder="0.00"
+                          value={item.bobot_rencana}
                           onChange={(e) => handleUpdateBobotKeranjang(item.rab_item_id, e.target.value)}
-                          onBlur={(e) => {
-                             let val = parseFloat(e.target.value) || 0;
-                             if (val > item.sisa_bobot_asli) val = item.sisa_bobot_asli;
-                             handleUpdateBobotKeranjang(item.rab_item_id, val.toString());
-                          }}
-                          className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 shadow-inner transition-colors" 
+                          className="w-28 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors" 
                         />
-                        <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{Number(item.sisa_bobot_asli).toFixed(2)}%)</span>
+                        <span className="text-xs font-bold text-slate-500">%</span>
                       </div>
                     </td>
                     <td className="p-2 text-center align-middle">
@@ -384,7 +354,7 @@ export default function AddSchedule() {
         <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none px-4">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 md:p-3 rounded-2xl shadow-2xl flex items-center gap-4 md:gap-6 pointer-events-auto backdrop-blur-md bg-opacity-90">
             <div className="hidden md:flex flex-col">
-              <span className="text-[10px] text-slate-500 uppercase font-bold">Total Bobot</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold">Total Target Diinput</span>
               <span className="text-lg font-extrabold font-mono text-emerald-600">{Number(totalDraftBobot).toFixed(2)}%</span>
             </div>
             <button onClick={handleSaveSchedule} disabled={isSaving} className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50">

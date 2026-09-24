@@ -24,14 +24,28 @@ class ProjectScheduleController extends Controller
     {
         $project = Project::findOrFail($projectId);
 
-        // 1. Ambil Data RAB & Jadwal yang sudah ada di database
+        $totalHari = 0;
+        $totalMinggu = 0;
+
+        // 1. Hitung durasi proyek (Total Minggu) berdasarkan kontrak
+        if ($project->tanggal_mulai && $project->tanggal_selesai) {
+            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
+            $end = Carbon::parse($project->tanggal_selesai)->startOfDay();
+
+            if ($end->greaterThanOrEqualTo($start)) {
+                $totalHari = $start->diffInDays($end) + 1;
+                $totalMinggu = ceil($totalHari / 7);
+            }
+        }
+
+        // 2. Ambil Master Data RAB & Jadwal
         $rabData = RabCategory::with(['items' => function($q) {
             $q->orderBy('id', 'asc');
         }])->where('project_id', $projectId)->get();
 
         $schedules = ProjectSchedule::where('project_id', $projectId)->get();
 
-        // 2. Hitung Grand Total Uang RAB (Untuk pembagi 100%)
+        // 3. Hitung Grand Total Uang RAB (Untuk pembagi 100%)
         $grandTotalRAB = 0;
         foreach($rabData as $cat) {
             foreach($cat->items as $item) {
@@ -41,80 +55,169 @@ class ProjectScheduleController extends Controller
             }
         }
 
-        // 3. KALKULASI LOGIKA BACKEND (DIKIRIM MATANG KE FRONTEND)
-        foreach($rabData as $cat) {
-            $bobotDivisi = 0; // Total persenan untuk Divisi ini
+        // ==========================================
+        // 4. KALKULASI REALISASI AKTUAL (LAPANGAN)
+        // ==========================================
+        $approvedReports = DailyReport::with('activities')
+            ->where('project_id', $projectId)
+            ->where('status', 'approved')
+            ->orderBy('tanggal', 'asc')
+            ->get();
 
+        $realizations = [];
+        $realizedVolumes = [];
+
+        foreach ($approvedReports as $report) {
+            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
+            $reportDate = Carbon::parse($report->tanggal)->startOfDay();
+            $diffDays = $start->diffInDays($reportDate, false);
+            $mingguKe = ($diffDays >= 0) ? floor($diffDays / 7) + 1 : 0;
+
+            foreach ($report->activities as $act) {
+                if ($act->rab_item_id) {
+                    if (!isset($realizedVolumes[$act->rab_item_id])) {
+                        $realizedVolumes[$act->rab_item_id] = 0;
+                    }
+                    $realizedVolumes[$act->rab_item_id] += (float)$act->volume;
+
+                    $rabItem = RabItem::find($act->rab_item_id);
+
+                    if ($rabItem && $grandTotalRAB > 0) {
+                        $bobotTotalRAB = ($rabItem->total_harga / $grandTotalRAB) * 100;
+                        $volumeTotalRAB = $rabItem->volume > 0 ? $rabItem->volume : 1;
+                        $bobotRealisasi = ($act->volume / $volumeTotalRAB) * $bobotTotalRAB;
+
+                        $realizations[] = [
+                            'rab_item_id' => $act->rab_item_id,
+                            'minggu_ke' => $mingguKe,
+                            'volume_laporan' => $act->volume,
+                            'bobot_realisasi' => $bobotRealisasi,
+                            'tgl_input' => $report->tanggal,
+                            'tgl_verifikasi' => Carbon::parse($report->verified_at)->format('Y-m-d'),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 5. KALKULASI SISA BOBOT & INJEKSI KE RAB
+        // ==========================================
+        foreach($rabData as $cat) {
+            $bobotDivisi = 0;
             foreach($cat->items as $item) {
                 if(!$item->is_subheader && $grandTotalRAB > 0) {
-                    // A. Bobot Murni Item (Harga Item / Grand Total * 100)
+                    // Bobot Murni Item
                     $bobotStandar = ($item->total_harga / $grandTotalRAB) * 100;
                     $bobotDivisi += $bobotStandar;
 
-                    // B. Berapa yang sudah pernah dimasukkan ke jadwal (Tabel project_schedules)?
+                    // Berapa yang sudah pernah dimasukkan ke jadwal?
                     $totalDijadwalkan = $schedules->where('rab_item_id', $item->id)->sum('bobot_rencana');
 
-                    // C. SISA BOBOT (Ini yang akan diinput user di React)
+                    // Berapa yang sudah direalisasikan di Lapangan?
+                    $volRealisasi = $realizedVolumes[$item->id] ?? 0;
+                    $volTotal = $item->volume > 0 ? $item->volume : 1;
+                    $bobotRealisasi = ($volRealisasi / $volTotal) * $bobotStandar;
+
+                    // SISA BOBOT PLAFON
                     $sisaBobot = max(0, $bobotStandar - $totalDijadwalkan);
 
-                    // Suntikkan ke JSON
+                    // Suntikkan ke JSON Response
                     $item->bobot_standar = round($bobotStandar, 4);
                     $item->total_dijadwalkan = round($totalDijadwalkan, 4);
+                    $item->bobot_realisasi = round($bobotRealisasi, 4);
                     $item->sisa_bobot = round($sisaBobot, 4);
                 } else {
                     $item->bobot_standar = 0;
                     $item->total_dijadwalkan = 0;
+                    $item->bobot_realisasi = 0;
                     $item->sisa_bobot = 0;
                 }
             }
-            // Suntikkan total divisi ke JSON
             $cat->bobot_divisi = round($bobotDivisi, 4);
         }
 
         return response()->json([
             'status' => 'success',
             'data' => [
-                'project_info' => $project,
+                'project_info' => [
+                    'nama_proyek' => $project->nama_proyek,
+                    'tanggal_mulai' => $project->tanggal_mulai,
+                    'tanggal_selesai' => $project->tanggal_selesai,
+                    'total_hari' => $totalHari,
+                    'total_minggu' => $totalMinggu
+                ],
                 'rab_data' => $rabData,
-                'schedules' => $schedules
+                'schedules' => $schedules,
+                'realizations' => $realizations
             ]
         ]);
     }
 
+    /**
+     * Menyimpan/Memperbarui Data Jadwal (Update Or Create Mode)
+     */
     public function saveSchedules(Request $request, $projectId)
     {
         $request->validate(['schedules' => 'array']);
 
         DB::beginTransaction();
         try {
-            $insertData = [];
-            $now = now();
-
-            // Insert data baru (Tanpa menghapus data lama, karena ini penambahan jadwal)
             if (!empty($request->schedules)) {
                 foreach ($request->schedules as $sched) {
-                    $insertData[] = [
-                        'project_id' => $projectId,
-                        'rab_item_id' => $sched['rab_item_id'],
-                        'minggu_ke' => $sched['minggu_ke'],
-                        'bulan' => $sched['bulan'] ?? null,
-                        'tanggal_awal' => $sched['tanggal_awal'] ?? null,
-                        'tanggal_akhir' => $sched['tanggal_akhir'] ?? null,
-                        'bobot_rencana' => $sched['bobot_rencana'],
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
+                    // PERBAIKAN: Gunakan updateOrCreate untuk mencegah data ganda / double input
+                    ProjectSchedule::updateOrCreate(
+                        [
+                            'project_id' => $projectId,
+                            'rab_item_id' => $sched['rab_item_id'],
+                            'minggu_ke' => $sched['minggu_ke'],
+                        ],
+                        [
+                            'bulan' => $sched['bulan'] ?? null,
+                            'tanggal_awal' => $sched['tanggal_awal'] ?? null,
+                            'tanggal_akhir' => $sched['tanggal_akhir'] ?? null,
+                            'bobot_rencana' => $sched['bobot_rencana'],
+                            'updated_at' => now()
+                        ]
+                    );
                 }
-                ProjectSchedule::insert($insertData);
             }
 
             DB::commit();
-            return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan Berhasil Ditambahkan!']);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Jadwal Mingguan Berhasil Diperbarui!'
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menyimpan jadwal: ' . $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * Fungsi untuk menghapus jadwal spesifik dari database
+     */
+    public function destroySchedules(Request $request, $projectId)
+    {
+        $query = ProjectSchedule::where('project_id', $projectId);
+
+        if ($request->has('minggu_ke')) {
+            $query->where('minggu_ke', $request->minggu_ke);
+        }
+        if ($request->has('rab_item_id')) {
+            $query->where('rab_item_id', $request->rab_item_id);
+        }
+
+        $query->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Data jadwal berhasil dihapus permanen dari database.'
+        ]);
     }
 
     // ==========================================================
@@ -129,7 +232,6 @@ class ProjectScheduleController extends Controller
 
         $decoded = base64_decode($parts[1]);
 
-        // MENGGUNAKAN TEMP DIRECTORY OS UNTUK BYPASS FOLDER STORAGE
         $tempPath = sys_get_temp_dir() . '/' . uniqid('kurva_') . '.jpg';
         file_put_contents($tempPath, $decoded);
 
@@ -145,14 +247,10 @@ class ProjectScheduleController extends Controller
         ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
-
-        // Untuk PDF, langsung baca Base64 di blade agar tidak perlu memanggil file fisik
         $chartImageBase64 = $request->chart_image;
-
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
         $viewMode = $request->view_mode ?? 'harian';
-
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
@@ -160,7 +258,6 @@ class ProjectScheduleController extends Controller
                   ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
                   ->setPaper('a4', 'landscape');
 
-        // Mencegah error garis miring pada nama file
         $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
         return $pdf->download('Kurva_S_' . $safeName . '.pdf');
     }
@@ -174,14 +271,10 @@ class ProjectScheduleController extends Controller
         ini_set('memory_limit', '1024M');
 
         $project = Project::findOrFail($projectId);
-
-        // Excel butuh file fisik
         $imagePath = $this->saveChartImage($request->chart_image);
-
         $itemProgress = $request->item_progress ?? [];
         $chartData = $request->chart_data ?? [];
         $viewMode = $request->view_mode ?? 'harian';
-
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
