@@ -4,8 +4,7 @@ import api from '../../api';
 import { 
   ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown,
-  FileSpreadsheet, X // <-- INI YANG SEBELUMNYA TERTINGGAL
+  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, FileSpreadsheet, X
 } from 'lucide-react';
 
 const defaultPersonilList = [
@@ -134,7 +133,6 @@ export default function AddLaporan() {
     fetchScheduleAndRAB();
   }, [selectedProjectId]);
 
-  // --- LOGIKA PENGELOMPOKAN URAIAN PEKERJAAN ---
   let optionsMingguIni = [];
   let optionsMingguLain = [];
   let scheduledItemsMap = new Map();
@@ -165,7 +163,6 @@ export default function AddLaporan() {
     });
   }
 
-  // Pekerjaan RAB yang BELUM PERNAH dijadwalkan sama sekali
   const unscheduledRabOptions = rabOptions.filter(opt => !scheduledItemsMap.has(opt.id));
   const isScheduleEmpty = scheduleData && (!scheduleData.schedules || scheduleData.schedules.length === 0);
 
@@ -530,7 +527,7 @@ export default function AddLaporan() {
                     <div className="flex items-center gap-3">
                       <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-md text-xs font-bold font-mono">{p.jumlah} Org</span>
                       <div className="flex gap-1">
-                        <button type="button" onClick={() => openPersonilModal(p)} className="p-1.5 text-blue-50 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"><Edit3 className="w-3.5 h-3.5"/></button>
+                        <button type="button" onClick={() => openPersonilModal(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"><Edit3 className="w-3.5 h-3.5"/></button>
                         <button type="button" onClick={() => setPersonilItems(personilItems.filter(item => item.id !== p.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-md border border-transparent hover:border-rose-200"><Trash2 className="w-3.5 h-3.5"/></button>
                       </div>
                     </div>
@@ -570,7 +567,7 @@ export default function AddLaporan() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Dokumentasi (Foto)</h2>
+              <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)</h2>
               <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={handleFotoLampiranChange} />
               <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 text-[10px] font-medium rounded-lg border border-amber-200"><UploadCloud className="w-3.5 h-3.5" /> Upload Foto</button>
             </div>
@@ -584,7 +581,7 @@ export default function AddLaporan() {
                       <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
                     </div>
-                    <button type="button" onClick={() => handleRemoveFoto(idx)} title="Batal Unggah" className="p-1.5 bg-white border border-slate-200 text-rose-500 rounded hover:bg-rose-50 shadow-sm"><Trash2 className="w-3.5 h-3.5"/></button>
+                    <button type="button" onClick={() => handleRemoveFoto(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"><Trash2 className="w-3.5 h-3.5"/></button>
                   </div>
                 ))
               )}
@@ -607,7 +604,7 @@ export default function AddLaporan() {
                       <p className="font-medium text-slate-800 dark:text-white truncate">{file.name}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Siap diunggah ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
                     </div>
-                    <button type="button" onClick={() => handleRemoveDokumen(idx)} title="Batal Unggah" className="p-1.5 bg-white border border-slate-200 text-rose-500 rounded hover:bg-rose-50 shadow-sm"><Trash2 className="w-3.5 h-3.5"/></button>
+                    <button type="button" onClick={() => handleRemoveDokumen(idx)} title="Batal Unggah" className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95"><Trash2 className="w-3.5 h-3.5"/></button>
                   </div>
                 ))
               )}
