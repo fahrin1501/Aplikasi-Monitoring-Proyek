@@ -69,6 +69,10 @@ export default function AddSchedule() {
 
   const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
 
+  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
+    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
+  , 0) : 0;
+
   const getAvailableItems = () => {
     if (!draftDivisiId || !scheduleData) return [];
     
@@ -84,8 +88,19 @@ export default function AddSchedule() {
       }
     }
 
-    return allItems.filter(item => {
-      if (item.is_subheader) return false;
+    return allItems.map(item => {
+      if (item.is_subheader) return null;
+      
+      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
+      const realisasiAktual = scheduleData.realizations
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+
+      return { ...item, sisaPlafon };
+    }).filter(item => {
+      if (!item) return false;
+      if (item.sisaPlafon <= 0) return false; 
       if (addedItems.some(draft => draft.rab_item_id === item.id)) return false; 
       return true;
     });
@@ -128,7 +143,7 @@ export default function AddSchedule() {
     
     // Validasi Kumulatif
     const targetVal = parseFloat(targetKumulatif.replace(',', '.')) || 0;
-    if (targetVal <= 0) return alert("Target Kumulatif Mingguan harus lebih dari 0!");
+    if (targetVal <= 0) return alert("Target Kumulatif Mingguan harus diisi dan lebih dari 0!");
 
     setIsSaving(true);
     try {
