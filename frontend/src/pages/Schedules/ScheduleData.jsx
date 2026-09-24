@@ -38,6 +38,7 @@ export default function LaporanData() {
   const [reportData, setReportData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
+  // STATE DRAFT MODE & RAB SELECTOR
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [rabOptions, setRabOptions] = useState([]);
@@ -145,6 +146,7 @@ export default function LaporanData() {
         pengawas: reportData.pengawas,
         lokasi: reportData.lokasi,
         cuacaItems: parsedCuaca,
+        // Pastikan persentase disetup untuk Mode Edit
         activities: JSON.parse(JSON.stringify(reportData.activities || [])).map(act => ({
           ...act, persentase: act.persentase || ''
         })),
@@ -305,7 +307,7 @@ export default function LaporanData() {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('id-ID', options);
 
-    let pekerjaanText = reportData.activities?.length ? reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan}) ${act.persentase ? `[${act.persentase}%]` : ''}`).join('\n') : "1. Tidak Ada Pekerjaan";
+    let pekerjaanText = reportData.activities?.length ? reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan}) ${act.persentase ? `[${Number(act.persentase)}%]` : ''}`).join('\n') : "1. Tidak Ada Pekerjaan";
     let manpowerText = reportData.personnels?.length ? reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n') : "1. Tidak Ada Pekerja = -";
     let alatText = reportData.equipments?.length ? reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n') : "1. Tidak Ada Alat = -";
 
@@ -599,7 +601,7 @@ export default function LaporanData() {
         </div>
       </div>
 
-      {/* Rincian Kegiatan (Edit Inline Saat Mode Edit, View Mode di bawahnya) */}
+      {/* Rincian Kegiatan */}
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
         
         <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
@@ -677,7 +679,6 @@ export default function LaporanData() {
                   </div>
                   
                   <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
-                    {/* GRID BARU: VOLUME - SATUAN - PERSENTASE (12 KOLOM) */}
                     <div className="grid grid-cols-12 gap-2 w-full">
                       <div className="col-span-5">
                         <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
@@ -739,12 +740,12 @@ export default function LaporanData() {
                         <span className="font-bold text-emerald-600 dark:text-emerald-400">{Number(keg.volume)} {keg.satuan}</span>
                       </div>
                     )}
-                    {/* BAGIAN INI YANG SEBELUMNYA HILANG! */}
+                    {/* BAGIAN INI YANG SEBELUMNYA HILANG DAN SUDAH SAYA KEMBALIKAN */}
                     {(keg.persentase !== null && keg.persentase !== undefined && keg.persentase !== '') && (
                       <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 px-3 py-2 rounded-lg text-[10px] shadow-sm">
                         <Target className="w-3.5 h-3.5 text-blue-500" /> 
                         <span className="text-blue-700 dark:text-blue-400 font-bold uppercase">Persentase:</span> 
-                        <span className="font-bold text-blue-600 dark:text-blue-400">{keg.persentase}%</span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">{Number(keg.persentase)}%</span>
                       </div>
                     )}
                   </div>
@@ -857,7 +858,7 @@ export default function LaporanData() {
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Dokumentasi (Foto)
+              <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
             </h2>
             {isEditMode && (
               <>
@@ -914,7 +915,7 @@ export default function LaporanData() {
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-              <Paperclip className="w-4 h-4" /> File Lampiran
+              <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
             </h2>
             {isEditMode && (
               <>
