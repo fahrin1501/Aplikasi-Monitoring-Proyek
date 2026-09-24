@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
-  ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, Filter, ListPlus, Clock, CheckCircle2, Trash2, ChevronDown, Plus, Calendar, Layers
+  ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, Filter, ListPlus, Clock, CheckCircle2, Trash2, ChevronDown, Plus, Calendar, Layers, CheckSquare
 } from 'lucide-react';
 
 export default function ScheduleData() {
@@ -47,11 +47,15 @@ export default function ScheduleData() {
   
   const [modalAddedItems, setModalAddedItems] = useState([]);
   const [draftDivisiId, setDraftDivisiId] = useState('');
-  const [draftItemId, setDraftItemId] = useState('');
+  
+  const [draftItemIds, setDraftItemIds] = useState([]); 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (filterMenuRef.current && !filterMenuRef.current.contains(event.target)) setShowFilterMenu(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -75,11 +79,9 @@ export default function ScheduleData() {
         api.get(`/projects/${id}`),
         api.get(`/projects/${id}/schedules`)
       ]);
-      
       setProjectData(projRes.data);
-      const data = schedRes.data.data;
-      setScheduleData(data);
-      setLocalSchedules(data.schedules || []);
+      setScheduleData(schedRes.data.data);
+      setLocalSchedules(schedRes.data.data.schedules || []);
     } catch (error) {
       console.error("Gagal menarik data:", error);
     } finally {
@@ -128,7 +130,11 @@ export default function ScheduleData() {
     }));
   };
 
-  // --- HANDLER MODAL KERANJANG PEKERJAAN ---
+  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
+    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
+  , 0) : 0;
+
+  // --- HANDLER MODAL KERANJANG PEKERJAAN LINTAS DIVISI ---
   const openAddItemModal = (weekGroup) => {
     setTargetPeriod({
       bulan: weekGroup.bulan,
@@ -138,50 +144,74 @@ export default function ScheduleData() {
     });
     setModalAddedItems([]); 
     setDraftDivisiId('');
-    setDraftItemId('');
+    setDraftItemIds([]);
     setShowAddItemModal(true);
   };
 
   const getAvailableItemsForModal = () => {
     if (!draftDivisiId || !scheduleData) return [];
-    const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
-    if (!divisi) return [];
+    
+    let allItems = [];
+    
+    if (draftDivisiId === 'all') {
+      scheduleData.rab_data.forEach(cat => {
+        cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
+      });
+    } else {
+      const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
+      if (divisi) {
+        divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
+      }
+    }
 
-    return divisi.items.filter(item => {
-      if (item.is_subheader || Number(item.sisa_bobot) <= 0) return false;
+    return allItems.map(item => {
+      if (item.is_subheader) return null;
+      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
+      const realisasiAktual = scheduleData.realizations
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+      return { ...item, sisaPlafon };
+    }).filter(item => {
+      if (!item) return false;
+      if (item.sisaPlafon <= 0) return false;
       const inModalDraft = modalAddedItems.some(draft => draft.rab_item_id === item.id);
       const inLocalSchedules = localSchedules.some(s => s.rab_item_id === item.id);
       return !inModalDraft && !inLocalSchedules;
     });
   };
 
-  const handleAddItemToModalCart = () => {
-    if (!draftDivisiId || !draftItemId) return alert("Pilih Divisi dan Uraian Pekerjaan terlebih dahulu!");
-    
-    if (modalAddedItems.some(i => i.rab_item_id.toString() === draftItemId.toString())) {
-      return alert("Pekerjaan ini sudah ada di keranjang.");
+  const availableItemsForModal = getAvailableItemsForModal();
+
+  const toggleItemModal = (itemId) => {
+    if (draftItemIds.includes(itemId)) {
+      setDraftItemIds(draftItemIds.filter(id => id !== itemId));
+    } else {
+      setDraftItemIds([...draftItemIds, itemId]);
     }
+  };
 
-    const divisi = scheduleData.rab_data.find(d => d.id.toString() === draftDivisiId);
-    const itemAsli = divisi.items.find(i => i.id.toString() === draftItemId);
+  const handleAddItemsToModalCart = () => {
+    if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang Uraian Pekerjaan terlebih dahulu!");
 
-    const sisaBobot = Number(itemAsli.sisa_bobot) || 0;
+    const itemsToAdd = availableItemsForModal.filter(i => draftItemIds.includes(i.id));
 
-    const newItem = {
+    const newItems = itemsToAdd.map(itemAsli => ({
       rab_item_id: itemAsli.id,
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
-      kategori_nama: divisi.nama_kategori,
-      bobot_rencana: sisaBobot.toString(), // String untuk bypass bug toFixed
-      max_bobot: sisaBobot,
+      kategori_nama: itemAsli.kategori_nama,
+      bobot_rencana: itemAsli.sisaPlafon.toString(), 
+      max_bobot: itemAsli.sisaPlafon,
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
       tanggal_akhir: targetPeriod.end,
-    };
+    }));
 
-    setModalAddedItems([...modalAddedItems, newItem]);
-    setDraftItemId(''); 
+    setModalAddedItems([...modalAddedItems, ...newItems]);
+    setDraftItemIds([]); 
+    setIsDropdownOpen(false);
   };
 
   const handleRemoveFromModalCart = (idToRemove) => {
@@ -192,12 +222,10 @@ export default function ScheduleData() {
     setModalAddedItems(modalAddedItems.map(item => {
       if (item.rab_item_id === id) {
         if (newValue === '') return { ...item, bobot_rencana: '' };
-        
         const sanitizedValue = newValue.replace(',', '.');
         const valNum = parseFloat(sanitizedValue);
         
         if (isNaN(valNum)) return item;
-        
         if (valNum > item.max_bobot) {
            return { ...item, bobot_rencana: item.max_bobot.toString() };
         }
@@ -222,7 +250,6 @@ export default function ScheduleData() {
     setSaveModal(false);
     setIsSaving(true);
     
-    // Konversi string ke desimal final sebelum dikirim ke backend
     const safeLocalSchedules = localSchedules.map(s => ({
        ...s,
        bobot_rencana: parseFloat(s.bobot_rencana) || 0
@@ -246,7 +273,7 @@ export default function ScheduleData() {
       const item = cat.items.find(i => i.id.toString() === rabItemId.toString());
       if (item) return { ...item, kategori_nama: cat.nama_kategori };
     }
-    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-', sisa_bobot: 0 };
+    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-' };
   };
 
   const formatIndoDate = (dateString) => {
@@ -353,7 +380,6 @@ export default function ScheduleData() {
 
           {canCreateData && (
             <div className="flex items-center bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
-              
               {!isEditMode && (
                 <button 
                   disabled={isLoading} 
@@ -385,18 +411,16 @@ export default function ScheduleData() {
         </div>
       </div>
 
-      {/* --- 2. KONDISI LOADING VS KONTEN UTAMA --- */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in backdrop-blur-sm">
           <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat Data Jadwal...</p>
         </div>
-      ) : allWeeks.length === 0 ? (
+      ) : weeksToRender.length === 0 ? (
         <div className="p-16 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in backdrop-blur-sm">
           <CalendarDays className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <h3 className="text-slate-700 dark:text-slate-300 font-bold mb-1">Jadwal Belum Disusun</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">Anda belum merencanakan pekerjaan apapun ke dalam kalender Time Schedule.</p>
-          
           {canCreateData && (
             <button onClick={() => navigate(`/schedules/${id}/data/input`)} className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md hover:bg-amber-600 transition-colors flex items-center gap-2 mx-auto">
               <Plus className="w-4 h-4" /> Mulai Rencanakan Jadwal
@@ -432,19 +456,12 @@ export default function ScheduleData() {
                       {schedulesThisWeek.length} Pekerjaan Didaftarkan
                     </span>
                     
-                    {/* TOMBOL BATCH TAMBAH PEKERJAAN DRAF (Hanya Muncul Saat Edit Mode) */}
                     {isEditMode && canCreateData && (
                       <>
-                        <button 
-                          onClick={() => openAddItemModal(weekGroup)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm z-20 relative"
-                        >
+                        <button onClick={() => openAddItemModal(weekGroup)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm z-20 relative">
                           <Plus className="w-3.5 h-3.5" /> Tambah
                         </button>
-                        <button 
-                          onClick={() => setDeleteWeekConfig({ show: true, weekNum: weekNum })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded-lg text-[10px] font-bold transition-all shadow-sm z-20 relative"
-                        >
+                        <button onClick={() => setDeleteWeekConfig({ show: true, weekNum: weekNum })} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded-lg text-[10px] font-bold transition-all shadow-sm z-20 relative">
                           <Trash2 className="w-3.5 h-3.5" /> Hapus M-{weekNum}
                         </button>
                       </>
@@ -470,21 +487,19 @@ export default function ScheduleData() {
                       ) : (
                         schedulesThisWeek.map(sched => {
                           const item = getItemInfo(sched.rab_item_id);
-                          const sisaTersedia = Number(item?.sisa_bobot || 0) + Number(sched.bobot_rencana);
                           
-                          const realisasiMingguIni = scheduleData.realizations
-                            ?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)
-                            ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-
-                          const lastRealization = scheduleData.realizations
-                            ?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)
-                            ?.pop();
+                          const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item?.total_harga || 0) / grandTotalRAB) * 100 : 0;
+                          const realisasiAktual = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+                          const sisaTersedia = Math.max(0, bobotStandarHitungan - realisasiAktual) + Number(sched.bobot_rencana);
+                          
+                          const realisasiMingguIni = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+                          const lastRealization = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)?.pop();
 
                           return (
                             <tr key={sched.rab_item_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                               <td className="p-4 border-r border-slate-200 dark:border-slate-700/60">
-                                <div className="font-bold text-[11px] leading-snug line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
-                                <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-wide truncate">{item.kategori_nama}</div>
+                                <div className="font-bold text-[11px] leading-snug line-clamp-2" title={item?.uraian_pekerjaan}>{item?.uraian_pekerjaan}</div>
+                                <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-wide truncate">{item?.kategori_nama}</div>
                               </td>
                               
                               <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-blue-50/20 dark:bg-blue-900/10">
@@ -492,7 +507,7 @@ export default function ScheduleData() {
                                   <div className="flex flex-col gap-1 items-center justify-center">
                                     <input 
                                       type="text" 
-                                      value={sched.bobot_rencana || ''} 
+                                      value={sched.bobot_rencana !== undefined ? sched.bobot_rencana : ''} 
                                       onChange={(e) => handleInlineChange(sched.rab_item_id, weekNum, e.target.value, sisaTersedia)} 
                                       onBlur={(e) => {
                                         let val = parseFloat(e.target.value) || 0;
@@ -518,15 +533,11 @@ export default function ScheduleData() {
                                 <div className="flex flex-col gap-1.5">
                                   <div className="flex justify-between items-center text-[9px] border border-slate-200 dark:border-slate-700 px-2 py-1 rounded bg-white dark:bg-slate-800">
                                     <span className="text-slate-500">Input:</span>
-                                    <span className={`font-mono ${lastRealization ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 italic'}`}>
-                                      {lastRealization ? lastRealization.tgl_input : 'Menunggu'}
-                                    </span>
+                                    <span className={`font-mono ${lastRealization ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 italic'}`}>{lastRealization ? lastRealization.tgl_input : 'Menunggu'}</span>
                                   </div>
                                   <div className="flex justify-between items-center text-[9px] border border-slate-200 dark:border-slate-700 px-2 py-1 rounded bg-white dark:bg-slate-800">
                                     <span className="text-slate-500">Verif:</span>
-                                    <span className={`font-mono ${lastRealization ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400 italic'}`}>
-                                      {lastRealization ? lastRealization.tgl_verifikasi : 'Menunggu'}
-                                    </span>
+                                    <span className={`font-mono ${lastRealization ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400 italic'}`}>{lastRealization ? lastRealization.tgl_verifikasi : 'Menunggu'}</span>
                                   </div>
                                 </div>
                               </td>
@@ -541,13 +552,11 @@ export default function ScheduleData() {
                                 </div>
                               </td>
 
-                              {/* KOLOM AKSI HANYA TAMPIL SAAT EDIT MODE */}
                               {isEditMode && canCreateData && (
                                 <td className="p-3 text-center align-middle bg-slate-50/50 dark:bg-slate-900/40">
                                    <button 
-                                      onClick={() => setDeleteConfig({ show: true, rabItemId: sched.rab_item_id, weekNum: weekNum, itemName: item.uraian_pekerjaan })}
+                                      onClick={() => setDeleteConfig({ show: true, rabItemId: sched.rab_item_id, weekNum: weekNum, itemName: item?.uraian_pekerjaan })}
                                       className="p-1.5 flex items-center justify-center text-rose-500 bg-rose-50 hover:bg-rose-500 dark:bg-rose-500/10 dark:hover:bg-rose-500 hover:text-white rounded-lg transition-colors shadow-sm mx-auto border border-transparent hover:border-rose-200 dark:hover:border-rose-800"
-                                      title="Hapus Baris Ini"
                                    >
                                      <Trash2 className="w-3.5 h-3.5" />
                                    </button>
@@ -564,7 +573,6 @@ export default function ScheduleData() {
               </div>
             )
           })}
-
         </div>
       )}
 
@@ -582,38 +590,91 @@ export default function ScheduleData() {
               <button onClick={() => setShowAddItemModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 absolute top-4 right-4"><X className="w-5 h-5"/></button>
             </div>
 
-            {/* Form Inline (Modal) */}
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
                <div className="flex flex-col lg:flex-row items-end gap-4">
-                 <div className="w-full lg:w-1/3 space-y-1.5">
-                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Divisi / Kategori</label>
-                   <select value={draftDivisiId} onChange={(e) => { setDraftDivisiId(e.target.value); setDraftItemId(''); }} className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm">
-                     <option value="" disabled>-- Klik Pilih Divisi --</option>
+                 
+                 {/* KOTAK 1: PILIH DIVISI */}
+                 <div className="w-full lg:w-[35%] space-y-1.5">
+                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Mode Filter Divisi</label>
+                   <select 
+                     value={draftDivisiId} 
+                     onChange={(e) => { 
+                        setDraftDivisiId(e.target.value); 
+                        setDraftItemIds([]); 
+                        setIsDropdownOpen(false);
+                     }} 
+                     className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm"
+                   >
+                     <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
+                     <option value="all" className="font-extrabold text-blue-600 dark:text-blue-400">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
                      {scheduleData.rab_data.map(cat => (
                        <option key={cat.id} value={cat.id}>{cat.nama_kategori}</option>
                      ))}
                    </select>
                  </div>
                  
-                 <div className="w-full lg:w-1/2 space-y-1.5">
-                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Uraian Pekerjaan</label>
-                   <select value={draftItemId} onChange={(e) => setDraftItemId(e.target.value)} disabled={!draftDivisiId || getAvailableItemsForModal().length === 0} className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-50 shadow-sm truncate">
-                     <option value="" disabled>{!draftDivisiId ? '-- Pilih Divisi Dulu --' : getAvailableItemsForModal().length === 0 ? '-- Semua Pekerjaan Sudah Ditambahkan --' : '-- Klik Pilih Uraian Pekerjaan --'}</option>
-                     {getAvailableItemsForModal().map(item => (
-                       <option key={item.id} value={item.id}>{item.uraian_pekerjaan} (Sisa Plafon: {Number(item.sisa_bobot).toFixed(2)}%)</option>
-                     ))}
-                   </select>
+                 {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
+                 <div className="w-full lg:w-[50%] space-y-1.5 relative" ref={dropdownRef}>
+                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Centang Uraian Pekerjaan</label>
+                   
+                   <div 
+                      onClick={() => { if(draftDivisiId && availableItemsForModal.length > 0) setIsDropdownOpen(!isDropdownOpen) }}
+                      className={`w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItemsForModal.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
+                   >
+                     <span className="truncate font-medium text-slate-700 dark:text-slate-200">
+                        {!draftDivisiId 
+                          ? '-- Pilih Mode Divisi Dulu --' 
+                          : availableItemsForModal.length === 0 
+                            ? '-- Semua Pekerjaan Sudah Ditambahkan --' 
+                            : draftItemIds.length > 0 
+                              ? `${draftItemIds.length} Pekerjaan Terpilih` 
+                              : '-- Klik untuk Memilih --'}
+                     </span>
+                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                   </div>
+
+                   {/* DROPDOWN CUSTOM MULTI-SELECT */}
+                   {isDropdownOpen && (
+                     <div className="absolute z-50 mt-1.5 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex flex-col overflow-hidden animate-fade-in">
+                        <div className="p-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex gap-2">
+                           <button onClick={() => setDraftItemIds(availableItemsForModal.map(i => i.id))} className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/20 px-2 py-1.5 rounded transition-colors"><CheckSquare className="w-3.5 h-3.5"/> Pilih Semua</button>
+                           <button onClick={() => setDraftItemIds([])} className="text-[10px] font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 px-3 py-1.5 rounded transition-colors">Kosongkan</button>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto custom-scrollbar">
+                          {availableItemsForModal.map(item => (
+                            <div 
+                              key={item.id} 
+                              onClick={() => toggleItemModal(item.id)}
+                              className="flex items-start gap-3 p-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0 transition-colors"
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={draftItemIds.includes(item.id)}
+                                readOnly
+                                className="mt-1 rounded w-4 h-4 text-emerald-500 focus:ring-emerald-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 cursor-pointer"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
+                                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-medium mt-1">
+                                  {draftDivisiId === 'all' && <span className="text-amber-600 dark:text-amber-500 mr-1.5 uppercase font-bold">{item.kategori_nama} •</span>}
+                                  Sisa Plafon: {Number(item.sisaPlafon).toFixed(2)}%
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                     </div>
+                   )}
                  </div>
 
                  <div className="w-full lg:w-auto">
-                   <button onClick={handleAddItemToModalCart} disabled={!draftDivisiId || !draftItemId} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                     <ListPlus className="w-4 h-4" /> Tambah 
+                   <button onClick={handleAddItemsToModalCart} disabled={!draftDivisiId || draftItemIds.length === 0} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                     <ListPlus className="w-4 h-4" /> Tambah {draftItemIds.length > 0 ? `(${draftItemIds.length})` : ''} 
                    </button>
                  </div>
                </div>
             </div>
             
-            {/* Tabel Keranjang (Modal) */}
             <div className="overflow-y-auto custom-scrollbar flex-1 min-h-[200px]">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shadow-sm border-b border-slate-200 dark:border-slate-700/60">
@@ -658,7 +719,6 @@ export default function ScheduleData() {
                           <button 
                             onClick={() => handleRemoveFromModalCart(item.rab_item_id)}
                             className="p-1.5 mx-auto flex items-center justify-center bg-rose-50 dark:bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 rounded-lg transition-colors shadow-sm"
-                            title="Hapus dari Keranjang"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, CalendarDays, Save, Loader2, 
-  Layers, Plus, Trash2, ListPlus
+  Layers, Plus, Trash2, ListPlus, ChevronDown, CheckSquare
 } from 'lucide-react';
 
 export default function AddSchedule() {
@@ -15,28 +15,46 @@ export default function AddSchedule() {
     document.title = "Prisma Group - Jadwal Baru";
   }, []);
 
+  const [projectData, setProjectData] = useState(null);
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  // FORM PERIODE
   const [periodForm, setPeriodForm] = useState({
     bulan: '', minggu_ke: '', tanggal_mulai: '', tanggal_selesai: ''
   });
 
-  // KERANJANG PEKERJAAN BATCH
   const [addedItems, setAddedItems] = useState([]); 
   const [draftDivisiId, setDraftDivisiId] = useState('');
-  const [draftItemId, setDraftItemId] = useState('');
+  
+  const [draftItemIds, setDraftItemIds] = useState([]); 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
-    if (!projectId) return navigate('/projects');
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
+  useEffect(() => {
+    if (!projectId) {
+      navigate('/projects');
+      return;
+    }
     const fetchTimeSchedule = async () => {
       setIsLoadingSchedule(true);
       try {
-        const res = await api.get(`/projects/${projectId}/schedules`);
-        setScheduleData(res.data.data);
+        const [projRes, schedRes] = await Promise.all([
+          api.get(`/projects/${projectId}`),
+          api.get(`/projects/${projectId}/schedules`)
+        ]);
+        setProjectData(projRes.data);
+        setScheduleData(schedRes.data.data);
       } catch (error) {
         console.error("Gagal menarik data jadwal:", error);
       } finally {
@@ -48,81 +66,104 @@ export default function AddSchedule() {
 
   const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
 
-  // --- HANDLER TAMBAH KE KERANJANG ---
-  const handleAddItem = () => {
-    if (!draftDivisiId || !draftItemId) return alert("Pilih Divisi dan Uraian Pekerjaan terlebih dahulu!");
-    if (addedItems.some(i => i.rab_item_id.toString() === draftItemId.toString())) return alert("Pekerjaan ini sudah ada di keranjang.");
+  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
+    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
+  , 0) : 0;
 
-    const divisi = scheduleData.rab_data.find(d => d.id.toString() === draftDivisiId);
-    const itemAsli = divisi.items.find(i => i.id.toString() === draftItemId);
-
-    const sisaBobot = Number(itemAsli.sisa_bobot) || 0;
-
-    if (sisaBobot <= 0) {
-       return alert("Pekerjaan ini sudah dijadwalkan 100% pada minggu-minggu sebelumnya!");
+  // --- PERBAIKAN: BISA MENAMPILKAN SEMUA ITEM LINTAS DIVISI SEKALIGUS ---
+  const getAvailableItems = () => {
+    if (!draftDivisiId || !scheduleData) return [];
+    
+    let allItems = [];
+    
+    // Jika user memilih "Semua Divisi"
+    if (draftDivisiId === 'all') {
+      scheduleData.rab_data.forEach(cat => {
+        cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
+      });
+    } else {
+      // Jika user memilih spesifik 1 divisi
+      const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
+      if (divisi) {
+        divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
+      }
     }
 
-    const newItem = {
+    return allItems.map(item => {
+      if (item.is_subheader) return null;
+      
+      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
+      const realisasiAktual = scheduleData.realizations
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+
+      return { ...item, sisaPlafon };
+    }).filter(item => {
+      if (!item) return false;
+      if (item.sisaPlafon <= 0) return false; 
+      if (addedItems.some(draft => draft.rab_item_id === item.id)) return false; 
+      return true;
+    });
+  };
+
+  const availableItems = getAvailableItems();
+
+  const toggleItem = (itemId) => {
+    if (draftItemIds.includes(itemId)) {
+      setDraftItemIds(draftItemIds.filter(id => id !== itemId));
+    } else {
+      setDraftItemIds([...draftItemIds, itemId]);
+    }
+  };
+
+  // --- HANDLER TAMBAH MASSAL ---
+  const handleAddItems = () => {
+    if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang minimal 1 Uraian Pekerjaan terlebih dahulu!");
+
+    const itemsToAdd = availableItems.filter(i => draftItemIds.includes(i.id));
+
+    const newItems = itemsToAdd.map(itemAsli => ({
       rab_item_id: itemAsli.id,
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
-      kategori_nama: divisi.nama_kategori,
-      bobot_divisi: divisi.bobot_divisi, 
-      bobot_rencana: sisaBobot.toString(), // Disimpan sebagai string agar mudah diedit desimalnya
-      sisa_bobot_asli: sisaBobot 
-    };
+      kategori_nama: itemAsli.kategori_nama, // Langsung terbaca divisi apa
+      bobot_rencana: itemAsli.sisaPlafon.toString(),
+      sisa_bobot_asli: itemAsli.sisaPlafon
+    }));
 
-    setAddedItems([...addedItems, newItem]);
-    setDraftItemId(''); 
+    setAddedItems([...addedItems, ...newItems]);
+    setDraftItemIds([]); 
+    setIsDropdownOpen(false); 
   };
 
   const handleRemoveItem = (idToRemove) => setAddedItems(addedItems.filter(item => item.rab_item_id !== idToRemove));
 
-  // --- PERBAIKAN: HANDLER KETIK MANUAL BOBOT ---
   const handleUpdateBobotKeranjang = (id, newValue) => {
     setAddedItems(addedItems.map(item => {
       if (item.rab_item_id === id) {
-        // Izinkan string kosong agar user bisa menghapus dan mengetik ulang dengan mudah
         if (newValue === '') return { ...item, bobot_rencana: '' };
-
-        // Konversi koma menjadi titik (jika user mengetik pakai koma)
         const sanitizedValue = newValue.replace(',', '.');
         const valNum = parseFloat(sanitizedValue);
-
-        if (isNaN(valNum)) return item; // Cegah input selain angka
-
-        // Jika angka yang diketik melebihi sisa plafon, kunci di angka sisa plafon
+        if (isNaN(valNum)) return item;
         if (valNum > item.sisa_bobot_asli) {
           return { ...item, bobot_rencana: item.sisa_bobot_asli.toString() };
         }
-        
-        // Simpan nilai aslinya (string) agar bisa ngetik "0." dengan mulus
         return { ...item, bobot_rencana: sanitizedValue };
       }
       return item;
     }));
   };
 
-  const getAvailableItems = () => {
-    if (!draftDivisiId || !scheduleData) return [];
-    const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
-    if (!divisi) return [];
-
-    return divisi.items.filter(item => {
-      if (item.is_subheader || Number(item.sisa_bobot) <= 0) return false;
-      return !addedItems.some(draft => draft.rab_item_id === item.id);
-    });
-  };
-
   const totalDraftBobot = addedItems.reduce((sum, item) => sum + (parseFloat(item.bobot_rencana) || 0), 0);
 
   const handleSaveSchedule = async () => {
     if (!periodForm.bulan || !periodForm.minggu_ke || !periodForm.tanggal_mulai || !periodForm.tanggal_selesai) {
-      return alert("Lengkapi data Bulan, Minggu Ke-, serta Tanggal Mulai & Selesai!");
+      return alert("Mohon lengkapi data Bulan, Minggu Ke-, serta Tanggal Mulai & Selesai terlebih dahulu!");
     }
-    if (addedItems.length === 0) return alert("Keranjang masih kosong.");
+    if (addedItems.length === 0) return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     if (addedItems.some(item => parseFloat(item.bobot_rencana) <= 0 || item.bobot_rencana === '')) {
-      return alert("Bobot pekerjaan tidak boleh kosong atau 0.");
+      return alert("Pastikan semua item di keranjang memiliki bobot lebih dari 0.");
     }
 
     setIsSaving(true);
@@ -137,32 +178,34 @@ export default function AddSchedule() {
       }));
 
       await api.post(`/projects/${projectId}/schedules`, { schedules: payloadArr });
-      alert(`Jadwal Minggu Ke-${periodForm.minggu_ke} Berhasil Disimpan!`);
+      alert(`Target Jadwal Minggu Ke-${periodForm.minggu_ke} Berhasil Disimpan!`);
       navigate(`/schedules/${projectId}/data`); 
     } catch (error) {
-      alert("Gagal menyimpan Time Schedule.");
+      alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (isLoadingSchedule || !scheduleData) {
+  if (isLoadingSchedule || !scheduleData || !projectData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-        <p className="text-sm text-slate-500">Mengambil data dari server...</p>
+        <p className="text-sm text-slate-500">Menyiapkan form jadwal...</p>
       </div>
     );
   }
+
+  const namaProyekAktif = projectData?.nama_proyek || 'Memuat Data...';
 
   return (
     <div className="w-full space-y-6 pb-24 relative animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <button onClick={() => navigate(`/schedules/${projectId}/data`)} className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-sm"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={() => navigate(`/schedules/${projectId}/data`)} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm"><ArrowLeft className="w-5 h-5" /></button>
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white">Form Rencana Jadwal</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Susun pekerjaan mingguan berdasarkan sisa RAB yang tersedia.</p>
+            <p className="text-xs text-slate-500 mt-1">Masukkan data periode waktu, lalu tambahkan uraian pekerjaan secara masal.</p>
           </div>
         </div>
       </div>
@@ -170,9 +213,9 @@ export default function AddSchedule() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         <div className="md:col-span-4 bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-3">
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Target Proyek</label>
-          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
+          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-inner">
              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase block mb-1">Nama Proyek:</span>
-             <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-3">{scheduleData?.project_info?.nama_proyek}</p>
+             <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-3">{namaProyekAktif}</p>
           </div>
         </div>
 
@@ -193,44 +236,101 @@ export default function AddSchedule() {
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-emerald-50/50 dark:bg-emerald-900/10 flex flex-col md:flex-row justify-between gap-4">
           <div>
             <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-2"><Layers className="w-4 h-4" /> 2. Target Pekerjaan</h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Sistem otomatis mengambil sisa pekerjaan dari database.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Sistem otomatis mengambil sisa pekerjaan dari database.</p>
           </div>
-          <div className="bg-white dark:bg-slate-800 px-4 py-2 rounded-xl shadow-sm flex items-center gap-3">
+          <div className="bg-white dark:bg-slate-800 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Total Target Diinput:</span>
-            <span className="text-lg font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{Number(totalDraftBobot).toFixed(2)}%</span>
+            <span className="text-lg font-mono font-extrabold text-emerald-600">{Number(totalDraftBobot).toFixed(2)}%</span>
           </div>
         </div>
 
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
            <div className="flex flex-col lg:flex-row items-end gap-4">
-             <div className="w-full lg:w-1/3 space-y-1.5">
-               <label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Divisi (Total: {scheduleData?.rab_data?.find(c=>c.id.toString()===draftDivisiId)?.bobot_divisi?.toFixed(2) || '0.00'}%)</label>
-               <select value={draftDivisiId} onChange={(e) => { setDraftDivisiId(e.target.value); setDraftItemId(''); }} className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm">
-                 <option value="" disabled>-- Klik Pilih Divisi --</option>
+             {/* KOTAK 1: PILIH DIVISI BATCH */}
+             <div className="w-full lg:w-[35%] space-y-1.5">
+               <label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Mode Filter Divisi</label>
+               <select 
+                 value={draftDivisiId} 
+                 onChange={(e) => { 
+                   setDraftDivisiId(e.target.value); 
+                   setDraftItemIds([]); 
+                   setIsDropdownOpen(false);
+                 }} 
+                 className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm cursor-pointer"
+               >
+                 <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
+                 <option value="all" className="font-extrabold text-blue-600 dark:text-blue-400">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
                  {scheduleData.rab_data.map(cat => (
                    <option key={cat.id} value={cat.id}>{cat.nama_kategori}</option>
                  ))}
                </select>
              </div>
              
-             <div className="w-full lg:w-1/2 space-y-1.5">
-               <label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Uraian Pekerjaan</label>
-               <select value={draftItemId} onChange={(e) => setDraftItemId(e.target.value)} disabled={!draftDivisiId || getAvailableItems().length === 0} className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm truncate">
-                 <option value="" disabled>{!draftDivisiId ? '-- Pilih Divisi Dulu --' : getAvailableItems().length === 0 ? '-- Semua Pekerjaan Sudah Ditambahkan --' : '-- Klik Pilih Uraian Pekerjaan --'}</option>
-                 {getAvailableItems().map(item => (
-                   <option key={item.id} value={item.id}>{item.uraian_pekerjaan} (Sisa: {Number(item.sisa_bobot).toFixed(2)}%)</option>
-                 ))}
-               </select>
+             {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
+             <div className="w-full lg:w-[50%] space-y-1.5 relative" ref={dropdownRef}>
+               <label className="text-[10px] font-bold text-slate-600 uppercase">Centang Uraian Pekerjaan</label>
+               
+               <div 
+                  onClick={() => { if(draftDivisiId && availableItems.length > 0) setIsDropdownOpen(!isDropdownOpen) }}
+                  className={`w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItems.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
+               >
+                 <span className="truncate font-medium text-slate-700 dark:text-slate-200">
+                    {!draftDivisiId 
+                      ? '-- Pilih Mode Divisi Dulu --' 
+                      : availableItems.length === 0 
+                        ? '-- Semua Pekerjaan Sudah Ditambahkan --' 
+                        : draftItemIds.length > 0 
+                          ? `${draftItemIds.length} Pekerjaan Terpilih` 
+                          : '-- Klik untuk Memilih --'}
+                 </span>
+                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+               </div>
+
+               {/* DROPDOWN CUSTOM MULTI-SELECT */}
+               {isDropdownOpen && (
+                 <div className="absolute z-50 mt-1.5 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex flex-col overflow-hidden animate-fade-in">
+                    <div className="p-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex gap-2">
+                       <button onClick={() => setDraftItemIds(availableItems.map(i => i.id))} className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/20 px-2 py-1.5 rounded transition-colors"><CheckSquare className="w-3.5 h-3.5"/> Pilih Semua</button>
+                       <button onClick={() => setDraftItemIds([])} className="text-[10px] font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 px-3 py-1.5 rounded transition-colors">Kosongkan</button>
+                    </div>
+                    {/* Diperbesar agar muat banyak jika "Tampilkan Semua Divisi" dipilih */}
+                    <div className="max-h-72 overflow-y-auto custom-scrollbar">
+                      {availableItems.map(item => (
+                        <div 
+                          key={item.id} 
+                          onClick={() => toggleItem(item.id)}
+                          className="flex items-start gap-3 p-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0 transition-colors"
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={draftItemIds.includes(item.id)}
+                            readOnly
+                            className="mt-1 rounded w-4 h-4 text-emerald-500 focus:ring-emerald-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 cursor-pointer"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
+                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-medium mt-1">
+                              {/* Tambahkan Info Divisi jika mode All */}
+                              {draftDivisiId === 'all' && <span className="text-amber-600 dark:text-amber-500 mr-1.5 uppercase font-bold">{item.kategori_nama} •</span>}
+                              Sisa Plafon: {Number(item.sisaPlafon).toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                 </div>
+               )}
              </div>
 
              <div className="w-full lg:w-auto">
-               <button onClick={handleAddItem} disabled={!draftDivisiId || !draftItemId} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                 <ListPlus className="w-4 h-4" /> Tambah 
+               <button onClick={handleAddItems} disabled={!draftDivisiId || draftItemIds.length === 0} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                 <ListPlus className="w-4 h-4" /> Tambah {draftItemIds.length > 0 ? `(${draftItemIds.length})` : ''} 
                </button>
              </div>
            </div>
         </div>
         
+        {/* TABEL HASIL PENAMBAHAN KERANJANG */}
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 uppercase shadow-sm border-b border-slate-200 dark:border-slate-700/60">
@@ -257,17 +357,16 @@ export default function AddSchedule() {
                       <div className="flex items-center justify-center gap-2">
                         <input 
                           type="text" 
-                          value={item.bobot_rencana}
+                          value={item.bobot_rencana !== undefined ? item.bobot_rencana : ''}
                           onChange={(e) => handleUpdateBobotKeranjang(item.rab_item_id, e.target.value)}
                           onBlur={(e) => {
-                             // Perapian saat klik di luar input
                              let val = parseFloat(e.target.value) || 0;
                              if (val > item.sisa_bobot_asli) val = item.sisa_bobot_asli;
                              handleUpdateBobotKeranjang(item.rab_item_id, val.toString());
                           }}
-                          className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 shadow-inner" 
+                          className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 shadow-inner transition-colors" 
                         />
-                        <span className="text-[9px] text-slate-400 block w-16 text-left">(Max Plafon:<br/>{Number(item.sisa_bobot_asli).toFixed(2)}%)</span>
+                        <span className="text-[9px] text-slate-400 block w-16 text-left leading-tight">(Max Plafon:<br/>{Number(item.sisa_bobot_asli).toFixed(2)}%)</span>
                       </div>
                     </td>
                     <td className="p-2 text-center align-middle">
