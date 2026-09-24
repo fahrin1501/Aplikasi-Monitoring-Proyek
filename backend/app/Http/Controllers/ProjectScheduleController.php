@@ -18,18 +18,35 @@ use Illuminate\Support\Facades\DB;
 class ProjectScheduleController extends Controller
 {
     /**
-     * Menarik Data Jadwal Rencana & Data Realisasi Laporan Harian
+     * Menarik Data Jadwal Rencana & Data Realisasi Laporan Harian untuk S-Curve & Jadwal Data
      */
     public function getSchedules($projectId)
     {
         $project = Project::findOrFail($projectId);
 
+        $totalHari = 0;
+        $totalMinggu = 0;
+
+        // 1. Hitung durasi proyek (Total Minggu) berdasarkan kontrak
+        if ($project->tanggal_mulai && $project->tanggal_selesai) {
+            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
+            $end = Carbon::parse($project->tanggal_selesai)->startOfDay();
+
+            if ($end->greaterThanOrEqualTo($start)) {
+                $totalHari = $start->diffInDays($end) + 1;
+                $totalMinggu = ceil($totalHari / 7);
+            }
+        }
+
+        // 2. Ambil Master Data RAB
         $rabData = RabCategory::with(['items' => function($q) {
             $q->orderBy('id', 'asc');
         }])->where('project_id', $projectId)->get();
 
+        // 3. Ambil Jadwal Rencana Mingguan (Untuk Target S-Curve & Table Schedule)
         $schedules = ProjectSchedule::where('project_id', $projectId)->get();
 
+        // 4. Hitung Grand Total Uang RAB (Untuk pembagi dasar)
         $grandTotalRAB = 0;
         foreach($rabData as $cat) {
             foreach($cat->items as $item) {
@@ -39,14 +56,73 @@ class ProjectScheduleController extends Controller
             }
         }
 
+        // ==========================================
+        // 5. KALKULASI REALISASI AKTUAL (LAPORAN HARIAN) UNTUK S-CURVE
+        // ==========================================
+        // Tarik laporan harian yang HANYA BERSTATUS APPROVED (Disetujui PPK/Pengawas)
+        $approvedReports = DailyReport::with('activities')
+            ->where('project_id', $projectId)
+            ->where('status', 'approved')
+            ->orderBy('tanggal', 'asc')
+            ->get();
+
+        $realizations = [];
+        $realizedVolumes = []; // Menyimpan akumulasi Volume mentah
+
+        foreach ($approvedReports as $report) {
+            // Ambil "Minggu Ke-" sesuai dengan isian manual di Laporan (bukan hitungan otomatis lagi)
+            $mingguKe = $report->minggu_ke ?: 0;
+
+            foreach ($report->activities as $act) {
+                if ($act->rab_item_id) {
+                    // Akumulasi volume
+                    if (!isset($realizedVolumes[$act->rab_item_id])) {
+                        $realizedVolumes[$act->rab_item_id] = 0;
+                    }
+                    $realizedVolumes[$act->rab_item_id] += (float)$act->volume;
+
+                    // Mengambil Persentase yang diketik manual di form Laporan (Prioritas Utama)
+                    // Jika user tidak mengisi persen di Laporan, fallback ke Volume * Harga
+                    $bobotRealisasi = 0;
+                    if (!is_null($act->persentase)) {
+                        $bobotRealisasi = (float)$act->persentase;
+                    } else {
+                        // Fallback (Jaga-jaga jika input persen kosong)
+                        $rabItem = RabItem::find($act->rab_item_id);
+                        if ($rabItem && $grandTotalRAB > 0) {
+                            $bobotTotalRAB = ($rabItem->total_harga / $grandTotalRAB) * 100;
+                            $volumeTotalRAB = $rabItem->volume > 0 ? $rabItem->volume : 1;
+                            $bobotRealisasi = ($act->volume / $volumeTotalRAB) * $bobotTotalRAB;
+                        }
+                    }
+
+                    $realizations[] = [
+                        'rab_item_id' => $act->rab_item_id,
+                        'minggu_ke' => $mingguKe,
+                        'volume_laporan' => $act->volume,
+                        'bobot_realisasi' => $bobotRealisasi, // <-- Injeksi Persen Aktua S-Curve
+                        'tgl_input' => $report->tanggal,
+                        'tgl_verifikasi' => Carbon::parse($report->verified_at)->format('Y-m-d'),
+                    ];
+                }
+            }
+        }
+
+        // ==========================================
+        // 6. INJEKSI DATA KE RESPONSE JSON UNTUK TABEL JADWAL
+        // ==========================================
         foreach($rabData as $cat) {
             $bobotDivisi = 0;
+
             foreach($cat->items as $item) {
                 if(!$item->is_subheader && $grandTotalRAB > 0) {
                     $bobotStandar = ($item->total_harga / $grandTotalRAB) * 100;
                     $bobotDivisi += $bobotStandar;
 
+                    // Ambil rencana kumulatif yang dibagi rata dari backend di form Jadwal
                     $totalDijadwalkan = $schedules->where('rab_item_id', $item->id)->sum('bobot_rencana');
+
+                    // SISA BOBOT (Opsional, tapi tetap dihitung untuk info tabel)
                     $sisaBobot = max(0, $bobotStandar - $totalDijadwalkan);
 
                     $item->bobot_standar = round($bobotStandar, 4);
@@ -64,15 +140,22 @@ class ProjectScheduleController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'project_info' => $project,
+                'project_info' => [
+                    'nama_proyek' => $project->nama_proyek,
+                    'tanggal_mulai' => $project->tanggal_mulai,
+                    'tanggal_selesai' => $project->tanggal_selesai,
+                    'total_hari' => $totalHari,
+                    'total_minggu' => $totalMinggu
+                ],
                 'rab_data' => $rabData,
-                'schedules' => $schedules
+                'schedules' => $schedules, // <-- Rencana Mingguan untuk S-Curve dikirim dari sini
+                'realizations' => $realizations // <-- Realisasi Harian (Persen Laporan) untuk S-Curve dikirim dari sini
             ]
         ]);
     }
 
     /**
-     * Menyimpan Data Jadwal (Struktur MVC Baru: Weekly Based)
+     * Menyimpan Data Jadwal (Struktur MVC Baru: Weekly Based + Kumulatif)
      */
     public function saveSchedules(Request $request, $projectId)
     {
@@ -84,7 +167,6 @@ class ProjectScheduleController extends Controller
         try {
             $isFullSync = $request->input('full_sync', false);
 
-            // Jika dipanggil dari Edit Draf (ScheduleData.jsx), bersihkan semua jadwal proyek ini
             if ($isFullSync) {
                 ProjectSchedule::where('project_id', $projectId)->delete();
             }
@@ -97,14 +179,13 @@ class ProjectScheduleController extends Controller
                 $targetKumulatif = isset($week['target_kumulatif']) ? (float) $week['target_kumulatif'] : 0;
                 $itemIds = $week['rab_item_ids'] ?? [];
 
-                // Jika dipanggil dari Tambah Jadwal (AddSchedule.jsx), bersihkan hanya jadwal di minggu terkait
                 if (!$isFullSync) {
                     ProjectSchedule::where('project_id', $projectId)->where('minggu_ke', $mingguKe)->delete();
                 }
 
                 $itemCount = count($itemIds);
                 if ($itemCount > 0) {
-                    // Back-end secara diam-diam membagi target untuk kompatibilitas S-Curve
+                    // PEMBAGIAN RATA TARGET KUMULATIF KE ITEM AGAR BISA TERBACA OLEH KODE REACT LAMA
                     $portion = round($targetKumulatif / $itemCount, 4);
 
                     foreach ($itemIds as $itemId) {
@@ -123,7 +204,6 @@ class ProjectScheduleController extends Controller
                 }
             }
 
-            // Eksekusi insert massal yang jauh lebih cepat dan kebal error
             ProjectSchedule::insert($insertData);
 
             DB::commit();
@@ -163,7 +243,7 @@ class ProjectScheduleController extends Controller
         $pdf = Pdf::setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true])
                   ->loadView('exports.kurva-s', compact('project', 'chartImageBase64', 'itemProgress', 'chartData', 'viewMode', 'startDate', 'endDate'))
                   ->setPaper('a4', 'landscape');
-        $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
+        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $project->kode_kontrak);
         return $pdf->download('Kurva_S_' . $safeName . '.pdf');
     }
 
@@ -178,7 +258,7 @@ class ProjectScheduleController extends Controller
         $viewMode = $request->view_mode ?? 'harian';
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
-        $safeName = preg_replace('/[^A-Za-z0-9]/', '_', $project->kode_kontrak);
+        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $project->kode_kontrak);
         return Excel::download(new KurvaExport($project, $itemProgress, $chartData, $viewMode, $imagePath, $startDate, $endDate), 'Kurva_S_' . $safeName . '.xlsx');
     }
 }
