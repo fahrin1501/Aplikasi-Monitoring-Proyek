@@ -31,7 +31,6 @@ export default function AddSchedule() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // STATE BARU: TARGET KUMULATIF MINGGUAN
   const [targetKumulatif, setTargetKumulatif] = useState('');
 
   useEffect(() => {
@@ -141,13 +140,11 @@ export default function AddSchedule() {
     }
     if (addedItems.length === 0) return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     
-    // Validasi Kumulatif
     const targetVal = parseFloat(targetKumulatif.replace(',', '.')) || 0;
     if (targetVal <= 0) return alert("Target Kumulatif Mingguan harus diisi dan lebih dari 0!");
 
     setIsSaving(true);
     try {
-      // TRIK: Membagi rata nilai kumulatif ke semua item yang dipilih agar database aman!
       const portion = targetVal / addedItems.length;
 
       const payloadArr = addedItems.map(item => ({
@@ -182,6 +179,7 @@ export default function AddSchedule() {
 
   return (
     <div className="w-full space-y-6 pb-24 relative animate-fade-in">
+      {/* HEADER NAVIGASI */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <button onClick={() => navigate(`/schedules/${projectId}/data`)} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm"><ArrowLeft className="w-5 h-5" /></button>
@@ -222,9 +220,12 @@ export default function AddSchedule() {
           </div>
         </div>
 
+        {/* INPUT AREA YANG DIPERBAIKI (GRID + TINGGI TETAP) */}
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
-           <div className="flex flex-col lg:flex-row items-end gap-4">
-             <div className="w-full lg:w-[35%] space-y-1.5">
+           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+             
+             {/* KOTAK 1: PILIH DIVISI */}
+             <div className="md:col-span-5 space-y-1.5">
                <label className="text-[10px] font-bold text-slate-600 uppercase">Filter Divisi Pekerjaan</label>
                <select 
                  value={draftDivisiId} 
@@ -233,7 +234,7 @@ export default function AddSchedule() {
                    setDraftItemIds([]); 
                    setIsDropdownOpen(false);
                  }} 
-                 className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm cursor-pointer"
+                 className="w-full h-[42px] px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
                >
                  <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
                  <option value="all" className="font-extrabold text-blue-600 dark:text-blue-400">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
@@ -243,12 +244,13 @@ export default function AddSchedule() {
                </select>
              </div>
              
-             <div className="w-full lg:w-[50%] space-y-1.5 relative" ref={dropdownRef}>
+             {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
+             <div className="md:col-span-5 space-y-1.5 relative" ref={dropdownRef}>
                <label className="text-[10px] font-bold text-slate-600 uppercase">Centang Uraian Pekerjaan</label>
                
                <div 
                   onClick={() => { if(draftDivisiId && availableItems.length > 0) setIsDropdownOpen(!isDropdownOpen) }}
-                  className={`w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItems.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
+                  className={`w-full h-[42px] px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItems.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
                >
                  <span className="truncate font-medium text-slate-700 dark:text-slate-200">
                     {!draftDivisiId 
@@ -259,7 +261,7 @@ export default function AddSchedule() {
                           ? `${draftItemIds.length} Pekerjaan Terpilih` 
                           : '-- Klik untuk Memilih --'}
                  </span>
-                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ml-2 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                </div>
 
                {isDropdownOpen && (
@@ -294,9 +296,15 @@ export default function AddSchedule() {
                )}
              </div>
 
-             <div className="w-full lg:w-auto">
-               <button onClick={handleAddItems} disabled={!draftDivisiId || draftItemIds.length === 0} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                 <ListPlus className="w-4 h-4" /> Masukkan ke Antrean
+             {/* KOTAK 3: TOMBOL TAMBAH (MEMAKAI GRID SPAN DAN TINGGI TETAP) */}
+             <div className="md:col-span-2">
+               <button 
+                 onClick={handleAddItems} 
+                 disabled={!draftDivisiId || draftItemIds.length === 0} 
+                 className="w-full h-[42px] px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 text-xs whitespace-nowrap"
+               >
+                 <ListPlus className="w-4 h-4 shrink-0" /> 
+                 <span>Tambah Antrean</span>
                </button>
              </div>
            </div>
@@ -353,15 +361,15 @@ export default function AddSchedule() {
                        if (isNaN(val) && val !== '.') return;
                        setTargetKumulatif(val);
                      }}
-                     className="w-20 bg-slate-50 dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors"
+                     className="w-20 h-9 bg-slate-50 dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors"
                    />
                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-lg">%</span>
                 </div>
               </div>
             </div>
 
-            <button onClick={handleSaveSchedule} disabled={isSaving} className="flex items-center justify-center gap-2 px-6 py-3 md:py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 transition-all active:scale-95">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan M-{periodForm.minggu_ke}
+            <button onClick={handleSaveSchedule} disabled={isSaving} className="flex items-center justify-center gap-2 px-6 h-10 md:h-[42px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Simpan M-{periodForm.minggu_ke}
             </button>
           </div>
         </div>

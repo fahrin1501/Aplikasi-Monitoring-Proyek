@@ -50,7 +50,6 @@ export default function ScheduleData() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // STATE: MENYIMPAN INPUT KUMULATIF MINGGUAN SEMENTARA SAAT EDIT MODE
   const [weekCumulativeInputs, setWeekCumulativeInputs] = useState({});
 
   useEffect(() => {
@@ -106,7 +105,6 @@ export default function ScheduleData() {
     setDeleteWeekConfig({ show: false, weekNum: null });
   };
 
-  // --- HANDLER: PERUBAHAN INPUT KUMULATIF MINGGUAN DI EDIT MODE ---
   const handleWeekCumulativeChange = (weekNum, value) => {
     const val = value.replace(',', '.');
     if (isNaN(val) && val !== '.') return;
@@ -117,7 +115,6 @@ export default function ScheduleData() {
     const weekItems = localSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
     const portion = weekItems.length > 0 ? valNum / weekItems.length : 0;
 
-    // Membagi rata secara real-time ke localSchedules agar saat disimpan data sudah terpecah
     setLocalSchedules(prev => prev.map(s => {
       if (parseInt(s.minggu_ke) === weekNum) {
         return { ...s, bobot_rencana: portion };
@@ -139,6 +136,10 @@ export default function ScheduleData() {
     setShowAddItemModal(true);
   };
 
+  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
+    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
+  , 0) : 0;
+
   const getAvailableItemsForModal = () => {
     if (!draftDivisiId || !scheduleData) return [];
     
@@ -154,8 +155,17 @@ export default function ScheduleData() {
       }
     }
 
-    return allItems.filter(item => {
-      if (item.is_subheader) return false;
+    return allItems.map(item => {
+      if (item.is_subheader) return null;
+      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
+      const realisasiAktual = scheduleData.realizations
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+      return { ...item, sisaPlafon };
+    }).filter(item => {
+      if (!item) return false;
+      if (item.sisaPlafon <= 0) return false;
       const inModalDraft = modalAddedItems.some(draft => draft.rab_item_id === item.id);
       const inLocalSchedules = localSchedules.some(s => s.rab_item_id === item.id && parseInt(s.minggu_ke) === parseInt(targetPeriod.minggu_ke));
       return !inModalDraft && !inLocalSchedules;
@@ -182,7 +192,7 @@ export default function ScheduleData() {
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: itemAsli.kategori_nama,
-      bobot_rencana: 0, // Nilai default 0, nanti di-override oleh input kumulatif di tabel utama
+      bobot_rencana: 0, 
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
@@ -201,9 +211,6 @@ export default function ScheduleData() {
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
     
-    // Saat menambahkan dari modal, item baru masuk ke localSchedules.
-    // Jika input kumulatif (weekCumulativeInputs) sudah diketik sebelumnya, 
-    // kita harus membagi rata ulang angka tersebut dengan total item yang baru.
     const weekNum = parseInt(targetPeriod.minggu_ke);
     const updatedSchedules = [...localSchedules, ...modalAddedItems];
     
@@ -229,7 +236,6 @@ export default function ScheduleData() {
     setSaveModal(false);
     setIsSaving(true);
     
-    // Konversi akhir sebelum dikirim
     const safeLocalSchedules = localSchedules.map(s => ({
        ...s,
        bobot_rencana: parseFloat(s.bobot_rencana) || 0
@@ -291,10 +297,10 @@ export default function ScheduleData() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* --- HEADER NAVIGASI --- */}
       <div className="flex flex-col lg:flex-row justify-between gap-4 mb-2">
         <div className="flex items-start gap-3">
           <button onClick={() => navigate('/projects')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm text-slate-600 dark:text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+          
           <div>
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
               Daftar Time Schedule
@@ -406,7 +412,6 @@ export default function ScheduleData() {
             const schedulesThisWeek = weekGroup.items;
             const tanggalFormat = (weekGroup.start && weekGroup.end) ? `${formatIndoDate(weekGroup.start)} - ${formatIndoDate(weekGroup.end)}` : 'Tanggal Belum Diset';
             
-            // Kalkulasi Kumulatif (Hanya Untuk Header Mingguan)
             const weekTargetRencana = schedulesThisWeek.reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
             const weekReal = scheduleData.realizations?.filter(r => parseInt(r.minggu_ke) === weekNum).reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
             const displayCumulative = weekCumulativeInputs[weekNum] !== undefined ? weekCumulativeInputs[weekNum] : weekTargetRencana.toFixed(2);
@@ -429,8 +434,6 @@ export default function ScheduleData() {
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
-                    
-                    {/* INDIKATOR KUMULATIF MINGGUAN */}
                     {isEditMode ? (
                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-600 px-3 py-1.5 rounded-lg shadow-inner z-20 relative">
                          <Target className="w-3.5 h-3.5 text-blue-500" />
@@ -558,10 +561,12 @@ export default function ScheduleData() {
               <button onClick={() => setShowAddItemModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 absolute top-4 right-4"><X className="w-5 h-5"/></button>
             </div>
 
+            {/* INPUT AREA YANG DIPERBAIKI (GRID + TINGGI TETAP) */}
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
-               <div className="flex flex-col lg:flex-row items-end gap-4">
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                  
-                 <div className="w-full lg:w-[35%] space-y-1.5">
+                 {/* KOTAK 1: PILIH DIVISI */}
+                 <div className="md:col-span-5 space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Mode Filter Divisi</label>
                    <select 
                      value={draftDivisiId} 
@@ -570,7 +575,7 @@ export default function ScheduleData() {
                         setDraftItemIds([]); 
                         setIsDropdownOpen(false);
                      }} 
-                     className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm"
+                     className="w-full h-[42px] px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm transition-colors"
                    >
                      <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
                      <option value="all" className="font-extrabold text-blue-600 dark:text-blue-400">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
@@ -580,12 +585,13 @@ export default function ScheduleData() {
                    </select>
                  </div>
                  
-                 <div className="w-full lg:w-[50%] space-y-1.5 relative" ref={dropdownRef}>
+                 {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
+                 <div className="md:col-span-5 space-y-1.5 relative" ref={dropdownRef}>
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Centang Uraian Pekerjaan</label>
                    
                    <div 
                       onClick={() => { if(draftDivisiId && availableItemsForModal.length > 0) setIsDropdownOpen(!isDropdownOpen) }}
-                      className={`w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItemsForModal.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
+                      className={`w-full h-[42px] px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItemsForModal.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'cursor-pointer hover:border-emerald-400'}`}
                    >
                      <span className="truncate font-medium text-slate-700 dark:text-slate-200">
                         {!draftDivisiId 
@@ -596,7 +602,7 @@ export default function ScheduleData() {
                               ? `${draftItemIds.length} Pekerjaan Terpilih` 
                               : '-- Klik untuk Memilih --'}
                      </span>
-                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ml-2 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                    </div>
 
                    {isDropdownOpen && (
@@ -631,15 +637,20 @@ export default function ScheduleData() {
                    )}
                  </div>
 
-                 <div className="w-full lg:w-auto">
-                   <button onClick={handleAddItemsToModalCart} disabled={!draftDivisiId || draftItemIds.length === 0} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                     <ListPlus className="w-4 h-4" /> Masukkan ke Antrean
+                 {/* KOTAK 3: TOMBOL TAMBAH (MEMAKAI GRID SPAN DAN TINGGI TETAP) */}
+                 <div className="md:col-span-2">
+                   <button 
+                     onClick={handleAddItemsToModalCart} 
+                     disabled={!draftDivisiId || draftItemIds.length === 0} 
+                     className="w-full h-[42px] px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 text-xs whitespace-nowrap"
+                   >
+                     <ListPlus className="w-4 h-4 shrink-0" /> 
+                     <span>Tambah Antrean</span>
                    </button>
                  </div>
                </div>
             </div>
             
-            {/* TABEL HASIL (TANPA INPUT BOBOT) */}
             <div className="overflow-y-auto custom-scrollbar flex-1 min-h-[200px]">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shadow-sm border-b border-slate-200 dark:border-slate-700/60">
@@ -685,7 +696,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* --- MODAL KONFIRMASI --- */}
+      {/* --- MODAL: KONFIRMASI SIMPAN PERUBAHAN --- */}
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -706,6 +717,7 @@ export default function ScheduleData() {
         </div>
       )}
 
+      {/* --- MODAL: KONFIRMASI HAPUS ITEM 1 BARIS (LOKAL) --- */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -726,6 +738,7 @@ export default function ScheduleData() {
         </div>
       )}
 
+      {/* --- MODAL: KONFIRMASI HAPUS 1 MINGGU FULL --- */}
       {deleteWeekConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
