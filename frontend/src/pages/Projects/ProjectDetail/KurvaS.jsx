@@ -4,7 +4,7 @@ import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
-  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Clock, Filter, X
+  PieChart, Download, CheckCircle2, AlertTriangle, Loader2, Filter, X
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -48,7 +48,6 @@ export default function KurvaS({ selectedProject }) {
 
   const isGuest = userRole === 'Tamu';
 
-  // Tutup Pop-up Filter Jika Klik di Luar
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
@@ -62,6 +61,21 @@ export default function KurvaS({ selectedProject }) {
   const formatIndoDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // Helper format tanggal DD/MM/YYYY
+  const formatDateSlash = (dateStr) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   const fetchSchedule = async () => {
@@ -98,9 +112,17 @@ export default function KurvaS({ selectedProject }) {
       return;
     }
 
+    // Cari jadwal minggu tersebut
+    const targetSchedule = (scheduleData?.schedules || []).find(s => parseInt(s.minggu_ke) === parseInt(weekNum));
+    if (targetSchedule && targetSchedule.tanggal_awal && targetSchedule.tanggal_akhir) {
+      setStartDateFilter(targetSchedule.tanggal_awal);
+      setEndDateFilter(targetSchedule.tanggal_akhir);
+      return;
+    }
+
     if (!projectBounds.start) return;
 
-    // Hitung range tanggal spesifik untuk minggu tersebut
+    // Fallback jika tanggal jadwal belum ditentukan
     const startDate = new Date(projectBounds.start);
     startDate.setHours(0, 0, 0, 0);
 
@@ -183,10 +205,12 @@ export default function KurvaS({ selectedProject }) {
       });
     });
 
-    // PERBAIKAN: Hanya tampilkan Item yang sudah memiliki data realisasi > 0
+    // 1. Progress Tiap Item Pekerjaan (Berdasarkan Laporan Terverifikasi)
     const progressList = allItems.map(item => {
       const baseBobot = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const itemRealisasi = (scheduleData.realizations || [])?.filter(r => r.rab_item_id === item.id)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const itemRealisasi = (scheduleData.realizations || [])
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi || 0), 0) || 0;
       const progressPercent = baseBobot > 0 ? (itemRealisasi / baseBobot) * 100 : 0;
       
       return { 
@@ -202,76 +226,143 @@ export default function KurvaS({ selectedProject }) {
     
     setItemProgressData(progressList);
 
-    const startDate = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date();
-    startDate.setHours(0,0,0,0);
-    const endDate = scheduleData.project_info?.tanggal_selesai ? new Date(scheduleData.project_info.tanggal_selesai) : new Date(startDate.getTime() + (30 * 24 * 60 * 60 * 1000));
-    endDate.setHours(0,0,0,0);
-
-    let plannedTotalHari = Math.floor((endDate - startDate) / (1000*3600*24)) + 1;
-    if (isNaN(plannedTotalHari) || plannedTotalHari <= 0) plannedTotalHari = 1;
-
-    const dailyPlans = {};
-    let maxPlannedDay = 0;
+    // 2. Pemetaan Jadwal Mingguan (Target Kumulatif & Rentang Tanggal)
+    const weekMap = {};
     (scheduleData.schedules || []).forEach(s => {
-      const m = parseInt(s.minggu_ke);
-      const bobotHarian = parseFloat(s.bobot_rencana) / 7;
-      const startDay = (m - 1) * 7 + 1;
-      const endDay = m * 7;
-      if (endDay > maxPlannedDay) maxPlannedDay = endDay;
-      for (let i = startDay; i <= endDay; i++) { dailyPlans[i] = (dailyPlans[i] || 0) + bobotHarian; }
+      const w = parseInt(s.minggu_ke);
+      if (!weekMap[w]) {
+        weekMap[w] = {
+          minggu_ke: w,
+          bulan: s.bulan || null,
+          tanggal_awal: s.tanggal_awal || null,
+          tanggal_akhir: s.tanggal_akhir || null,
+          target_kumulatif: 0
+        };
+      }
+      weekMap[w].target_kumulatif += parseFloat(s.bobot_rencana || 0);
+      if (!weekMap[w].tanggal_awal && s.tanggal_awal) weekMap[w].tanggal_awal = s.tanggal_awal;
+      if (!weekMap[w].tanggal_akhir && s.tanggal_akhir) weekMap[w].tanggal_akhir = s.tanggal_akhir;
     });
 
+    const sortedWeeks = Object.values(weekMap).sort((a, b) => a.minggu_ke - b.minggu_ke);
+
+    // 3. Pemetaan Realisasi Harian dari Laporan Terverifikasi
     const dailyRealisasi = {};
-    let maxReportedDay = 0;
+    const dailyRealisasiWeeks = {};
+    let maxReportedDayStr = '';
+
     (scheduleData.realizations || []).forEach(r => {
-      const rDate = new Date(r.tgl_input);
-      if (isNaN(rDate.getTime())) return;
-      rDate.setHours(0,0,0,0);
-      const dayNum = Math.floor((rDate - startDate) / (1000*3600*24)) + 1;
-      if (dayNum > maxReportedDay) maxReportedDay = dayNum;
-      dailyRealisasi[dayNum] = (dailyRealisasi[dayNum] || 0) + parseFloat(r.bobot_realisasi);
+      if (!r.tgl_input) return;
+      const ymd = r.tgl_input.split('T')[0];
+      dailyRealisasi[ymd] = (dailyRealisasi[ymd] || 0) + parseFloat(r.bobot_realisasi || 0);
+      if (r.minggu_ke) {
+        dailyRealisasiWeeks[ymd] = r.minggu_ke;
+      }
+      if (!maxReportedDayStr || ymd > maxReportedDayStr) {
+        maxReportedDayStr = ymd;
+      }
     });
 
-    const actualTotalHari = Math.max(plannedTotalHari, maxPlannedDay, maxReportedDay);
+    // 4. Rentang Tanggal Keseluruhan
+    const pStart = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date();
+    pStart.setHours(0,0,0,0);
+    const pEnd = scheduleData.project_info?.tanggal_selesai ? new Date(scheduleData.project_info.tanggal_selesai) : new Date(pStart.getTime() + (30 * 24 * 3600 * 1000));
+    pEnd.setHours(0,0,0,0);
+
+    let minDate = new Date(pStart);
+    let maxDate = new Date(pEnd);
+
+    sortedWeeks.forEach(w => {
+      if (w.tanggal_awal) {
+        const d = new Date(w.tanggal_awal);
+        if (!isNaN(d.getTime()) && d < minDate) minDate = d;
+      }
+      if (w.tanggal_akhir) {
+        const d = new Date(w.tanggal_akhir);
+        if (!isNaN(d.getTime()) && d > maxDate) maxDate = d;
+      }
+    });
+
+    if (maxReportedDayStr) {
+      const d = new Date(maxReportedDayStr);
+      if (!isNaN(d.getTime()) && d > maxDate) maxDate = d;
+    }
+
+    minDate.setHours(0,0,0,0);
+    maxDate.setHours(0,0,0,0);
+
+    const totalDays = Math.max(1, Math.floor((maxDate - minDate) / (1000 * 3600 * 24)) + 1);
+
     const today = new Date();
     today.setHours(0,0,0,0);
-    const currentProjectDay = Math.floor((today - startDate) / (1000 * 3600 * 24)) + 1;
+    const todayStr = today.toISOString().split('T')[0];
 
     const tempChartData = [];
-    let cumRencana = 0;
     let cumRealisasi = 0;
 
-    for (let i = 1; i <= actualTotalHari; i++) {
-      const currentDate = new Date(startDate.getTime() + (i - 1) * 24 * 3600 * 1000);
-      const yyyymmdd = currentDate.toISOString().split('T')[0];
-      const displayDate = currentDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const shortDate = currentDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+    for (let i = 0; i < totalDays; i++) {
+      const currDate = new Date(minDate.getTime() + i * 24 * 3600 * 1000);
+      const yyyymmdd = currDate.toISOString().split('T')[0];
+      const shortDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      const displayDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      const dateSlash = formatDateSlash(yyyymmdd);
 
-      let planVal = dailyPlans[i] || 0;
-      let actVal = dailyRealisasi[i] || 0;
+      // Cari minggu yang menaungi tanggal ini (berdasarkan tanggal_awal s/d tanggal_akhir)
+      let matchedWeek = sortedWeeks.find(w => {
+        if (w.tanggal_awal && w.tanggal_akhir) {
+          return yyyymmdd >= w.tanggal_awal && yyyymmdd <= w.tanggal_akhir;
+        }
+        return false;
+      });
 
-      const isPlanEmpty = maxPlannedDay === 0 ? true : i > maxPlannedDay;
-      const isActEmpty = maxReportedDay === 0 ? true : i > maxReportedDay;
-      const isFuture = i > currentProjectDay && i > maxReportedDay;
+      let currentWeekNum = null;
+      if (dailyRealisasiWeeks[yyyymmdd]) {
+        currentWeekNum = parseInt(dailyRealisasiWeeks[yyyymmdd]);
+        if (!matchedWeek && weekMap[currentWeekNum]) {
+          matchedWeek = weekMap[currentWeekNum];
+        }
+      } else if (matchedWeek) {
+        currentWeekNum = matchedWeek.minggu_ke;
+      } else {
+        const diffFromStart = Math.floor((currDate - pStart) / (1000 * 3600 * 24));
+        currentWeekNum = diffFromStart >= 0 ? Math.floor(diffFromStart / 7) + 1 : 0;
+        if (weekMap[currentWeekNum]) {
+          matchedWeek = weekMap[currentWeekNum];
+        }
+      }
 
-      if (!isPlanEmpty) cumRencana += planVal;
-      if (!isActEmpty) cumRealisasi += actVal;
+      // LOGIKA UTAMA: Target kumulatif flat/horizontal di sepanjang tanggal_awal s/d tanggal_akhir
+      const targetKumulatifMingguan = matchedWeek ? Number(matchedWeek.target_kumulatif.toFixed(2)) : null;
 
-      // PERBAIKAN: Gunakan `null` alih-alih `0` agar garis tidak turun ke dasar grafik jika data kosong
+      const actVal = dailyRealisasi[yyyymmdd] || 0;
+      const hasReportToday = dailyRealisasi[yyyymmdd] !== undefined;
+
+      if (hasReportToday) {
+        cumRealisasi += actVal;
+      }
+
+      const isFuture = yyyymmdd > todayStr && (!maxReportedDayStr || yyyymmdd > maxReportedDayStr);
+
+      // Deviasi dihitung terhadap target kumulatif minggu terkait
+      const deviasiVal = (hasReportToday && targetKumulatifMingguan !== null) 
+        ? Number((cumRealisasi - targetKumulatifMingguan).toFixed(2)) 
+        : null;
+
       tempChartData.push({
-        hariKe: i,
-        label: `H-${i.toString().padStart(2,'0')}`,
+        hariKe: i + 1,
+        label: `H-${(i + 1).toString().padStart(2, '0')}`,
         dateString: yyyymmdd,
+        dateSlash: dateSlash,
         displayDate: displayDate,
         shortDate: shortDate,
-        isPlanEmpty,
-        isActEmpty,
+        mingguKe: currentWeekNum,
         isFuture,
-        bobotRencana: planVal,
-        rencanaKumulatif: isPlanEmpty ? null : Number(cumRencana.toFixed(2)),
+        targetKumulatifMingguan: targetKumulatifMingguan,
+        rencanaKumulatif: targetKumulatifMingguan, // Titik garis rencana
         bobotRealisasi: actVal,
-        realisasiKumulatif: isActEmpty ? null : Number(cumRealisasi.toFixed(2)),
-        deviasi: isActEmpty ? null : Number((cumRealisasi - cumRencana).toFixed(2))
+        realisasiKumulatif: isFuture && !hasReportToday ? null : Number(cumRealisasi.toFixed(2)),
+        deviasi: deviasiVal,
+        hasReportToday
       });
     }
 
@@ -295,9 +386,12 @@ export default function KurvaS({ selectedProject }) {
     if (active && payload && payload.length) {
       const dataInfo = payload[0].payload;
       return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl shadow-xl text-xs z-50">
-          <p className="font-extrabold text-slate-800 dark:text-white mb-1">{dataInfo.displayDate}</p>
-          <p className="text-[10px] text-amber-500 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider">{dataInfo.label}</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl shadow-xl text-xs z-50">
+          <p className="font-extrabold text-slate-800 dark:text-white mb-0.5">{dataInfo.displayDate}</p>
+          <div className="flex items-center gap-2 text-[10px] text-amber-500 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700 font-bold uppercase tracking-wider">
+            <span>{dataInfo.label}</span>
+            {dataInfo.mingguKe && <span>• Minggu Ke-{dataInfo.mingguKe}</span>}
+          </div>
           {payload.map((entry, index) => {
             if (entry.value === undefined || entry.value === null) return null; 
             return (
@@ -318,11 +412,11 @@ export default function KurvaS({ selectedProject }) {
 
   const isScheduleEmpty = !scheduleData?.schedules || scheduleData.schedules.length === 0;
 
-  // Variabel untuk menyaring baris deviasi yang benar-benar ada laporan masuk
-  const deviasiTableData = chartData.filter(row => row.bobotRealisasi > 0);
+  // Filter baris tabel hanya yang benar-benar ada laporan harian terverifikasi
+  const deviasiTableData = chartData.filter(row => row.hasReportToday);
 
   return (
-    <div className="w-full space-y-5 pb-20 relative">
+    <div className="w-full space-y-5 pb-20 relative animate-fade-in">
       
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
@@ -333,7 +427,7 @@ export default function KurvaS({ selectedProject }) {
       `}</style>
 
       {/* ========================================== */}
-      {/* 1. HEADER NAVIGASI (Selalu Tampil)           */}
+      {/* 1. HEADER NAVIGASI                         */}
       {/* ========================================== */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
@@ -355,10 +449,9 @@ export default function KurvaS({ selectedProject }) {
         </div>
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
-          
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30">
             
-            {/* FITUR BARU: FILTER MINGGUAN POP-UP */}
+            {/* FILTER MINGGUAN POP-UP */}
             <div className="relative" ref={filterRef}>
               <button 
                 disabled={isLoading || isScheduleEmpty}
@@ -403,7 +496,7 @@ export default function KurvaS({ selectedProject }) {
               )}
             </div>
 
-            {/* KAPSUL DATE RANGE FILTER (MANUAL KUSTOM TANGGAL) */}
+            {/* KAPSUL DATE RANGE FILTER */}
             <div className="flex flex-col ml-1">
               <div className={`flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-inner overflow-hidden transition-opacity ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input 
@@ -452,7 +545,6 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* --- TAGS FILTER AKTIF --- */}
       {(activeWeek !== 'Semua') && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
@@ -463,7 +555,7 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       {/* ========================================== */}
-      {/* 2. LOADING STATE VS KONTEN UTAMA             */}
+      {/* 2. LOADING STATE VS KONTEN UTAMA           */}
       {/* ========================================== */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
@@ -482,7 +574,7 @@ export default function KurvaS({ selectedProject }) {
               <div>
                 <h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3>
                 <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                  Anda sudah memiliki data RAB, namun <strong>Time Schedule</strong> belum didistribusikan. Grafik Kurva S dan Parameter Rencana akan tetap terlihat kosong. Silakan atur jadwal di menu <strong>Time Schedule</strong> terlebih dahulu agar garis rencana terbentuk.
+                  Anda sudah memiliki data RAB, namun <strong>Time Schedule</strong> belum didistribusikan. Grafik Kurva S dan Parameter Rencana akan tetap terlihat kosong. Silakan atur jadwal di menu <strong>Time Schedule</strong> terlebih dahulu.
                 </p>
               </div>
             </div>
@@ -496,8 +588,8 @@ export default function KurvaS({ selectedProject }) {
                 </h3>
                 
                 <div className="flex items-center gap-3 text-[10px] bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 px-2.5 py-2 rounded-lg shadow-inner">
-                  <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span> Rencana (Plan)</span>
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span> Realisasi (Act)</span>
+                  <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span> Target Mingguan</span>
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span> Realisasi Kumulatif</span>
                 </div>
               </div>
               
@@ -512,7 +604,9 @@ export default function KurvaS({ selectedProject }) {
                         <XAxis dataKey="shortDate" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                         <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" dataKey="rencanaKumulatif" name="Kumulatif Rencana" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
+                        {/* GARIS TARGET RENCANA (Horizontal di sepanjang tanggal_awal s/d tanggal_akhir) */}
+                        <Line type="monotone" dataKey="rencanaKumulatif" name="Target Mingguan" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={true} />
+                        {/* GARIS REALISASI AKTUAL KUMULATIF */}
                         <Line type="monotone" dataKey="realisasiKumulatif" name="Kumulatif Realisasi" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -565,6 +659,9 @@ export default function KurvaS({ selectedProject }) {
             </div>
           </div>
 
+          {/* ========================================================= */}
+          {/* TABEL PARAMETER EVALUASI DEVIASI (DATA TERLAPOR SAJA)    */}
+          {/* ========================================================= */}
           <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
               <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -572,17 +669,17 @@ export default function KurvaS({ selectedProject }) {
               </h3>
             </div>
             <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
-              <table className="w-full text-left border-collapse min-w-[800px] relative">
+              <table className="w-full text-left border-collapse min-w-[900px] relative">
                 <thead className="sticky top-0 z-20 shadow-sm">
-                  <tr className="bg-slate-100 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    <th className="p-3 text-center w-28">Tanggal</th>
-                    <th className="p-3 text-center w-16">Periode</th>
-                    <th className="p-3 text-right text-blue-600 dark:text-blue-400">Rencana (%)</th>
-                    <th className="p-3 text-right text-emerald-600 dark:text-emerald-400">Realisasi (%)</th>
-                    <th className="p-3 text-right bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-bold">Kum. Rencana</th>
-                    <th className="p-3 text-right bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-bold">Kum. Realisasi</th>
-                    <th className="p-3 text-center w-24">Deviasi (%)</th>
-                    <th className="p-3 text-center w-32">Status</th>
+                  <tr className="bg-slate-100 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="p-3.5 text-center w-28">Tanggal</th>
+                    <th className="p-3.5 text-center w-20">Periode</th>
+                    <th className="p-3.5 text-center w-24">Minggu Ke-</th>
+                    <th className="p-3.5 text-right text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">Target Kumulatif (%)</th>
+                    <th className="p-3.5 text-right text-emerald-600 dark:text-emerald-400">Realisasi Harian (%)</th>
+                    <th className="p-3.5 text-right text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20 font-extrabold">Kum. Realisasi (%)</th>
+                    <th className="p-3.5 text-center w-24">Deviasi (%)</th>
+                    <th className="p-3.5 text-center w-32">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-700 dark:text-slate-300 font-mono">
@@ -590,28 +687,34 @@ export default function KurvaS({ selectedProject }) {
                     <tr><td colSpan="8" className="text-center py-10 text-slate-500 italic">Belum ada laporan harian yang mengisi data progres realisasi.</td></tr>
                   ) : (
                     deviasiTableData.map((row, idx) => {
-                      const isDevNegative = row.deviasi < 0;
+                      const isDevNegative = row.deviasi !== null && row.deviasi < 0;
                       return (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                          <td className="p-3 text-center font-bold text-slate-800 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">{row.displayDate}</td>
-                          <td className="p-3 text-center text-[10px] text-slate-500">{row.label}</td>
-                          
-                          <td className="p-3 text-right">{row.isPlanEmpty ? '-' : row.bobotRencana.toFixed(2)}</td>
-                          <td className="p-3 text-right">{row.bobotRealisasi.toFixed(2)}</td>
-                          
-                          <td className="p-3 text-right text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/30 dark:bg-blue-950/10">
-                            {row.isPlanEmpty ? '-' : row.rencanaKumulatif.toFixed(2)}
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                          <td className="p-3.5 text-center font-bold text-slate-800 dark:text-white bg-slate-50/50 dark:bg-slate-900/20">
+                            {row.dateSlash}
                           </td>
-                          <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50/30 dark:bg-emerald-950/10">
-                            {row.realisasiKumulatif.toFixed(2)}
+                          <td className="p-3.5 text-center text-[11px] text-slate-500 font-mono">
+                            {row.label}
                           </td>
-                          
-                          <td className={`p-3 text-center font-bold ${isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}` : row.deviasi.toFixed(2)}
+                          <td className="p-3.5 text-center text-[11px] font-bold text-slate-700 dark:text-slate-300 font-sans">
+                            {row.mingguKe ? `Minggu ${row.mingguKe}` : '-'}
                           </td>
-                          
-                          <td className="p-3 text-center">
-                            {isDevNegative ? (
+                          <td className="p-3.5 text-right text-blue-600 dark:text-blue-400 font-bold bg-blue-50/30 dark:bg-blue-950/10">
+                            {row.targetKumulatifMingguan !== null ? `${row.targetKumulatifMingguan.toFixed(2)}%` : '-'}
+                          </td>
+                          <td className="p-3.5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                            {row.bobotRealisasi.toFixed(2)}%
+                          </td>
+                          <td className="p-3.5 text-right text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50/30 dark:bg-emerald-950/10">
+                            {row.realisasiKumulatif !== null ? `${row.realisasiKumulatif.toFixed(2)}%` : '-'}
+                          </td>
+                          <td className={`p-3.5 text-center font-bold ${isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {row.deviasi !== null ? (row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}%` : `${row.deviasi.toFixed(2)}%`) : '-'}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {row.deviasi === null ? (
+                              <span className="text-slate-400 text-[10px]">-</span>
+                            ) : isDevNegative ? (
                               <span className="inline-flex items-center justify-center w-24 gap-1 py-1 rounded-md text-[10px] font-sans font-bold bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 shadow-sm">
                                 <AlertTriangle className="w-3 h-3" /> Terlambat
                               </span>
@@ -633,7 +736,7 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       {/* ========================================== */}
-      {/* 3. MODAL EXPORT PDF/EXCEL                    */}
+      {/* 3. MODAL EXPORT PDF/EXCEL                  */}
       {/* ========================================== */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
