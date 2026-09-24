@@ -68,10 +68,6 @@ export default function AddSchedule() {
 
   const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
 
-  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
-    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
-  , 0) : 0;
-
   const getAvailableItems = () => {
     if (!draftDivisiId || !scheduleData) return [];
     
@@ -87,19 +83,8 @@ export default function AddSchedule() {
       }
     }
 
-    return allItems.map(item => {
-      if (item.is_subheader) return null;
-      
-      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.realizations
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
-
-      return { ...item, sisaPlafon };
-    }).filter(item => {
-      if (!item) return false;
-      if (item.sisaPlafon <= 0) return false; 
+    return allItems.filter(item => {
+      if (item.is_subheader) return false;
       if (addedItems.some(draft => draft.rab_item_id === item.id)) return false; 
       return true;
     });
@@ -145,18 +130,22 @@ export default function AddSchedule() {
 
     setIsSaving(true);
     try {
-      const portion = targetVal / addedItems.length;
+      // PAYLOAD API BARU: Mendeklarasikan target_kumulatif secara independen (Bukan di dalam item)
+      const payload = {
+        full_sync: false,
+        weeks: [
+          {
+            minggu_ke: parseInt(periodForm.minggu_ke),
+            bulan: parseInt(periodForm.bulan) || null,
+            tanggal_awal: periodForm.tanggal_mulai,
+            tanggal_akhir: periodForm.tanggal_selesai,
+            target_kumulatif: targetVal,
+            rab_item_ids: addedItems.map(item => item.rab_item_id)
+          }
+        ]
+      };
 
-      const payloadArr = addedItems.map(item => ({
-        rab_item_id: item.rab_item_id,
-        bulan: parseInt(periodForm.bulan),
-        minggu_ke: parseInt(periodForm.minggu_ke),
-        tanggal_awal: periodForm.tanggal_mulai,
-        tanggal_akhir: periodForm.tanggal_selesai,
-        bobot_rencana: portion
-      }));
-
-      await api.post(`/projects/${projectId}/schedules`, { schedules: payloadArr });
+      await api.post(`/projects/${projectId}/schedules`, payload);
       alert(`Target Jadwal Minggu Ke-${periodForm.minggu_ke} Berhasil Disimpan!`);
       navigate(`/schedules/${projectId}/data`); 
     } catch (error) {
@@ -220,11 +209,9 @@ export default function AddSchedule() {
           </div>
         </div>
 
-        {/* INPUT AREA YANG DIPERBAIKI (GRID + TINGGI TETAP) */}
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
              
-             {/* KOTAK 1: PILIH DIVISI */}
              <div className="md:col-span-5 space-y-1.5">
                <label className="text-[10px] font-bold text-slate-600 uppercase">Filter Divisi Pekerjaan</label>
                <select 
@@ -244,7 +231,6 @@ export default function AddSchedule() {
                </select>
              </div>
              
-             {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
              <div className="md:col-span-5 space-y-1.5 relative" ref={dropdownRef}>
                <label className="text-[10px] font-bold text-slate-600 uppercase">Centang Uraian Pekerjaan</label>
                
@@ -296,7 +282,6 @@ export default function AddSchedule() {
                )}
              </div>
 
-             {/* KOTAK 3: TOMBOL TAMBAH (MEMAKAI GRID SPAN DAN TINGGI TETAP) */}
              <div className="md:col-span-2">
                <button 
                  onClick={handleAddItems} 

@@ -108,19 +108,7 @@ export default function ScheduleData() {
   const handleWeekCumulativeChange = (weekNum, value) => {
     const val = value.replace(',', '.');
     if (isNaN(val) && val !== '.') return;
-
     setWeekCumulativeInputs(prev => ({ ...prev, [weekNum]: val }));
-
-    const valNum = parseFloat(val) || 0;
-    const weekItems = localSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
-    const portion = weekItems.length > 0 ? valNum / weekItems.length : 0;
-
-    setLocalSchedules(prev => prev.map(s => {
-      if (parseInt(s.minggu_ke) === weekNum) {
-        return { ...s, bobot_rencana: portion };
-      }
-      return s;
-    }));
   };
 
   const openAddItemModal = (weekGroup) => {
@@ -136,36 +124,18 @@ export default function ScheduleData() {
     setShowAddItemModal(true);
   };
 
-  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
-    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
-  , 0) : 0;
-
   const getAvailableItemsForModal = () => {
     if (!draftDivisiId || !scheduleData) return [];
-    
     let allItems = [];
     if (draftDivisiId === 'all') {
-      scheduleData.rab_data.forEach(cat => {
-        cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
-      });
+      scheduleData.rab_data.forEach(cat => { cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori })); });
     } else {
       const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
-      if (divisi) {
-        divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
-      }
+      if (divisi) divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
     }
 
-    return allItems.map(item => {
-      if (item.is_subheader) return null;
-      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.realizations
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
-      return { ...item, sisaPlafon };
-    }).filter(item => {
-      if (!item) return false;
-      if (item.sisaPlafon <= 0) return false;
+    return allItems.filter(item => {
+      if (item.is_subheader) return false;
       const inModalDraft = modalAddedItems.some(draft => draft.rab_item_id === item.id);
       const inLocalSchedules = localSchedules.some(s => s.rab_item_id === item.id && parseInt(s.minggu_ke) === parseInt(targetPeriod.minggu_ke));
       return !inModalDraft && !inLocalSchedules;
@@ -184,7 +154,6 @@ export default function ScheduleData() {
 
   const handleAddItemsToModalCart = () => {
     if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang Uraian Pekerjaan terlebih dahulu!");
-
     const itemsToAdd = availableItemsForModal.filter(i => draftItemIds.includes(i.id));
 
     const newItems = itemsToAdd.map(itemAsli => ({
@@ -192,7 +161,6 @@ export default function ScheduleData() {
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: itemAsli.kategori_nama,
-      bobot_rencana: 0, 
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
@@ -204,31 +172,11 @@ export default function ScheduleData() {
     setIsDropdownOpen(false);
   };
 
-  const handleRemoveFromModalCart = (idToRemove) => {
-    setModalAddedItems(modalAddedItems.filter(item => item.rab_item_id !== idToRemove));
-  };
+  const handleRemoveFromModalCart = (idToRemove) => setModalAddedItems(modalAddedItems.filter(item => item.rab_item_id !== idToRemove));
 
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
-    
-    const weekNum = parseInt(targetPeriod.minggu_ke);
-    const updatedSchedules = [...localSchedules, ...modalAddedItems];
-    
-    const weekItems = updatedSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
-    const existingCumulative = weekCumulativeInputs[weekNum];
-    
-    if (existingCumulative) {
-      const valNum = parseFloat(existingCumulative) || 0;
-      const portion = valNum / weekItems.length;
-      
-      setLocalSchedules(updatedSchedules.map(s => {
-         if (parseInt(s.minggu_ke) === weekNum) return { ...s, bobot_rencana: portion };
-         return s;
-      }));
-    } else {
-      setLocalSchedules(updatedSchedules);
-    }
-    
+    setLocalSchedules([...localSchedules, ...modalAddedItems]);
     setShowAddItemModal(false);
   };
 
@@ -236,13 +184,31 @@ export default function ScheduleData() {
     setSaveModal(false);
     setIsSaving(true);
     
-    const safeLocalSchedules = localSchedules.map(s => ({
-       ...s,
-       bobot_rencana: parseFloat(s.bobot_rencana) || 0
-    }));
+    // PAYLOAD API BARU: Kompilasi semua item per minggu menjadi Array of Weeks
+    const weeksMap = {};
+    localSchedules.forEach(s => {
+      if (!weeksMap[s.minggu_ke]) {
+        weeksMap[s.minggu_ke] = {
+          minggu_ke: parseInt(s.minggu_ke),
+          bulan: parseInt(s.bulan) || null,
+          tanggal_awal: s.tanggal_awal || null,
+          tanggal_akhir: s.tanggal_akhir || null,
+          rab_item_ids: []
+        };
+      }
+      weeksMap[s.minggu_ke].rab_item_ids.push(s.rab_item_id);
+    });
+
+    const payloadWeeks = Object.values(weeksMap).map(weekData => {
+       const eksistingTotal = localSchedules.filter(s => parseInt(s.minggu_ke) === weekData.minggu_ke).reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
+       const manualInput = weekCumulativeInputs[weekData.minggu_ke];
+       const finalTarget = manualInput !== undefined ? parseFloat(manualInput.toString().replace(',', '.')) || 0 : eksistingTotal;
+
+       return { ...weekData, target_kumulatif: finalTarget };
+    });
 
     try {
-      await api.post(`/projects/${id}/schedules`, { schedules: safeLocalSchedules });
+      await api.post(`/projects/${id}/schedules`, { full_sync: true, weeks: payloadWeeks });
       alert("Perubahan Target Jadwal Berhasil Disimpan!");
       setIsEditMode(false);
       fetchTimeSchedule();
@@ -467,7 +433,6 @@ export default function ScheduleData() {
                   </div>
                 </div>
                 
-                {/* TABEL VIEW (Tanpa Kolom Target Rencana) */}
                 <div className="overflow-x-auto w-full custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
@@ -561,11 +526,9 @@ export default function ScheduleData() {
               <button onClick={() => setShowAddItemModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 absolute top-4 right-4"><X className="w-5 h-5"/></button>
             </div>
 
-            {/* INPUT AREA YANG DIPERBAIKI (GRID + TINGGI TETAP) */}
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                  
-                 {/* KOTAK 1: PILIH DIVISI */}
                  <div className="md:col-span-5 space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Mode Filter Divisi</label>
                    <select 
@@ -585,7 +548,6 @@ export default function ScheduleData() {
                    </select>
                  </div>
                  
-                 {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
                  <div className="md:col-span-5 space-y-1.5 relative" ref={dropdownRef}>
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Centang Uraian Pekerjaan</label>
                    
@@ -637,7 +599,6 @@ export default function ScheduleData() {
                    )}
                  </div>
 
-                 {/* KOTAK 3: TOMBOL TAMBAH (MEMAKAI GRID SPAN DAN TINGGI TETAP) */}
                  <div className="md:col-span-2">
                    <button 
                      onClick={handleAddItemsToModalCart} 
@@ -696,7 +657,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* --- MODAL: KONFIRMASI SIMPAN PERUBAHAN --- */}
+      {/* --- MODAL KONFIRMASI SIMPAN --- */}
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -717,7 +678,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* --- MODAL: KONFIRMASI HAPUS ITEM 1 BARIS (LOKAL) --- */}
+      {/* --- MODAL HAPUS 1 BARIS --- */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -738,7 +699,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* --- MODAL: KONFIRMASI HAPUS 1 MINGGU FULL --- */}
+      {/* --- MODAL HAPUS 1 MINGGU --- */}
       {deleteWeekConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
