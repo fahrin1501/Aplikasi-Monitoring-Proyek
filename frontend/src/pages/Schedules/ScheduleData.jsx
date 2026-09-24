@@ -108,7 +108,19 @@ export default function ScheduleData() {
   const handleWeekCumulativeChange = (weekNum, value) => {
     const val = value.replace(',', '.');
     if (isNaN(val) && val !== '.') return;
+
     setWeekCumulativeInputs(prev => ({ ...prev, [weekNum]: val }));
+
+    const valNum = parseFloat(val) || 0;
+    const weekItems = localSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
+    const portion = weekItems.length > 0 ? valNum / weekItems.length : 0;
+
+    setLocalSchedules(prev => prev.map(s => {
+      if (parseInt(s.minggu_ke) === weekNum) {
+        return { ...s, bobot_rencana: portion };
+      }
+      return s;
+    }));
   };
 
   const openAddItemModal = (weekGroup) => {
@@ -124,18 +136,36 @@ export default function ScheduleData() {
     setShowAddItemModal(true);
   };
 
+  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
+    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
+  , 0) : 0;
+
   const getAvailableItemsForModal = () => {
     if (!draftDivisiId || !scheduleData) return [];
+    
     let allItems = [];
     if (draftDivisiId === 'all') {
-      scheduleData.rab_data.forEach(cat => { cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori })); });
+      scheduleData.rab_data.forEach(cat => {
+        cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
+      });
     } else {
       const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
-      if (divisi) divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
+      if (divisi) {
+        divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
+      }
     }
 
-    return allItems.filter(item => {
-      if (item.is_subheader) return false;
+    return allItems.map(item => {
+      if (item.is_subheader) return null;
+      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
+      const realisasiAktual = scheduleData.realizations
+        ?.filter(r => r.rab_item_id === item.id)
+        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+      return { ...item, sisaPlafon };
+    }).filter(item => {
+      if (!item) return false;
+      if (item.sisaPlafon <= 0) return false;
       const inModalDraft = modalAddedItems.some(draft => draft.rab_item_id === item.id);
       const inLocalSchedules = localSchedules.some(s => s.rab_item_id === item.id && parseInt(s.minggu_ke) === parseInt(targetPeriod.minggu_ke));
       return !inModalDraft && !inLocalSchedules;
@@ -154,6 +184,7 @@ export default function ScheduleData() {
 
   const handleAddItemsToModalCart = () => {
     if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang Uraian Pekerjaan terlebih dahulu!");
+
     const itemsToAdd = availableItemsForModal.filter(i => draftItemIds.includes(i.id));
 
     const newItems = itemsToAdd.map(itemAsli => ({
@@ -161,6 +192,7 @@ export default function ScheduleData() {
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: itemAsli.kategori_nama,
+      bobot_rencana: 0, 
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
@@ -172,11 +204,31 @@ export default function ScheduleData() {
     setIsDropdownOpen(false);
   };
 
-  const handleRemoveFromModalCart = (idToRemove) => setModalAddedItems(modalAddedItems.filter(item => item.rab_item_id !== idToRemove));
+  const handleRemoveFromModalCart = (idToRemove) => {
+    setModalAddedItems(modalAddedItems.filter(item => item.rab_item_id !== idToRemove));
+  };
 
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
-    setLocalSchedules([...localSchedules, ...modalAddedItems]);
+    
+    const weekNum = parseInt(targetPeriod.minggu_ke);
+    const updatedSchedules = [...localSchedules, ...modalAddedItems];
+    
+    const weekItems = updatedSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
+    const existingCumulative = weekCumulativeInputs[weekNum];
+    
+    if (existingCumulative) {
+      const valNum = parseFloat(existingCumulative) || 0;
+      const portion = valNum / weekItems.length;
+      
+      setLocalSchedules(updatedSchedules.map(s => {
+         if (parseInt(s.minggu_ke) === weekNum) return { ...s, bobot_rencana: portion };
+         return s;
+      }));
+    } else {
+      setLocalSchedules(updatedSchedules);
+    }
+    
     setShowAddItemModal(false);
   };
 
@@ -184,7 +236,6 @@ export default function ScheduleData() {
     setSaveModal(false);
     setIsSaving(true);
     
-    // PAYLOAD API BARU: Kompilasi semua item per minggu menjadi Array of Weeks
     const weeksMap = {};
     localSchedules.forEach(s => {
       if (!weeksMap[s.minggu_ke]) {
@@ -225,7 +276,7 @@ export default function ScheduleData() {
       const item = cat.items.find(i => i.id.toString() === rabItemId.toString());
       if (item) return { ...item, kategori_nama: cat.nama_kategori };
     }
-    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-' };
+    return { uraian_pekerjaan: 'Item Tidak Ditemukan', kategori_nama: '-', satuan: '' };
   };
 
   const formatIndoDate = (dateString) => {
@@ -379,6 +430,8 @@ export default function ScheduleData() {
             const tanggalFormat = (weekGroup.start && weekGroup.end) ? `${formatIndoDate(weekGroup.start)} - ${formatIndoDate(weekGroup.end)}` : 'Tanggal Belum Diset';
             
             const weekTargetRencana = schedulesThisWeek.reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
+            
+            // Total Persen Aktual (Tetap Persen untuk Header Karena Menggabungkan Lintas Satuan)
             const weekReal = scheduleData.realizations?.filter(r => parseInt(r.minggu_ke) === weekNum).reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
             const displayCumulative = weekCumulativeInputs[weekNum] !== undefined ? weekCumulativeInputs[weekNum] : weekTargetRencana.toFixed(2);
 
@@ -433,12 +486,13 @@ export default function ScheduleData() {
                   </div>
                 </div>
                 
+                {/* TABEL VIEW: Menampilkan VOLUME Laporan, bukan Persen */}
                 <div className="overflow-x-auto w-full custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         <th className="p-4 border-r border-slate-200 dark:border-slate-700/60 w-[45%]">Divisi & Uraian Pekerjaan</th>
-                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[20%] text-emerald-600 dark:text-emerald-400">Realisasi Aktual (M-{weekNum})</th>
+                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[20%] text-emerald-600 dark:text-emerald-400">Realisasi Vol (M-{weekNum})</th>
                         <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[20%]">Tgl Laporan / Verifikasi</th>
                         <th className="p-3 text-center w-[10%] bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-700/60">Info Laporan</th>
                         {isEditMode && canCreateData && <th className="p-3 text-center w-[5%] bg-rose-50/50 dark:bg-rose-900/10">Aksi</th>}
@@ -450,7 +504,9 @@ export default function ScheduleData() {
                       ) : (
                         schedulesThisWeek.map(sched => {
                           const item = getItemInfo(sched.rab_item_id);
-                          const realisasiMingguIni = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+                          
+                          // MENGAMBIL VOLUME MENTAH DARI LAPORAN HARIAN (Bukan Bobot Persentase)
+                          const realisasiVolMingguIni = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)?.reduce((sum, r) => sum + parseFloat(r.volume_laporan), 0) || 0;
                           const lastRealization = scheduleData.realizations?.filter(r => r.rab_item_id === sched.rab_item_id && parseInt(r.minggu_ke) === weekNum)?.pop();
 
                           return (
@@ -461,8 +517,9 @@ export default function ScheduleData() {
                               </td>
                               
                               <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/20 dark:bg-emerald-900/10">
-                                <span className={`font-mono font-bold text-sm ${realisasiMingguIni > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                                  {realisasiMingguIni > 0 ? `${Number(realisasiMingguIni).toFixed(2)}%` : '-'}
+                                {/* MENAMPILKAN ANGKA VOLUME + SATUAN */}
+                                <span className={`font-mono font-bold text-sm ${realisasiVolMingguIni > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                  {realisasiVolMingguIni > 0 ? `${Number(realisasiVolMingguIni).toLocaleString('id-ID')} ${item?.satuan || ''}` : '-'}
                                 </span>
                               </td>
                               
@@ -481,7 +538,7 @@ export default function ScheduleData() {
 
                               <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 align-middle bg-slate-50/30 dark:bg-slate-900/40">
                                 <div className="flex justify-center items-center h-full">
-                                    {realisasiMingguIni > 0 ? (
+                                    {realisasiVolMingguIni > 0 ? (
                                       <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded"><CheckCircle2 className="w-3.5 h-3.5"/> Berjalan</span>
                                     ) : (
                                       <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded"><Clock className="w-3.5 h-3.5"/> Menunggu</span>
@@ -589,7 +646,7 @@ export default function ScheduleData() {
                               <div className="flex flex-col">
                                 <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
                                 {draftDivisiId === 'all' && (
-                                  <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase mt-0.5">{item.kategori_nama}</span>
+                                  <span className="text-[9px] text-amber-600 dark:text-amber-500 mr-1.5 uppercase font-bold mt-0.5">{item.kategori_nama}</span>
                                 )}
                               </div>
                             </div>
