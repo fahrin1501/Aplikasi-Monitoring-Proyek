@@ -144,6 +144,10 @@ class RabController extends Controller
                     $item->actualVol = $realisasiMap[$item->id] ?? 0;
                     $item->actualTotal = $item->actualVol * $item->harga_satuan;
 
+                    // TAMBAHAN: Kalkulasi PPN 11% Per Item
+                    $item->rencanaTotalPPN = $item->total_harga + ($item->total_harga * 0.11);
+                    $item->actualTotalPPN = $item->actualTotal + ($item->actualTotal * 0.11);
+
                     $divRencana += $item->total_harga;
                     $divRealisasi += $item->actualTotal;
                 }
@@ -151,11 +155,23 @@ class RabController extends Controller
             $divisi->totalRencana = $divRencana;
             $divisi->totalRealisasi = $divRealisasi;
 
+            // TAMBAHAN: Kalkulasi PPN 11% Per Divisi
+            $divisi->totalRencanaPPN = $divRencana + ($divRencana * 0.11);
+            $divisi->totalRealisasiPPN = $divRealisasi + ($divRealisasi * 0.11);
+
             $grandTotalRencana += $divRencana;
             $grandTotalRealisasi += $divRealisasi;
         }
 
-        return compact('project', 'rabs', 'grandTotalRencana', 'grandTotalRealisasi');
+        // TAMBAHAN: Kalkulasi PPN 11% Grand Total
+        $grandTotalRencanaPPN = $grandTotalRencana + ($grandTotalRencana * 0.11);
+        $grandTotalRealisasiPPN = $grandTotalRealisasi + ($grandTotalRealisasi * 0.11);
+
+        return compact(
+            'project', 'rabs',
+            'grandTotalRencana', 'grandTotalRealisasi',
+            'grandTotalRencanaPPN', 'grandTotalRealisasiPPN'
+        );
     }
 
     public function exportRabPdf($id)
@@ -193,14 +209,12 @@ class RabController extends Controller
             for ($i = 2; $i < count($rows); $i++) {
                 $row = $rows[$i];
 
-                // MENGGESER KOLOM: [0]=Kode, [1]=Uraian, [2]=Satuan, [3]=Volume, [4]=Harga
                 $kode = trim($row[0] ?? '');
                 $uraian = trim($row[1] ?? '');
                 $satuan = trim($row[2] ?? '');
                 $volume = $row[3] ?? 0;
                 $hargaSatuan = $row[4] ?? 0;
 
-                // Fallback otomatis jika format lama yang dipakai (Kode kosong, uraian bergeser ke kolom 0)
                 if (empty($uraian) && !empty($kode) && (empty($satuan) || is_numeric($satuan) || is_string($satuan))) {
                     $uraian = $kode;
                     $kode = null;
