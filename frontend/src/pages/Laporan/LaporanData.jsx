@@ -38,9 +38,13 @@ export default function LaporanData() {
   const [reportData, setReportData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // STATE DRAFT MODE
+  // STATE DRAFT MODE & RAB SELECTOR
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [rabOptions, setRabOptions] = useState([]);
+  const [scheduleData, setScheduleData] = useState(null);
+  const [mingguKe, setMingguKe] = useState(null);
+  
   const [editForm, setEditForm] = useState({
     tanggal: '', pengawas: '', lokasi: '',
     cuacaItems: [], 
@@ -50,33 +54,20 @@ export default function LaporanData() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // STATE MODALS KEGIATAN
-  const [showActModal, setShowActModal] = useState(false);
-  const [actItem, setActItem] = useState({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null });
-
-  // STATE MODALS PERSONIL
+  // STATE MODALS PERSONIL & PERALATAN
   const [showPersonilModal, setShowPersonilModal] = useState(false);
   const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '', index: null });
-
-  // STATE MODALS PERALATAN
   const [showPeralatanModal, setShowPeralatanModal] = useState(false);
   const [peralatanForm, setPeralatanForm] = useState({ id: null, namaAlat: '', jumlah: '', index: null });
-
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
     document.title = "Prisma Group - Data Laporan";
-  }, []);
-
-  useEffect(() => {
     const userDataStr = localStorage.getItem('user_data');
     if (userDataStr) {
-      try {
-        const user = JSON.parse(userDataStr);
-        setUserRole(user.role || 'Tamu');
-      } catch (error) {}
+      try { setUserRole(JSON.parse(userDataStr).role || 'Tamu'); } catch (error) {}
     }
   }, []);
 
@@ -87,7 +78,31 @@ export default function LaporanData() {
   const fetchReport = async () => {
     try {
       const res = await api.get(`/daily-reports/${reportId}`);
-      setReportData(res.data.data);
+      const data = res.data.data;
+      setReportData(data);
+
+      if (data.project_id) {
+         const schedRes = await api.get(`/projects/${data.project_id}/schedules`);
+         setScheduleData(schedRes.data.data);
+
+         const flattenedItems = [];
+         schedRes.data.data.rab_data.forEach(kategori => {
+           kategori.items.forEach(item => {
+             if (!item.is_subheader) {
+               flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
+             }
+           });
+         });
+         setRabOptions(flattenedItems);
+
+         if (data.tanggal && data.project?.tanggal_mulai) {
+           const start = new Date(data.project.tanggal_mulai);
+           const report = new Date(data.tanggal);
+           const diffTime = report.getTime() - start.getTime();
+           const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+           setMingguKe(diffDays < 0 ? 'Invalid' : Math.floor(diffDays / 7) + 1);
+         }
+      }
     } catch (error) {
       console.error("Gagal memuat laporan:", error);
     } finally {
@@ -114,8 +129,7 @@ export default function LaporanData() {
                let kondisi = 'Cerah'; let ket = part;
                for (const opt of cuacaOpts) {
                  if (part.startsWith(opt)) {
-                   kondisi = opt;
-                   ket = part.replace(opt, '').trim();
+                   kondisi = opt; ket = part.replace(opt, '').trim();
                    if (ket.startsWith('(') && ket.endsWith(')')) ket = ket.substring(1, ket.length - 1);
                    break;
                  }
@@ -190,6 +204,55 @@ export default function LaporanData() {
     } catch (error) {
       alert("Terjadi kesalahan saat memverifikasi laporan.");
     }
+  };
+
+  // --- LOGIKA PENGELOMPOKAN URAIAN PEKERJAAN (Untuk Edit Inline) ---
+  let optionsMingguIni = [];
+  let optionsMingguLain = [];
+  let scheduledItemsMap = new Map();
+
+  if (scheduleData && scheduleData.schedules) {
+    scheduleData.schedules.forEach(sched => {
+      let detailItem = null;
+      let namaKategori = '';
+      scheduleData.rab_data.forEach(cat => {
+        const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
+        if (itemMatch) { detailItem = itemMatch; namaKategori = cat.nama_kategori; }
+      });
+
+      if (detailItem) {
+        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(mingguKe);
+        if (!scheduledItemsMap.has(sched.rab_item_id)) {
+          scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
+        } else if (isThisWeek) {
+          scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
+        }
+      }
+    });
+
+    scheduledItemsMap.forEach(value => {
+      if (value.is_this_week) optionsMingguIni.push(value);
+      else optionsMingguLain.push(value);
+    });
+  }
+
+  const unscheduledRabOptions = rabOptions.filter(opt => !scheduledItemsMap.has(opt.id));
+
+  const handleKegiatanSelectEdit = (index, selectedRabId) => {
+    const newK = [...editForm.activities];
+    if (selectedRabId === "manual") {
+      newK[index].rab_item_id = null;
+      newK[index].uraian = '';
+      newK[index].satuan = '';
+    } else {
+      const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId);
+      if (selectedRab) {
+        newK[index].rab_item_id = selectedRab.id;
+        newK[index].uraian = selectedRab.uraian;
+        newK[index].satuan = selectedRab.satuan || '';
+      }
+    }
+    setEditForm({...editForm, activities: newK});
   };
 
   // HANDLER MODALS PERSONIL & PERALATAN
@@ -321,7 +384,7 @@ export default function LaporanData() {
   const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
 
   return (
-    <div className="w-full space-y-5 relative pb-20">
+    <div className="w-full space-y-5 relative pb-20 animate-fade-in">
       
       <datalist id="peran-options">
         {defaultPersonilList.map(p => <option key={p} value={p} />)}
@@ -463,7 +526,7 @@ export default function LaporanData() {
           </div>
         </div>
 
-        {/* Info Cuaca (Dropdown Dinamis & Keterangan Mode Draf) */}
+        {/* Info Cuaca */}
         <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col transition-all relative backdrop-blur-sm`}>
           
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
@@ -559,76 +622,153 @@ export default function LaporanData() {
         </div>
       </div>
 
-      {/* Rincian Kegiatan */}
+      {/* Rincian Kegiatan (Inline Editing Saat Mode Edit) */}
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
         
-        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 pr-8 gap-2">
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
           <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 flex items-center gap-2 uppercase tracking-wider">
             <ListTodo className="w-4 h-4 text-amber-500" /> Kegiatan & Posisi Geografis
           </h3>
           {isEditMode && (
-            <button onClick={() => { setActItem({ index: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', rab_item_id: null }); setShowActModal(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in shrink-0 z-20">
+            <button 
+              type="button" 
+              onClick={() => {
+                if (editForm.activities.length < 6) {
+                  setEditForm({...editForm, activities: [...editForm.activities, { id: Date.now(), rab_item_id: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '' }]});
+                } else {
+                  alert("Maksimal 6 Kegiatan.");
+                }
+              }} 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 transition-all animate-fade-in shrink-0 z-20"
+            >
               <Plus className="w-3.5 h-3.5" /> Tambah Kegiatan
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 text-xs pt-1">
-          {activeActivities.length === 0 ? (
-            <p className="text-slate-500 dark:text-slate-400 text-center col-span-1 py-4 italic">Tidak ada kegiatan harian yang terdaftar.</p>
-          ) : (
-            activeActivities.map((keg, idx) => (
-              <div key={idx} className="flex flex-col p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-colors hover:border-slate-300 dark:hover:border-slate-600 relative">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 pr-16">
-                    <span className="flex-shrink-0 w-6 h-6 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center font-mono text-[10px] font-bold shadow-sm">
-                      {idx + 1}
+        {isEditMode ? (
+          <div className="space-y-4 mt-2">
+             {editForm.activities.map((item, index) => (
+                <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 bg-slate-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 items-start shadow-sm transition-all">
+                  <div className="md:col-span-12 flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase flex items-center gap-1.5">
+                      <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Kegiatan {index + 1}
                     </span>
-                    <p className="text-slate-700 dark:text-slate-200 mt-0.5 leading-relaxed font-bold text-[13px]">{keg.uraian}</p>
+                    {editForm.activities.length > 1 && (
+                      <button type="button" onClick={() => { const newA = [...editForm.activities]; newA.splice(index,1); setEditForm({...editForm, activities: newA}); }} className="text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    )}
                   </div>
-                  {isEditMode && (
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 animate-fade-in z-20">
-                       <button onClick={() => { 
-                         setActItem({...keg, index: idx, sta_awal: keg.sta_awal || '', sta_akhir: keg.sta_akhir || '' }); 
-                         setShowActModal(true); 
-                       }} className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-500/10 rounded-md transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
-                       <button onClick={() => { const newA = [...editForm.activities]; newA.splice(idx,1); setEditForm({...editForm, activities: newA}); }} className="p-1.5 text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-500/10 rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  
+                  <div className="md:col-span-12">
+                    <label className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold mb-1.5 flex items-center justify-between">
+                      <span>Uraian Pekerjaan <span className="text-rose-500">*</span></span>
+                    </label>
+                    
+                    {rabOptions.length > 0 ? (
+                      <select
+                        value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
+                        onChange={(e) => handleKegiatanSelectEdit(index, e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium mb-2 cursor-pointer truncate"
+                      >
+                        <option value="" disabled>-- Pilih Pekerjaan Terjadwal --</option>
+                        {optionsMingguIni.length > 0 && (
+                          <optgroup label={`>>> TARGET MINGGU INI (MINGGU KE-${mingguKe})`}>
+                            {optionsMingguIni.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}
+                          </optgroup>
+                        )}
+                        {optionsMingguLain.length > 0 && (
+                          <optgroup label=">>> TARGET MINGGU LAINNYA">
+                            {optionsMingguLain.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}
+                          </optgroup>
+                        )}
+                        {unscheduledRabOptions.length > 0 && (
+                          <optgroup label=">>> PEKERJAAN DI LUAR JADWAL (RAB TERDAFTAR)">
+                            {unscheduledRabOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>)}
+                          </optgroup>
+                        )}
+                        <option value="manual">+ Pekerjaan Tambah/Kurang (Input Manual)</option>
+                      </select>
+                    ) : (
+                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Time Schedule belum dibuat.</div>
+                    )}
+
+                    {(item.rab_item_id === null || rabOptions.length === 0) && (
+                      <textarea rows="2" placeholder="Ketik manual uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...editForm.activities]; newK[index].uraian = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 resize-none transition-colors" />
+                    )}
+                  </div>
+                  
+                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80">
+                    <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Titik Koordinat Awal (STA Awal)</label>
+                    <input type="text" placeholder="-3.3191, 114.5911" value={item.sta_awal} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_awal = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+                  </div>
+                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80">
+                    <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> Titik Koordinat Akhir (STA Akhir)</label>
+                    <input type="text" placeholder="-3.3215, 114.6102" value={item.sta_akhir} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_akhir = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+                  </div>
+                  <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center">
+                    <div className="flex gap-3 w-full">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mb-2 block">Volume <span className="text-rose-500">*</span></label>
+                        <input type="number" step="any" required placeholder="0.00" value={item.volume} onChange={(e) => { const newK = [...editForm.activities]; newK[index].volume = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors" />
+                      </div>
+                      <div className="w-24">
+                        <label className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mb-2 block text-center">Satuan</label>
+                        <input type="text" placeholder="M3/Ls" value={item.satuan} onChange={(e) => { const newK = [...editForm.activities]; newK[index].satuan = e.target.value; setEditForm({...editForm, activities: newK}); }} className={`w-full border rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-                
-                <div className="ml-9 mt-3 flex flex-wrap items-center gap-3">
-                  {(keg.sta_awal || keg.sta_akhir) && (
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-sm text-[10px] w-full sm:w-auto">
-                      {keg.sta_awal && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> 
-                          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Awal:</span> 
-                          <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_awal)}</span>
-                        </div>
-                      )}
-                      {keg.sta_awal && keg.sta_akhir && <div className="hidden sm:block w-px h-3 bg-slate-300 dark:bg-slate-600"></div>}
-                      {keg.sta_akhir && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> 
-                          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Akhir:</span> 
-                          <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_akhir)}</span>
-                        </div>
-                      )}
+             ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 text-xs pt-1">
+            {reportData.activities.length === 0 ? (
+              <p className="text-slate-500 dark:text-slate-400 text-center col-span-1 py-4 italic">Tidak ada kegiatan harian yang terdaftar.</p>
+            ) : (
+              reportData.activities.map((keg, idx) => (
+                <div key={idx} className="flex flex-col p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/50 rounded-xl group transition-colors hover:border-slate-300 dark:hover:border-slate-600 relative">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 pr-16">
+                      <span className="flex-shrink-0 w-6 h-6 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center font-mono text-[10px] font-bold shadow-sm">
+                        {idx + 1}
+                      </span>
+                      <p className="text-slate-700 dark:text-slate-200 mt-0.5 leading-relaxed font-bold text-[13px]">{keg.uraian}</p>
                     </div>
-                  )}
-                  {keg.volume && (
-                    <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 px-3 py-2 rounded-lg text-[10px]">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 
-                      <span className="text-emerald-700 dark:text-emerald-400 font-bold uppercase">Tercapai:</span> 
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{Number(keg.volume)} {keg.satuan}</span>
-                    </div>
-                  )}
+                  </div>
+                  
+                  <div className="ml-9 mt-3 flex flex-wrap items-center gap-3">
+                    {(keg.sta_awal || keg.sta_akhir) && (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-sm text-[10px] w-full sm:w-auto">
+                        {keg.sta_awal && (
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> 
+                            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Awal:</span> 
+                            <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_awal)}</span>
+                          </div>
+                        )}
+                        {keg.sta_awal && keg.sta_akhir && <div className="hidden sm:block w-px h-3 bg-slate-300 dark:bg-slate-600"></div>}
+                        {keg.sta_akhir && (
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> 
+                            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Akhir:</span> 
+                            <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_akhir)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {keg.volume && (
+                      <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 px-3 py-2 rounded-lg text-[10px]">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 
+                        <span className="text-emerald-700 dark:text-emerald-400 font-bold uppercase">Tercapai:</span> 
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{Number(keg.volume)} {keg.satuan}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Personil & Peralatan */}
@@ -705,7 +845,7 @@ export default function LaporanData() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-xs">
                 {activeEquipments.map((alat, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                    <td className="py-2.5 text-slate-700 dark:text-slate-300 font-medium">{alat.nama_alat}</td>
+                    <td className="py-2.5 text-slate-700 dark:text-slate-300 font-medium">{alat.nama_alat || alat.namaAlat}</td>
                     <td className="py-2.5 text-center font-mono font-bold text-blue-600 dark:text-blue-400">
                       <span className="bg-blue-50 dark:bg-blue-950/20 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/30">
                         {alat.jumlah} <span className="text-[9px] text-blue-600/70 dark:text-blue-500/70 font-sans font-normal ml-0.5">Unit</span>
@@ -730,8 +870,7 @@ export default function LaporanData() {
 
       {/* SECTION 5: Upload Foto & Lampiran */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-        
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <ImageIcon className="w-4 h-4" /> Dokumentasi Lapangan (Foto)
@@ -788,7 +927,7 @@ export default function LaporanData() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Paperclip className="w-4 h-4" /> File Lampiran (Opsional)
