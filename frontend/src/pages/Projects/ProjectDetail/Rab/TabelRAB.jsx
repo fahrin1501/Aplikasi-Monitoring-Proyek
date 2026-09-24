@@ -14,7 +14,6 @@ export default function TabelRAB({
 
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
 
-  // LOADING TERISOLASI DI AREA TABEL
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
@@ -61,7 +60,8 @@ export default function TabelRAB({
   return (
     <div className="space-y-6 animate-fade-in">
       {filteredRabsView.map((divisi) => {
-        // Kalkulasi Total Divisi dengan PPN 11% khusus realisasi
+        // Kalkulasi Total Divisi dengan PPN 11% khusus rencana & realisasi
+        const totalRencanaDivisiPPN = divisi.totalRencanaDivisi + (divisi.totalRencanaDivisi * 0.11);
         const totalRealisasiDivisiPPN = divisi.totalRealisasiDivisi + (divisi.totalRealisasiDivisi * 0.11);
 
         return (
@@ -99,24 +99,28 @@ export default function TabelRAB({
             </div>
 
             <div className="hidden lg:block overflow-x-auto custom-scrollbar">
-              <table className="w-full table-fixed text-left border-collapse min-w-[950px]">
+              <table className="w-full table-fixed text-left border-collapse min-w-[1100px]">
                 <thead className="bg-slate-100 dark:bg-slate-900/40 text-[10px] uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
                   <tr>
-                    <th className={`px-4 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Kode</th>
-                    <th className={`px-3 py-2.5 ${canViewPrices ? 'w-[23%]' : 'w-[40%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Uraian Pekerjaan</th>
-                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[5%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold`}>SAT</th>
-                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10`}>Vol (R)</th>
-                    {canViewPrices && <th className="px-3 py-2.5 w-[12%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Sat (R)</th>}
-                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jumlah (R)</th>}
-                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[7%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10`}>Vol (A)</th>
-                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jml Realisasi (A)</th>}
-                    {/* --- KOLOM BARU PPN 11% --- */}
-                    {canViewPrices && <th className="px-3 py-2.5 w-[13%] text-right font-bold text-amber-600 dark:text-amber-500/90 bg-amber-50 dark:bg-amber-950/20">Realisasi + PPN 11%</th>}
+                    <th className={`px-4 py-2.5 ${canViewPrices ? 'w-[6%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Kode</th>
+                    <th className={`px-3 py-2.5 ${canViewPrices ? 'w-[20%]' : 'w-[40%]'} border-r border-slate-200 dark:border-slate-700/40 font-semibold`}>Uraian Pekerjaan</th>
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[4%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-center font-semibold`}>SAT</th>
+                    
+                    {/* BAGIAN RENCANA */}
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[5%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10`}>Vol (R)</th>
+                    {canViewPrices && <th className="px-3 py-2.5 w-[10%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Harga Satuan</th>}
+                    {canViewPrices && <th className="px-3 py-2.5 w-[11%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-blue-600 dark:text-blue-400/80 bg-blue-50 dark:bg-blue-950/10">Jml Rencana (R)</th>}
+                    {canViewPrices && <th className="px-3 py-2.5 w-[11%] border-r border-slate-200 dark:border-slate-700/40 text-right font-bold text-sky-700 dark:text-sky-500/90 bg-sky-100/50 dark:bg-sky-950/20">Rencana + PPN 11%</th>}
+                    
+                    {/* BAGIAN REALISASI */}
+                    <th className={`px-2 py-2.5 ${canViewPrices ? 'w-[5%]' : 'w-[15%]'} border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10`}>Vol (A)</th>
+                    {canViewPrices && <th className="px-3 py-2.5 w-[11%] border-r border-slate-200 dark:border-slate-700/40 text-right font-semibold text-emerald-600 dark:text-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/10">Jml Realisasi (A)</th>}
+                    {canViewPrices && <th className="px-3 py-2.5 w-[11%] text-right font-bold text-amber-600 dark:text-amber-500/90 bg-amber-50 dark:bg-amber-950/20">Realisasi + PPN 11%</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-[11px] text-slate-700 dark:text-slate-300">
                   {divisi.items.length === 0 ? (
-                    <tr><td colSpan={canViewPrices ? 9 : 5} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
+                    <tr><td colSpan={canViewPrices ? 10 : 5} className="text-center py-6 text-slate-500 italic">Tidak ada item pekerjaan</td></tr>
                   ) : (
                     divisi.items.map((item) => {
                       if (item.is_subheader) {
@@ -125,7 +129,7 @@ export default function TabelRAB({
                             <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700/40 font-mono text-amber-600 dark:text-amber-500 font-bold">
                               {item.kode_pekerjaan}
                             </td>
-                            <td colSpan={canViewPrices ? 8 : 4} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
+                            <td colSpan={canViewPrices ? 9 : 4} className="px-3 py-2 border-r border-slate-200 dark:border-slate-700/40">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-wide">
                                   {item.uraian_pekerjaan}
@@ -143,6 +147,7 @@ export default function TabelRAB({
                       }
 
                       // --- LOGIKA KALKULASI PPN PER ITEM ---
+                      const rencanaTotalWithPPN = item.total_harga + (item.total_harga * 0.11);
                       const actualTotalWithPPN = item.actualTotal + (item.actualTotal * 0.11);
 
                       return (
@@ -164,15 +169,16 @@ export default function TabelRAB({
                             </div>
                           </td>
                           <td className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700/40 text-slate-500 dark:text-slate-400 font-mono text-[10px]">{item.satuan}</td>
-                          <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
                           
+                          {/* AREA RENCANA */}
+                          <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
                           {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>}
                           {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>}
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-sky-50/50 dark:bg-sky-950/10 text-sky-700 dark:text-sky-500 font-bold">{formatRupiah(rencanaTotalWithPPN)}</td>}
                           
+                          {/* AREA REALISASI */}
                           <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{item.actualVol}</td>
                           {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>}
-                          
-                          {/* --- DATA KOLOM BARU PPN 11% --- */}
                           {canViewPrices && <td className="px-3 py-3 text-right font-mono text-[10px] bg-amber-50/50 dark:bg-amber-950/10 text-amber-700 dark:text-amber-500 font-bold">{formatRupiah(actualTotalWithPPN)}</td>}
                         </tr>
                       );
@@ -184,22 +190,30 @@ export default function TabelRAB({
 
             {/* Subtotal View */}
             {canViewPrices && (
-              <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-4 text-xs">
+              <div className="bg-slate-50 dark:bg-slate-900 px-4 py-3 border-t border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-6 text-xs">
                 <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase text-[10px]">Subtotal {divisi.nama_kategori}</span>
-                <div className="flex items-center justify-between md:justify-end gap-6 font-mono font-bold w-full md:w-auto">
-                  <div className="flex flex-col items-start md:items-end">
-                    <span className="text-[9px] text-slate-500 uppercase">Rencana (Plan)</span>
-                    <span className="text-blue-600 dark:text-blue-400 text-sm">{formatRupiah(divisi.totalRencanaDivisi)}</span>
+                <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 font-mono font-bold w-full md:w-auto">
+                  
+                  {/* Rencana Divisi */}
+                  <div className="flex flex-col items-end">
+                    <span className="text-[9px] text-slate-500 uppercase">Rencana Murni</span>
+                    <span className="text-blue-600 dark:text-blue-400 text-[13px]">{formatRupiah(divisi.totalRencanaDivisi)}</span>
                   </div>
-                  <div className="flex flex-col items-start md:items-end">
-                    <span className="text-[9px] text-slate-500 uppercase">Realisasi (Actual)</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-sm">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
+                  <div className="flex flex-col items-end border-r border-slate-200 dark:border-slate-700 pr-6">
+                    <span className="text-[9px] text-sky-600 dark:text-sky-500 uppercase bg-sky-100 dark:bg-sky-900/40 px-1.5 py-0.5 rounded">Rencana + PPN 11%</span>
+                    <span className="text-sky-700 dark:text-sky-400 text-[13px] mt-0.5">{formatRupiah(totalRencanaDivisiPPN)}</span>
                   </div>
-                  {/* --- TOTAL REALISASI + PPN DI FOOTER DIVISI --- */}
+
+                  {/* Realisasi Divisi */}
+                  <div className="flex flex-col items-end">
+                    <span className="text-[9px] text-slate-500 uppercase">Realisasi Murni</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-[13px]">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
+                  </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[9px] text-amber-600 dark:text-amber-500 uppercase bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Realisasi + PPN 11%</span>
-                    <span className="text-amber-700 dark:text-amber-400 text-sm mt-0.5">{formatRupiah(totalRealisasiDivisiPPN)}</span>
+                    <span className="text-amber-700 dark:text-amber-400 text-[13px] mt-0.5">{formatRupiah(totalRealisasiDivisiPPN)}</span>
                   </div>
+
                 </div>
               </div>
             )}
