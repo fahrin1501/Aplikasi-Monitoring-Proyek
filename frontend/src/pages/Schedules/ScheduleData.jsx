@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
-  ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, Filter, ListPlus, Clock, CheckCircle2, Trash2, ChevronDown, Plus, Calendar, Layers, CheckSquare
+  ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, Filter, ListPlus, Clock, CheckCircle2, Trash2, ChevronDown, Plus, Calendar, Layers, CheckSquare, Target
 } from 'lucide-react';
 
 export default function ScheduleData() {
@@ -41,16 +41,17 @@ export default function ScheduleData() {
   const [deleteConfig, setDeleteConfig] = useState({ show: false, rabItemId: null, weekNum: null, itemName: '' });
   const [deleteWeekConfig, setDeleteWeekConfig] = useState({ show: false, weekNum: null });
 
-  // --- STATE MODAL BATCH KERANJANG ---
+  // STATE MODAL BATCH
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [targetPeriod, setTargetPeriod] = useState({ bulan: '', minggu_ke: '', start: '', end: '' });
-  
   const [modalAddedItems, setModalAddedItems] = useState([]);
   const [draftDivisiId, setDraftDivisiId] = useState('');
-  
   const [draftItemIds, setDraftItemIds] = useState([]); 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // STATE: MENYIMPAN INPUT KUMULATIF MINGGUAN SEMENTARA SAAT EDIT MODE
+  const [weekCumulativeInputs, setWeekCumulativeInputs] = useState({});
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -82,6 +83,7 @@ export default function ScheduleData() {
       setProjectData(projRes.data);
       setScheduleData(schedRes.data.data);
       setLocalSchedules(schedRes.data.data.schedules || []);
+      setWeekCumulativeInputs({});
     } catch (error) {
       console.error("Gagal menarik data:", error);
     } finally {
@@ -104,22 +106,21 @@ export default function ScheduleData() {
     setDeleteWeekConfig({ show: false, weekNum: null });
   };
 
-  // Inline input manual di mode edit table
-  const handleInlineChange = (rabItemId, weekNum, value) => {
-    if (value === '') {
-       setLocalSchedules(prev => prev.map(s => {
-          if (s.rab_item_id === rabItemId && s.minggu_ke === weekNum) return { ...s, bobot_rencana: '' };
-          return s;
-       }));
-       return;
-    }
+  // --- HANDLER: PERUBAHAN INPUT KUMULATIF MINGGUAN DI EDIT MODE ---
+  const handleWeekCumulativeChange = (weekNum, value) => {
+    const val = value.replace(',', '.');
+    if (isNaN(val) && val !== '.') return;
 
-    const sanitizedValue = value.replace(',', '.');
-    if (isNaN(sanitizedValue) && sanitizedValue !== '.') return;
-    
+    setWeekCumulativeInputs(prev => ({ ...prev, [weekNum]: val }));
+
+    const valNum = parseFloat(val) || 0;
+    const weekItems = localSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
+    const portion = weekItems.length > 0 ? valNum / weekItems.length : 0;
+
+    // Membagi rata secara real-time ke localSchedules agar saat disimpan data sudah terpecah
     setLocalSchedules(prev => prev.map(s => {
-      if (s.rab_item_id === rabItemId && s.minggu_ke === weekNum) {
-        return { ...s, bobot_rencana: sanitizedValue };
+      if (parseInt(s.minggu_ke) === weekNum) {
+        return { ...s, bobot_rencana: portion };
       }
       return s;
     }));
@@ -181,7 +182,7 @@ export default function ScheduleData() {
       kode_pekerjaan: itemAsli.kode_pekerjaan || '',
       uraian_pekerjaan: itemAsli.uraian_pekerjaan,
       kategori_nama: itemAsli.kategori_nama,
-      bobot_rencana: '', // Input manual bebas
+      bobot_rencana: 0, // Nilai default 0, nanti di-override oleh input kumulatif di tabel utama
       minggu_ke: parseInt(targetPeriod.minggu_ke),
       bulan: targetPeriod.bulan,
       tanggal_awal: targetPeriod.start,
@@ -197,33 +198,38 @@ export default function ScheduleData() {
     setModalAddedItems(modalAddedItems.filter(item => item.rab_item_id !== idToRemove));
   };
 
-  const handleUpdateBobotModalCart = (id, newValue) => {
-    setModalAddedItems(modalAddedItems.map(item => {
-      if (item.rab_item_id === id) {
-        if (newValue === '') return { ...item, bobot_rencana: '' };
-        const sanitizedValue = newValue.replace(',', '.');
-        if (isNaN(sanitizedValue) && sanitizedValue !== '.') return item;
-        return { ...item, bobot_rencana: sanitizedValue };
-      }
-      return item;
-    }));
-  };
-
   const handleSaveModalCartToWeek = () => {
-    if (modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
-    if (modalAddedItems.some(item => parseFloat(item.bobot_rencana) <= 0 || item.bobot_rencana === '')) {
-       return alert("Nilai bobot rencana tidak boleh kosong atau 0.");
+    if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
+    
+    // Saat menambahkan dari modal, item baru masuk ke localSchedules.
+    // Jika input kumulatif (weekCumulativeInputs) sudah diketik sebelumnya, 
+    // kita harus membagi rata ulang angka tersebut dengan total item yang baru.
+    const weekNum = parseInt(targetPeriod.minggu_ke);
+    const updatedSchedules = [...localSchedules, ...modalAddedItems];
+    
+    const weekItems = updatedSchedules.filter(s => parseInt(s.minggu_ke) === weekNum);
+    const existingCumulative = weekCumulativeInputs[weekNum];
+    
+    if (existingCumulative) {
+      const valNum = parseFloat(existingCumulative) || 0;
+      const portion = valNum / weekItems.length;
+      
+      setLocalSchedules(updatedSchedules.map(s => {
+         if (parseInt(s.minggu_ke) === weekNum) return { ...s, bobot_rencana: portion };
+         return s;
+      }));
+    } else {
+      setLocalSchedules(updatedSchedules);
     }
-    setLocalSchedules([...localSchedules, ...modalAddedItems]);
+    
     setShowAddItemModal(false);
   };
-
-  const totalModalDraftBobot = modalAddedItems.reduce((sum, item) => sum + (parseFloat(item.bobot_rencana) || 0), 0);
 
   const handleSaveSchedule = async () => {
     setSaveModal(false);
     setIsSaving(true);
     
+    // Konversi akhir sebelum dikirim
     const safeLocalSchedules = localSchedules.map(s => ({
        ...s,
        bobot_rencana: parseFloat(s.bobot_rencana) || 0
@@ -273,13 +279,7 @@ export default function ScheduleData() {
   }
 
   const allWeeks = Object.values(weekGroups).sort((a,b) => a.minggu_ke - b.minggu_ke);
-  
-  let weeksToRender = [];
-  if (filterWeek === 'all') {
-    weeksToRender = allWeeks;
-  } else {
-    weeksToRender = allWeeks.filter(w => w.minggu_ke === parseInt(filterWeek));
-  }
+  let weeksToRender = filterWeek === 'all' ? allWeeks : allWeeks.filter(w => w.minggu_ke === parseInt(filterWeek));
 
   return (
     <div className="w-full space-y-5 pb-20 relative">
@@ -291,11 +291,10 @@ export default function ScheduleData() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* 1. HEADER NAVIGASI */}
+      {/* --- HEADER NAVIGASI --- */}
       <div className="flex flex-col lg:flex-row justify-between gap-4 mb-2">
         <div className="flex items-start gap-3">
           <button onClick={() => navigate('/projects')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm text-slate-600 dark:text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
-          
           <div>
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
               Daftar Time Schedule
@@ -407,6 +406,11 @@ export default function ScheduleData() {
             const schedulesThisWeek = weekGroup.items;
             const tanggalFormat = (weekGroup.start && weekGroup.end) ? `${formatIndoDate(weekGroup.start)} - ${formatIndoDate(weekGroup.end)}` : 'Tanggal Belum Diset';
             
+            // Kalkulasi Kumulatif (Hanya Untuk Header Mingguan)
+            const weekTargetRencana = schedulesThisWeek.reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
+            const weekReal = scheduleData.realizations?.filter(r => parseInt(r.minggu_ke) === weekNum).reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+            const displayCumulative = weekCumulativeInputs[weekNum] !== undefined ? weekCumulativeInputs[weekNum] : weekTargetRencana.toFixed(2);
+
             return (
               <div key={weekNum} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-all animate-fade-in relative backdrop-blur-sm ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
                 {isEditMode && <div className="absolute top-3 right-3 md:top-4 md:right-4 p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/30 transition-all z-10 animate-pulse"><Edit3 className="w-4 h-4" /></div>}
@@ -425,10 +429,28 @@ export default function ScheduleData() {
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg font-bold text-slate-600 dark:text-slate-300 shadow-sm z-20">
-                      {schedulesThisWeek.length} Pekerjaan Didaftarkan
-                    </span>
                     
+                    {/* INDIKATOR KUMULATIF MINGGUAN */}
+                    {isEditMode ? (
+                       <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-600 px-3 py-1.5 rounded-lg shadow-inner z-20 relative">
+                         <Target className="w-3.5 h-3.5 text-blue-500" />
+                         <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase hidden sm:block">Target Kumulatif:</span>
+                         <input 
+                           type="text" 
+                           value={displayCumulative}
+                           onChange={(e) => handleWeekCumulativeChange(weekNum, e.target.value)}
+                           className="w-14 bg-transparent text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none text-xs"
+                         />
+                         <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">%</span>
+                       </div>
+                    ) : (
+                       <span className="text-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg font-bold text-slate-600 dark:text-slate-300 shadow-sm z-20 flex items-center gap-2">
+                         <span className="text-blue-600 dark:text-blue-400">Target: {weekTargetRencana.toFixed(2)}%</span>
+                         <span className="w-px h-3 bg-slate-300 dark:bg-slate-600"></span>
+                         <span className="text-emerald-600 dark:text-emerald-400">Aktual: {weekReal.toFixed(2)}%</span>
+                       </span>
+                    )}
+
                     {isEditMode && canCreateData && (
                       <>
                         <button onClick={() => openAddItemModal(weekGroup)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm z-20 relative">
@@ -442,21 +464,21 @@ export default function ScheduleData() {
                   </div>
                 </div>
                 
+                {/* TABEL VIEW (Tanpa Kolom Target Rencana) */}
                 <div className="overflow-x-auto w-full custom-scrollbar">
-                  <table className="w-full text-left border-collapse min-w-[1000px]">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-4 border-r border-slate-200 dark:border-slate-700/60 w-[30%]">Divisi & Uraian Pekerjaan</th>
-                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[15%] text-blue-600 dark:text-blue-400">Target Rencana (M-{weekNum})</th>
-                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[15%] text-emerald-600 dark:text-emerald-400">Realisasi Aktual (M-{weekNum})</th>
-                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[15%]">Tgl Laporan / Verifikasi</th>
-                        <th className="p-3 text-center w-[20%] bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-700/60">Info Status Bobot</th>
+                        <th className="p-4 border-r border-slate-200 dark:border-slate-700/60 w-[45%]">Divisi & Uraian Pekerjaan</th>
+                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[20%] text-emerald-600 dark:text-emerald-400">Realisasi Aktual (M-{weekNum})</th>
+                        <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center w-[20%]">Tgl Laporan / Verifikasi</th>
+                        <th className="p-3 text-center w-[10%] bg-slate-100 dark:bg-slate-900/80 border-r border-slate-200 dark:border-slate-700/60">Info Laporan</th>
                         {isEditMode && canCreateData && <th className="p-3 text-center w-[5%] bg-rose-50/50 dark:bg-rose-900/10">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
                       {schedulesThisWeek.length === 0 ? (
-                        <tr><td colSpan={isEditMode && canCreateData ? 6 : 5} className="p-8 text-center text-slate-500 dark:text-slate-400 italic">Data kosong atau telah dihapus sementara.</td></tr>
+                        <tr><td colSpan={isEditMode && canCreateData ? 5 : 4} className="p-8 text-center text-slate-500 dark:text-slate-400 italic">Data kosong atau telah dihapus sementara.</td></tr>
                       ) : (
                         schedulesThisWeek.map(sched => {
                           const item = getItemInfo(sched.rab_item_id);
@@ -467,25 +489,9 @@ export default function ScheduleData() {
                             <tr key={sched.rab_item_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                               <td className="p-4 border-r border-slate-200 dark:border-slate-700/60">
                                 <div className="font-bold text-[11px] leading-snug line-clamp-2" title={item?.uraian_pekerjaan}>{item?.uraian_pekerjaan}</div>
-                                <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-wide truncate">{item?.kategori_nama}</div>
+                                <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-wide truncate font-semibold">{item?.kategori_nama}</div>
                               </td>
                               
-                              <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-blue-50/20 dark:bg-blue-900/10">
-                                {isEditMode ? (
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <input 
-                                      type="text" 
-                                      value={sched.bobot_rencana !== undefined ? sched.bobot_rencana : ''} 
-                                      onChange={(e) => handleInlineChange(sched.rab_item_id, weekNum, e.target.value)} 
-                                      className="w-24 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg text-blue-700 dark:text-blue-400 shadow-inner transition-colors" 
-                                    />
-                                    <span className="text-xs font-bold text-slate-500">%</span>
-                                  </div>
-                                ) : (
-                                  <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">{Number(sched.bobot_rencana).toFixed(2)}%</span>
-                                )}
-                              </td>
-
                               <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/20 dark:bg-emerald-900/10">
                                 <span className={`font-mono font-bold text-sm ${realisasiMingguIni > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
                                   {realisasiMingguIni > 0 ? `${Number(realisasiMingguIni).toFixed(2)}%` : '-'}
@@ -538,7 +544,7 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* MODAL BATCH TAMBAH PEKERJAAN */}
+      {/* --- MODAL BATCH TAMBAH PEKERJAAN (EDIT MODE) --- */}
       {showAddItemModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
@@ -555,7 +561,6 @@ export default function ScheduleData() {
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
                <div className="flex flex-col lg:flex-row items-end gap-4">
                  
-                 {/* KOTAK 1: PILIH DIVISI */}
                  <div className="w-full lg:w-[35%] space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pilih Mode Filter Divisi</label>
                    <select 
@@ -575,7 +580,6 @@ export default function ScheduleData() {
                    </select>
                  </div>
                  
-                 {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
                  <div className="w-full lg:w-[50%] space-y-1.5 relative" ref={dropdownRef}>
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Centang Uraian Pekerjaan</label>
                    
@@ -617,7 +621,7 @@ export default function ScheduleData() {
                               <div className="flex flex-col">
                                 <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
                                 {draftDivisiId === 'all' && (
-                                  <span className="text-[9px] text-amber-600 dark:text-amber-500 mr-1.5 uppercase font-bold mt-0.5">{item.kategori_nama}</span>
+                                  <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase mt-0.5">{item.kategori_nama}</span>
                                 )}
                               </div>
                             </div>
@@ -629,18 +633,19 @@ export default function ScheduleData() {
 
                  <div className="w-full lg:w-auto">
                    <button onClick={handleAddItemsToModalCart} disabled={!draftDivisiId || draftItemIds.length === 0} className="w-full lg:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                     <ListPlus className="w-4 h-4" /> Tambah {draftItemIds.length > 0 ? `(${draftItemIds.length})` : ''} 
+                     <ListPlus className="w-4 h-4" /> Masukkan ke Antrean
                    </button>
                  </div>
                </div>
             </div>
             
+            {/* TABEL HASIL (TANPA INPUT BOBOT) */}
             <div className="overflow-y-auto custom-scrollbar flex-1 min-h-[200px]">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shadow-sm border-b border-slate-200 dark:border-slate-700/60">
                   <tr>
-                    <th className="p-3 w-[60%] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan di Keranjang</th>
-                    <th className="p-3 text-center w-[25%] border-r border-slate-200 dark:border-slate-700/60 text-emerald-600 dark:text-emerald-400">Target Mingguan (%)</th>
+                    <th className="p-3 w-[10%] text-center border-r border-slate-200 dark:border-slate-700/60">No</th>
+                    <th className="p-3 w-[75%] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan Tersimpan</th>
                     <th className="p-3 text-center w-[15%]">Aksi</th>
                   </tr>
                 </thead>
@@ -650,31 +655,15 @@ export default function ScheduleData() {
                   ) : (
                     modalAddedItems.map((item, index) => (
                       <tr key={item.rab_item_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="p-4 border-r border-slate-200 dark:border-slate-700/60 flex items-start gap-3">
-                          <span className="flex-shrink-0 w-5 h-5 bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center font-mono text-[9px] font-bold shadow-sm">
-                            {index + 1}
-                          </span>
-                          <div>
-                            <div className="font-bold text-[11px] leading-snug line-clamp-2" title={item.uraian_pekerjaan}>{item.kode_pekerjaan ? `${item.kode_pekerjaan} ` : ''}{item.uraian_pekerjaan}</div>
-                            <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-wide truncate">{item.kategori_nama}</div>
-                          </div>
-                        </td>
-                        <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle bg-emerald-50/10 dark:bg-emerald-900/5">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <input 
-                              type="text" 
-                              placeholder="0.00"
-                              value={item.bobot_rencana || ''}
-                              onChange={(e) => handleUpdateBobotModalCart(item.rab_item_id, e.target.value)}
-                              className="w-24 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-600 text-center font-mono text-sm py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg text-emerald-700 dark:text-emerald-400 shadow-inner transition-colors" 
-                            />
-                            <span className="text-xs font-bold text-slate-500">%</span>
-                          </div>
+                        <td className="p-4 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle font-mono font-bold text-slate-500">{index + 1}</td>
+                        <td className="p-4 border-r border-slate-200 dark:border-slate-700/60">
+                          <div className="font-bold text-[12px] leading-snug line-clamp-2" title={item.uraian_pekerjaan}>{item.kode_pekerjaan ? `${item.kode_pekerjaan} ` : ''}{item.uraian_pekerjaan}</div>
+                          <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase font-semibold">{item.kategori_nama}</div>
                         </td>
                         <td className="p-2 text-center align-middle">
                           <button 
                             onClick={() => handleRemoveFromModalCart(item.rab_item_id)}
-                            className="p-1.5 mx-auto flex items-center justify-center bg-rose-50 dark:bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 rounded-lg transition-colors shadow-sm"
+                            className="p-2 mx-auto flex items-center justify-center bg-rose-50 dark:bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 rounded-lg transition-colors shadow-sm"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -686,20 +675,17 @@ export default function ScheduleData() {
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3 shrink-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Total: <strong className="text-emerald-600 dark:text-emerald-400 text-sm">{Number(totalModalDraftBobot || 0).toFixed(2)}%</strong></span>
-              <div className="flex gap-2">
-                <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-                <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
-                  <Save className="w-4 h-4" /> Simpan ke Minggu {targetPeriod.minggu_ke}
-                </button>
-              </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex justify-end items-center gap-3 shrink-0">
+              <button onClick={() => setShowAddItemModal(false)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
+              <button onClick={handleSaveModalCartToWeek} disabled={modalAddedItems.length === 0} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50">
+                <Save className="w-4 h-4" /> Simpan ke Minggu {targetPeriod.minggu_ke}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL KONFIRMASI SIMPAN */}
+      {/* --- MODAL KONFIRMASI --- */}
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -708,7 +694,7 @@ export default function ScheduleData() {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Target rencana kerja yang diinput manual akan langsung diperbarui ke database.
+              Target rencana kerja akan diperbarui dan diterapkan langsung ke database.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
@@ -720,7 +706,6 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* MODAL HAPUS 1 BARIS */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -741,7 +726,6 @@ export default function ScheduleData() {
         </div>
       )}
 
-      {/* MODAL HAPUS 1 MINGGU */}
       {deleteWeekConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
