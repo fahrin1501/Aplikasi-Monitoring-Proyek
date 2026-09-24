@@ -60,9 +60,12 @@ export default function TabelRAB({
   return (
     <div className="space-y-6 animate-fade-in">
       {filteredRabsView.map((divisi) => {
-        // Kalkulasi Total Divisi dengan PPN 11% khusus rencana & realisasi
-        const totalRencanaDivisiPPN = divisi.totalRencanaDivisi + (divisi.totalRencanaDivisi * 0.11);
-        const totalRealisasiDivisiPPN = divisi.totalRealisasiDivisi + (divisi.totalRealisasiDivisi * 0.11);
+        // PERBAIKAN: Memaksa konversi tipe data ke Number untuk subtotal Divisi
+        const totalRencanaDivisiNum = Number(divisi.totalRencanaDivisi) || 0;
+        const totalRealisasiDivisiNum = Number(divisi.totalRealisasiDivisi) || 0;
+        
+        const totalRencanaDivisiPPN = totalRencanaDivisiNum + (totalRencanaDivisiNum * 0.11);
+        const totalRealisasiDivisiPPN = totalRealisasiDivisiNum + (totalRealisasiDivisiNum * 0.11);
 
         return (
           <div key={divisi.id} className={`bg-white dark:bg-slate-800/60 border rounded-2xl overflow-hidden shadow-sm transition-colors ${isEditMode ? 'border-blue-300/60 dark:border-blue-700/40 shadow-blue-900/5' : 'border-slate-200 dark:border-slate-700/60'}`}>
@@ -146,9 +149,12 @@ export default function TabelRAB({
                         );
                       }
 
-                      // --- LOGIKA KALKULASI PPN PER ITEM ---
-                      const rencanaTotalWithPPN = item.total_harga + (item.total_harga * 0.11);
-                      const actualTotalWithPPN = item.actualTotal + (item.actualTotal * 0.11);
+                      // --- PERBAIKAN: Memaksa konversi tipe data ke Number per-item ---
+                      const hargaTotalNum = Number(item.total_harga) || 0;
+                      const actualTotalNum = Number(item.actualTotal) || 0;
+
+                      const rencanaTotalWithPPN = hargaTotalNum + (hargaTotalNum * 0.11);
+                      const actualTotalWithPPN = actualTotalNum + (actualTotalNum * 0.11);
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
@@ -173,12 +179,12 @@ export default function TabelRAB({
                           {/* AREA RENCANA */}
                           <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{Number(item.volume)}</td>
                           {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5">{formatRupiah(item.harga_satuan)}</td>}
-                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(item.total_harga)}</td>}
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-blue-50/50 dark:bg-blue-950/5 text-blue-600 dark:text-blue-300 font-bold">{formatRupiah(hargaTotalNum)}</td>}
                           {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-sky-50/50 dark:bg-sky-950/10 text-sky-700 dark:text-sky-500 font-bold">{formatRupiah(rencanaTotalWithPPN)}</td>}
                           
                           {/* AREA REALISASI */}
                           <td className="px-2 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{item.actualVol}</td>
-                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(item.actualTotal)}</td>}
+                          {canViewPrices && <td className="px-3 py-3 text-right border-r border-slate-200 dark:border-slate-700/40 font-mono text-[10px] bg-emerald-50/50 dark:bg-emerald-950/5 text-emerald-600 dark:text-emerald-400 font-bold">{formatRupiah(actualTotalNum)}</td>}
                           {canViewPrices && <td className="px-3 py-3 text-right font-mono text-[10px] bg-amber-50/50 dark:bg-amber-950/10 text-amber-700 dark:text-amber-500 font-bold">{formatRupiah(actualTotalWithPPN)}</td>}
                         </tr>
                       );
@@ -197,7 +203,7 @@ export default function TabelRAB({
                   {/* Rencana Divisi */}
                   <div className="flex flex-col items-end">
                     <span className="text-[9px] text-slate-500 uppercase">Rencana Murni</span>
-                    <span className="text-blue-600 dark:text-blue-400 text-[13px]">{formatRupiah(divisi.totalRencanaDivisi)}</span>
+                    <span className="text-blue-600 dark:text-blue-400 text-[13px]">{formatRupiah(totalRencanaDivisiNum)}</span>
                   </div>
                   <div className="flex flex-col items-end border-r border-slate-200 dark:border-slate-700 pr-6">
                     <span className="text-[9px] text-sky-600 dark:text-sky-500 uppercase bg-sky-100 dark:bg-sky-900/40 px-1.5 py-0.5 rounded">Rencana + PPN 11%</span>
@@ -207,7 +213,7 @@ export default function TabelRAB({
                   {/* Realisasi Divisi */}
                   <div className="flex flex-col items-end">
                     <span className="text-[9px] text-slate-500 uppercase">Realisasi Murni</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-[13px]">{formatRupiah(divisi.totalRealisasiDivisi)}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-[13px]">{formatRupiah(totalRealisasiDivisiNum)}</span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[9px] text-amber-600 dark:text-amber-500 uppercase bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Realisasi + PPN 11%</span>

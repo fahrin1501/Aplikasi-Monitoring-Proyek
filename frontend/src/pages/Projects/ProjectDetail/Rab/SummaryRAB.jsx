@@ -15,9 +15,13 @@ export default function SummaryRAB({
   const canViewPrices = ['Administrator', 'Direktur'].includes(userRole);
   if (!canViewPrices) return null; 
 
+  // PERBAIKAN: Memaksa konversi tipe data ke Number agar tidak terjadi penggabungan string
+  const grandTotalRencanaNum = Number(grandTotalRencana) || 0;
+  const grandTotalRealisasiNum = Number(grandTotalRealisasi) || 0;
+
   // Hitung Nilai PPN (11%)
-  const grandTotalRencanaPPN = grandTotalRencana + (grandTotalRencana * 0.11);
-  const grandTotalRealisasiPPN = grandTotalRealisasi + (grandTotalRealisasi * 0.11);
+  const grandTotalRencanaPPN = grandTotalRencanaNum + (grandTotalRencanaNum * 0.11);
+  const grandTotalRealisasiPPN = grandTotalRealisasiNum + (grandTotalRealisasiNum * 0.11);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -36,8 +40,8 @@ export default function SummaryRAB({
         <div className="flex items-center justify-between gap-2">
           <div className="flex-1">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wide block">Nilai Dasar</span>
-            <p className="text-sm font-bold text-blue-600 dark:text-blue-400 truncate font-mono" title={formatRupiah(grandTotalRencana)}>
-              {isLoading ? <span className="inline-block w-20 h-5 bg-blue-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRencana)}
+            <p className="text-sm font-bold text-blue-600 dark:text-blue-400 truncate font-mono" title={formatRupiah(grandTotalRencanaNum)}>
+              {isLoading ? <span className="inline-block w-20 h-5 bg-blue-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRencanaNum)}
             </p>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700/60 mx-1"></div>
@@ -56,8 +60,8 @@ export default function SummaryRAB({
         <div className="flex items-center justify-between gap-2">
           <div className="flex-1">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wide block">Nilai Dasar</span>
-            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate font-mono" title={formatRupiah(grandTotalRealisasi)}>
-              {isLoading ? <span className="inline-block w-20 h-5 bg-emerald-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRealisasi)}
+            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate font-mono" title={formatRupiah(grandTotalRealisasiNum)}>
+              {isLoading ? <span className="inline-block w-20 h-5 bg-emerald-100 dark:bg-slate-700 animate-pulse rounded"></span> : formatRupiah(grandTotalRealisasiNum)}
             </p>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700/60 mx-1"></div>
