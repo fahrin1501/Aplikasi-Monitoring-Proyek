@@ -118,6 +118,7 @@ class DailyReportController extends Controller
 
             $request->validate([
                 'tanggal' => 'required|date',
+                'minggu_ke' => 'required', // WAJIB ADA
                 'pengawas' => 'required|string',
                 'lokasi' => 'required|string',
                 'foto.*' => 'image|max:5120',
@@ -128,14 +129,14 @@ class DailyReportController extends Controller
             $report = DailyReport::create([
                 'project_id' => $projectId,
                 'tanggal' => $request->tanggal,
+                'minggu_ke' => $request->minggu_ke, // <--- TAMBAH INI
                 'pengawas' => $request->pengawas,
                 'lokasi' => $request->lokasi,
                 'cuaca' => $request->cuaca,
-                'kondisi_cuaca' => $request->kondisi_cuaca, // <-- Menyimpan JSON array kondisi cuaca
+                'kondisi_cuaca' => $request->kondisi_cuaca,
                 'status' => 'pending',
             ]);
 
-            // 2. Decode String JSON
             $kegiatan = json_decode($request->kegiatan, true) ?? [];
             $personil = json_decode($request->personil, true) ?? [];
             $peralatan = json_decode($request->peralatan, true) ?? [];
@@ -150,6 +151,7 @@ class DailyReportController extends Controller
                         'sta_akhir' => $item['sta_akhir'] ?? null,
                         'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
                         'satuan' => !empty($item['satuan']) ? $item['satuan'] : null,
+                        'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null, // <--- TAMBAH INI
                     ]);
                 }
             }

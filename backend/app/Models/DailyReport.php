@@ -10,8 +10,8 @@ class DailyReport extends Model
     use HasFactory;
 
     protected $fillable = [
-        'project_id', 'tanggal', 'pengawas', 'lokasi',
-        'cuaca', 'kondisi_cuaca', 'status', 'verified_at' // <-- Tambahkan kondisi_cuaca disini
+        'project_id', 'tanggal', 'minggu_ke', 'pengawas', 'lokasi',
+        'cuaca', 'kondisi_cuaca', 'status', 'verified_at'
     ];
 
     public function project() {
