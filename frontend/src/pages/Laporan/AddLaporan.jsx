@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api'; 
 import { 
-  ArrowLeft, Building2, MapPin, Calendar, UserCheck, FileSpreadsheet,
+  ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown
+  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown,
+  FileSpreadsheet, X // <-- INI YANG SEBELUMNYA TERTINGGAL
 } from 'lucide-react';
 
 const defaultPersonilList = [
@@ -454,7 +455,7 @@ export default function AddLaporan() {
                       onChange={(e) => handleKegiatanSelect(index, e.target.value)}
                       className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium mb-2 cursor-pointer truncate"
                     >
-                      <option value="" disabled>-- Pilih Pekerjaan dari RAB / Jadwal --</option>
+                      <option value="" disabled>-- Pilih Pekerjaan Terjadwal --</option>
                       
                       {optionsMingguIni.length > 0 && (
                         <optgroup label={`>>> TARGET MINGGU INI (MINGGU KE-${mingguKe})`}>
@@ -529,7 +530,7 @@ export default function AddLaporan() {
                     <div className="flex items-center gap-3">
                       <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-md text-xs font-bold font-mono">{p.jumlah} Org</span>
                       <div className="flex gap-1">
-                        <button type="button" onClick={() => openPersonilModal(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"><Edit3 className="w-3.5 h-3.5"/></button>
+                        <button type="button" onClick={() => openPersonilModal(p)} className="p-1.5 text-blue-50 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"><Edit3 className="w-3.5 h-3.5"/></button>
                         <button type="button" onClick={() => setPersonilItems(personilItems.filter(item => item.id !== p.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-md border border-transparent hover:border-rose-200"><Trash2 className="w-3.5 h-3.5"/></button>
                       </div>
                     </div>
@@ -617,7 +618,7 @@ export default function AddLaporan() {
         {/* Action Submit & Cancel Button */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
           <button type="button" onClick={() => navigate('/laporan')} className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-xs border border-slate-200 dark:border-slate-600 shadow-sm"><X className="w-4 h-4" /> Batal</button>
-          <button type="submit" disabled={submitting || (isScheduleEmpty && !selectedProjectId)} className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3 rounded-xl shadow-md flex items-center justify-center gap-2 text-xs disabled:opacity-50">
+          <button type="submit" disabled={submitting || (!selectedProjectId)} className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3 rounded-xl shadow-md flex items-center justify-center gap-2 text-xs disabled:opacity-50">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {submitting ? 'Memproses Data...' : 'Simpan Laporan Harian'}
           </button>
