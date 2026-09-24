@@ -38,7 +38,6 @@ export default function LaporanData() {
   const [reportData, setReportData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // STATE DRAFT MODE & RAB SELECTOR
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [rabOptions, setRabOptions] = useState([]);
@@ -52,7 +51,6 @@ export default function LaporanData() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // STATE MODALS
   const [showPersonilModal, setShowPersonilModal] = useState(false);
   const [personilForm, setPersonilForm] = useState({ id: null, peran: '', jumlah: '', index: null });
   const [showPeralatanModal, setShowPeralatanModal] = useState(false);
@@ -199,7 +197,6 @@ export default function LaporanData() {
     }
   };
 
-  // --- LOGIKA PENGELOMPOKAN URAIAN PEKERJAAN ---
   let optionsMingguIni = [];
   let optionsMingguLain = [];
   let scheduledItemsMap = new Map();
@@ -602,7 +599,7 @@ export default function LaporanData() {
         </div>
       </div>
 
-      {/* Rincian Kegiatan */}
+      {/* Rincian Kegiatan (Edit Inline Saat Mode Edit, View Mode di bawahnya) */}
       <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 space-y-4 transition-all relative backdrop-blur-sm`}>
         
         <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
@@ -742,11 +739,11 @@ export default function LaporanData() {
                         <span className="font-bold text-emerald-600 dark:text-emerald-400">{Number(keg.volume)} {keg.satuan}</span>
                       </div>
                     )}
-                    {/* BADGE PERSENTASE DI MODE VIEW */}
-                    {keg.persentase && (
+                    {/* BAGIAN INI YANG SEBELUMNYA HILANG! */}
+                    {(keg.persentase !== null && keg.persentase !== undefined && keg.persentase !== '') && (
                       <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 px-3 py-2 rounded-lg text-[10px] shadow-sm">
                         <Target className="w-3.5 h-3.5 text-blue-500" /> 
-                        <span className="text-blue-700 dark:text-blue-400 font-bold uppercase">Bobot:</span> 
+                        <span className="text-blue-700 dark:text-blue-400 font-bold uppercase">Persentase:</span> 
                         <span className="font-bold text-blue-600 dark:text-blue-400">{keg.persentase}%</span>
                       </div>
                     )}
@@ -858,14 +855,14 @@ export default function LaporanData() {
       {/* SECTION 5: Upload Foto & Lampiran */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <ImageIcon className="w-4 h-4" /> Dokumentasi (Foto)
             </h2>
             {isEditMode && (
               <>
                 <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={(e) => handleUploadFile(e, 'foto')} />
-                <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all shadow-sm">
+                <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-medium rounded-lg border border-amber-200 dark:border-amber-500/20 transition-all shadow-sm">
                   <UploadCloud className="w-3.5 h-3.5" /> Upload Foto
                 </button>
               </>
@@ -915,7 +912,7 @@ export default function LaporanData() {
         </div>
 
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 md:p-5 rounded-2xl space-y-4 shadow-sm flex flex-col relative backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
             <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
               <Paperclip className="w-4 h-4" /> File Lampiran
             </h2>
