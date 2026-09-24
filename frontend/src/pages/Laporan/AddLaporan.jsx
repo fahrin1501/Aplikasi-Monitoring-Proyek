@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api'; 
 import { 
-  ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
+  ArrowLeft, Building2, MapPin, Calendar, UserCheck, FileSpreadsheet,
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
   UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown
 } from 'lucide-react';
