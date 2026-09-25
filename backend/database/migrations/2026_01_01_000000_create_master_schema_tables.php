@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         // ==========================================
-        // 1. TABEL SISTEM & AUTENTIKASI
+        // 1. TABEL SISTEM & AUTENTIKASI (DIPERBAIKI)
         // ==========================================
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -39,6 +39,30 @@ return new class extends Migration
             $table->text('user_agent')->nullable();
             $table->longText('payload');
             $table->integer('last_activity')->index();
+        });
+
+        // INI TABEL YANG SEBELUMNYA TERLEWAT
+        Schema::create('personal_access_tokens', function (Blueprint $table) {
+            $table->id();
+            $table->morphs('tokenable');
+            $table->string('name');
+            $table->string('token', 64)->unique();
+            $table->text('abilities')->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('cache', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->mediumText('value');
+            $table->integer('expiration');
+        });
+
+        Schema::create('cache_locks', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->string('owner');
+            $table->integer('expiration');
         });
 
         Schema::create('company_profiles', function (Blueprint $table) {
@@ -222,6 +246,9 @@ return new class extends Migration
         Schema::dropIfExists('project_personnels');
         Schema::dropIfExists('projects');
         Schema::dropIfExists('company_profiles');
+        Schema::dropIfExists('cache_locks');
+        Schema::dropIfExists('cache');
+        Schema::dropIfExists('personal_access_tokens');
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');
