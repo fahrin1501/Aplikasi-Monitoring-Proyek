@@ -18,8 +18,29 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::orderBy('created_at', 'desc')->get();
+        $projects = Project::orderBy('created_at', 'desc')->get()->map(function($project) {
+            return $this->appendProgress($project);
+        });
         return response()->json($projects);
+    }
+
+    public function show($id)
+    {
+        $project = Project::with(['personnels', 'documents', 'gisDocuments'])->findOrFail($id);
+        $project = $this->appendProgress($project); // Inject progress ke detail proyek
+        return response()->json($project);
+    }
+
+    public function getActiveForReport()
+    {
+        $projects = Project::whereNotIn('status', ['Selesai', 'Selesai 100%', 'Batal'])->get();
+        $validProjects = $projects->filter(function ($project) {
+            return \App\Models\ProjectSchedule::where('project_id', $project->id)->exists();
+        })->values()->map(function($project) {
+            return $this->appendProgress($project); // Inject progress
+        });
+
+        return response()->json(['status' => 'success', 'data' => $validProjects]);
     }
 
     public function store(Request $request)
@@ -86,12 +107,6 @@ class ProjectController extends Controller
             'message' => 'Proyek beserta lampiran berhasil ditambahkan!',
             'data' => $project
         ], 201);
-    }
-
-    public function show($id)
-    {
-        $project = Project::with(['personnels', 'documents', 'gisDocuments'])->findOrFail($id);
-        return response()->json($project);
     }
 
     public function update(Request $request, $id)
@@ -310,20 +325,53 @@ class ProjectController extends Controller
         return date('Y-m-d', strtotime(str_replace('/', '-', $value)));
     }
 
-    public function getActiveForReport()
-    {
-        // 1. Ambil proyek yang statusnya aktif (Bukan Selesai/Batal)
-        $projects = \App\Models\Project::whereNotIn('status', ['Selesai', 'Selesai 100%', 'Batal'])->get();
+    // Fungsi baru untuk menyuntikkan data progress secara real-time
+    private function appendProgress($project) {
+        // 1. Plan: Ambil target kumulatif dari minggu paling terakhir di-input
+        $latestWeek = \Illuminate\Support\Facades\DB::table('project_schedules')
+            ->where('project_id', $project->id)
+            ->max('minggu_ke');
 
-        // 2. Filter proyek yang sudah punya Time Schedule (sangat mudah karena ada project_id di tabel jadwal)
-        $validProjects = $projects->filter(function ($project) {
-            // Langsung cek ke model ProjectSchedule bawaan Anda!
-            return \App\Models\ProjectSchedule::where('project_id', $project->id)->exists();
-        })->values(); // Reset urutan array
+        $progressPlan = 0;
+        if ($latestWeek) {
+            $progressPlan = \Illuminate\Support\Facades\DB::table('project_schedules')
+                ->where('project_id', $project->id)
+                ->where('minggu_ke', $latestWeek)
+                ->sum('bobot_rencana');
+        }
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $validProjects
-        ]);
+        // 2. Actual: Ambil dari Laporan Harian 'Approved'
+        $totalRab = \Illuminate\Support\Facades\DB::table('rab_items')
+            ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
+            ->where('rab_categories.project_id', $project->id)
+            ->where('rab_items.is_subheader', false)
+            ->sum('rab_items.total_harga');
+
+        $totalRealisasiUang = \Illuminate\Support\Facades\DB::table('daily_report_activities')
+            ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+            ->join('rab_items', 'daily_report_activities.rab_item_id', '=', 'rab_items.id')
+            ->where('daily_reports.project_id', $project->id)
+            ->where('daily_reports.status', 'approved')
+            ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE( (daily_report_activities.persentase / 100) * rab_items.total_harga, daily_report_activities.volume * rab_items.harga_satuan )'));
+
+        $progressActual = $totalRab > 0 ? ($totalRealisasiUang / $totalRab) * 100 : 0;
+        $deviasi = $progressActual - $progressPlan;
+
+        // Pasang ke Object
+        $project->progress_plan = round($progressPlan, 2);
+        $project->progress_actual = round($progressActual, 2);
+        $project->deviasi = round($deviasi, 2);
+
+        // 3. Status Otomatis
+        if ($project->status !== 'Selesai') {
+            if ($progressPlan == 0 && $progressActual == 0) $project->status = 'Belum Mulai';
+            else if ($deviasi < -5) $project->status = 'Kritis';
+            else if ($deviasi < 0) $project->status = 'Terlambat';
+            else $project->status = 'On Track';
+        }
+
+        return $project;
     }
+
+
 }

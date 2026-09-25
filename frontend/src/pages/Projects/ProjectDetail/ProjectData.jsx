@@ -13,11 +13,11 @@ export default function ProjectData() {
   const location = useLocation();
   const { id } = useParams();
 
-    useEffect(() => {
+  useEffect(() => {
     document.title = "Prisma Group - Data Utama";
   }, []);
 
-  // State Data Proyek (Bisa ambil sementara dari state router agar UI tidak kosong)
+  // State Data Proyek
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [project, setProject] = useState(initialProject);
   const projectId = project?.id || id;
@@ -25,7 +25,7 @@ export default function ProjectData() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // State Progres Fisik S-Curve
+  // State Progres Fisik S-Curve (Ditangkap dari Backend)
   const [progressData, setProgressData] = useState({ plan: 0, actual: 0, deviasi: 0 });
 
   // State Edit Mode Utama (Inline)
@@ -64,24 +64,22 @@ export default function ProjectData() {
   const canExportData = ['Administrator', 'Direktur'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // FETCH DATA
+  // --- FETCH DATA UTAMA (SANGAT CEPAT KARENA PROGRESS SUDAH DI-INJECT BACKEND) ---
   const fetchProjectDetail = async () => {
     setIsLoading(true);
     try {
-      const [projRes, schedRes] = await Promise.all([
-        api.get(`/projects/${id}`),
-        api.get(`/projects/${id}/schedules`).catch(() => null)
-      ]);
+      const projRes = await api.get(`/projects/${id}`);
+      const data = projRes.data;
+      
+      setProject(data);
+      setEditFormData(data);
 
-      setProject(projRes.data);
-      setEditFormData(projRes.data);
-
-      if (schedRes && schedRes.data?.data) {
-        const sData = schedRes.data.data;
-        const plan = sData.schedules?.reduce((sum, s) => sum + parseFloat(s.bobot_rencana), 0) || 0;
-        const actual = sData.realizations?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-        setProgressData({ plan, actual, deviasi: actual - plan });
-      }
+      // LANGSUNG TANGKAP DARI BACKEND
+      setProgressData({ 
+        plan: parseFloat(data.progress_plan) || 0, 
+        actual: parseFloat(data.progress_actual) || 0, 
+        deviasi: parseFloat(data.deviasi) || 0 
+      });
 
     } catch (error) {
       setErrorMsg('Gagal memuat data proyek.');
@@ -223,13 +221,8 @@ export default function ProjectData() {
   const rawDeviasi = progressData.deviasi;
   const deviasi = rawDeviasi > 0 ? `+${rawDeviasi.toFixed(2)}` : rawDeviasi.toFixed(2);
   
-  let calculatedStatus = project?.status || 'Persiapan';
-  if (calculatedStatus !== 'Selesai' && calculatedStatus !== 'Persiapan') {
-    if (rawDeviasi < -5) calculatedStatus = 'Kritis';
-    else if (rawDeviasi < 0) calculatedStatus = 'Terlambat';
-    else calculatedStatus = 'On Track';
-  }
-  
+  // Karena backend sudah memberikan status, kita langsung gunakan
+  const calculatedStatus = project?.status || 'Persiapan';
   const displayStatus = (isGuest && (calculatedStatus === 'Kritis' || calculatedStatus === 'Terlambat')) ? 'Berjalan' : calculatedStatus;
   const isActuallyDelayed = calculatedStatus === 'Kritis' || calculatedStatus === 'Terlambat';
 
@@ -303,7 +296,7 @@ export default function ProjectData() {
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
-          {/* ACTION BUTTONS: Selalu tampil jika bukan tamu. Akan disable (redup) saat isLoading */}
+          {/* ACTION BUTTONS */}
           {!isGuest && (
             <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
               {canCreateData && isEditMode && (
@@ -353,7 +346,6 @@ export default function ProjectData() {
           </p>
         </div>
       ) : errorMsg || !project?.tanggal_mulai ? ( 
-        // Pengecekan tambahan (!project?.tanggal_mulai) agar konten tidak dirender kosong jika API gagal fetch data full
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm text-center animate-fade-in">
           <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
           <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Proyek Tidak Ditemukan</h2>
