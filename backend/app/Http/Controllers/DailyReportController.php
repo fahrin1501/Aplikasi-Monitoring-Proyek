@@ -22,10 +22,8 @@ class DailyReportController extends Controller
         $project = \App\Models\Project::find($projectId);
         if (!$project) return;
 
-        // Cek apakah ada laporan harian di proyek ini
         $hasReports = DailyReport::where('project_id', $projectId)->exists();
 
-        // 1. Jika TIDAK ADA laporan sama sekali -> Kembali ke Persiapan
         if (!$hasReports) {
             if (in_array($project->status, ['Berjalan', 'Selesai'])) {
                 $project->update(['status' => 'Persiapan']);
@@ -33,84 +31,60 @@ class DailyReportController extends Controller
             return;
         }
 
-        // 2. Hitung Grand Total Uang di RAB
         $totalRab = DB::table('rab_items')
             ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
             ->where('rab_categories.project_id', $projectId)
             ->where('rab_items.is_subheader', false)
             ->sum('rab_items.total_harga');
 
-        // 3. Hitung Total Realisasi Uang dari Laporan yang APPROVED (Disetujui PPK)
+        // FIX: Sekarang prioritas mengkalkulasi Uang Realisasi berdasarkan input Persentase.
+        // COALESCE akan memakai persentase jika ada, jika null maka fallback ke volume * harga.
         $totalRealisasiUang = DB::table('daily_report_activities')
             ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
             ->join('rab_items', 'daily_report_activities.rab_item_id', '=', 'rab_items.id')
             ->where('daily_reports.project_id', $projectId)
             ->where('daily_reports.status', 'approved')
-            ->sum(DB::raw('daily_report_activities.volume * rab_items.harga_satuan'));
+            ->sum(DB::raw('COALESCE( (daily_report_activities.persentase / 100) * rab_items.total_harga, daily_report_activities.volume * rab_items.harga_satuan )'));
 
         if ($totalRab > 0) {
             $progress = ($totalRealisasiUang / $totalRab) * 100;
 
-            // 4. Update Status Sesuai Realisasi Progres
-            if ($progress >= 99.99) { // Toleransi koma desimal
+            if ($progress >= 99.99) {
                 $project->update(['status' => 'Selesai']);
             } else {
-                // Jika progres di bawah 100%, ubah dari Persiapan/Selesai menjadi Berjalan
                 if (in_array($project->status, ['Persiapan', 'Selesai'])) {
                     $project->update(['status' => 'Berjalan']);
                 }
             }
         } else {
-            // Jika ada laporan tapi belum ada nilai RAB, otomatiskan jadi Berjalan
             if ($project->status === 'Persiapan') {
                 $project->update(['status' => 'Berjalan']);
             }
         }
     }
 
-    // =================================================================
-    // 1. TAMPILKAN SEMUA LAPORAN (INDEX)
-    // =================================================================
     public function index()
     {
         try {
             $reports = DailyReport::with(['project', 'activities', 'personnels', 'equipments', 'attachments'])
                         ->orderBy('tanggal', 'desc')
                         ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $reports
-            ]);
+            return response()->json(['status' => 'success', 'data' => $reports]);
         } catch (Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'System Crash: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'System Crash: ' . $e->getMessage()], 500);
         }
     }
 
-    // =================================================================
-    // 2. TAMPILKAN 1 LAPORAN SPESIFIK (SHOW)
-    // =================================================================
     public function show($id)
     {
         try {
-            $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments', 'attachments'])
-                        ->findOrFail($id);
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $report
-            ]);
+            $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments', 'attachments'])->findOrFail($id);
+            return response()->json(['status' => 'success', 'data' => $report]);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Laporan tidak ditemukan'], 404);
         }
     }
 
-    // =================================================================
-    // 3. SIMPAN LAPORAN BARU (STORE)
-    // =================================================================
     public function store(Request $request, $projectId)
     {
         try {
@@ -125,7 +99,6 @@ class DailyReportController extends Controller
                 'lampiran.*' => 'file|mimes:pdf,xls,xlsx,doc,docx,zip,rar|max:20480'
             ]);
 
-            // 1. Simpan Data Induk
             $report = DailyReport::create([
                 'project_id' => $projectId,
                 'tanggal' => $request->tanggal,
@@ -141,7 +114,6 @@ class DailyReportController extends Controller
             $personil = json_decode($request->personil, true) ?? [];
             $peralatan = json_decode($request->peralatan, true) ?? [];
 
-            // 3. Simpan Kegiatan
             foreach ($kegiatan as $item) {
                 if (!empty($item['uraian'])) {
                     $report->activities()->create([
@@ -156,54 +128,35 @@ class DailyReportController extends Controller
                 }
             }
 
-            // 4. Simpan Personil
             foreach ($personil as $item) {
                 if (!empty($item['peran']) && !empty($item['jumlah'])) {
-                    $report->personnels()->create([
-                        'peran' => $item['peran'],
-                        'jumlah' => $item['jumlah'],
-                    ]);
+                    $report->personnels()->create(['peran' => $item['peran'], 'jumlah' => $item['jumlah']]);
                 }
             }
 
-            // 5. Simpan Peralatan
             foreach ($peralatan as $item) {
                 $namaAlat = $item['nama_alat'] ?? $item['namaAlat'] ?? null;
                 if (!empty($namaAlat) && !empty($item['jumlah'])) {
-                    $report->equipments()->create([
-                        'nama_alat' => $namaAlat,
-                        'jumlah' => $item['jumlah'],
-                    ]);
+                    $report->equipments()->create(['nama_alat' => $namaAlat, 'jumlah' => $item['jumlah']]);
                 }
             }
 
-            // 6. Simpan Foto
             if ($request->hasFile('foto')) {
                 foreach ($request->file('foto') as $file) {
                     $fileName = time() . '_foto_' . str_replace(' ', '_', $file->getClientOriginalName());
                     $path = $file->storeAs('foto_laporan', $fileName, 'public');
-                    $report->attachments()->create([
-                        'tipe' => 'foto',
-                        'nama_file' => $file->getClientOriginalName(),
-                        'path_file' => 'storage/' . $path
-                    ]);
+                    $report->attachments()->create(['tipe' => 'foto', 'nama_file' => $file->getClientOriginalName(), 'path_file' => 'storage/' . $path]);
                 }
             }
 
-            // 7. Simpan Lampiran
             if ($request->hasFile('lampiran')) {
                 foreach ($request->file('lampiran') as $file) {
                     $fileName = time() . '_lampiran_' . str_replace(' ', '_', $file->getClientOriginalName());
                     $path = $file->storeAs('dokumen_laporan', $fileName, 'public');
-                    $report->attachments()->create([
-                        'tipe' => 'dokumen',
-                        'nama_file' => $file->getClientOriginalName(),
-                        'path_file' => 'storage/' . $path
-                    ]);
+                    $report->attachments()->create(['tipe' => 'dokumen', 'nama_file' => $file->getClientOriginalName(), 'path_file' => 'storage/' . $path]);
                 }
             }
 
-            // AUTO-UPDATE STATUS PROYEK
             $this->syncProjectStatus($projectId);
 
             DB::commit();
@@ -215,19 +168,15 @@ class DailyReportController extends Controller
         }
     }
 
-    // =================================================================
-    // 4. UPDATE LAPORAN (UPDATE)
-    // =================================================================
     public function update(Request $request, $id)
     {
         try {
             DB::beginTransaction();
             $report = DailyReport::findOrFail($id);
 
-            // 1. Update Parent Info
             $report->update([
                 'tanggal' => $request->tanggal ?? $report->tanggal,
-                'minggu_ke' => $request->minggu_ke ?? $report->minggu_ke, // PENAMBAHAN MINGGU_KE
+                'minggu_ke' => $request->minggu_ke ?? $report->minggu_ke,
                 'pengawas' => $request->pengawas ?? $report->pengawas,
                 'lokasi' => $request->lokasi ?? $report->lokasi,
                 'cuaca' => $request->cuaca ?? $report->cuaca,
@@ -236,7 +185,6 @@ class DailyReportController extends Controller
                 'verified_at' => null
             ]);
 
-            // 2. Sinkronisasi Kegiatan
             if ($request->has('kegiatan')) {
                 $report->activities()->delete();
                 $kegiatan = json_decode($request->kegiatan, true) ?? [];
@@ -249,42 +197,33 @@ class DailyReportController extends Controller
                             'sta_akhir' => $item['sta_akhir'] ?? null,
                             'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
                             'satuan' => $item['satuan'] ?? null,
-                            'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null, // PENAMBAHAN PERSENTASE
+                            'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null,
                         ]);
                     }
                 }
             }
 
-            // 3. Sinkronisasi Personil
             if ($request->has('personil')) {
                 $report->personnels()->delete();
                 $personil = json_decode($request->personil, true) ?? [];
                 foreach ($personil as $item) {
                     if (!empty($item['peran']) && !empty($item['jumlah'])) {
-                        $report->personnels()->create([
-                            'peran' => $item['peran'],
-                            'jumlah' => $item['jumlah'],
-                        ]);
+                        $report->personnels()->create(['peran' => $item['peran'], 'jumlah' => $item['jumlah']]);
                     }
                 }
             }
 
-            // 4. Sinkronisasi Peralatan
             if ($request->has('peralatan')) {
                 $report->equipments()->delete();
                 $peralatan = json_decode($request->peralatan, true) ?? [];
                 foreach ($peralatan as $item) {
                     $namaAlat = $item['nama_alat'] ?? $item['namaAlat'] ?? null;
                     if (!empty($namaAlat) && !empty($item['jumlah'])) {
-                        $report->equipments()->create([
-                            'nama_alat' => $namaAlat,
-                            'jumlah' => $item['jumlah'],
-                        ]);
+                        $report->equipments()->create(['nama_alat' => $namaAlat, 'jumlah' => $item['jumlah']]);
                     }
                 }
             }
 
-            // AUTO-UPDATE STATUS PROYEK
             $this->syncProjectStatus($report->project_id);
 
             DB::commit();
@@ -295,9 +234,6 @@ class DailyReportController extends Controller
         }
     }
 
-    // =================================================================
-    // 5. UPLOAD FILE TAMBAHAN SAAT EDIT MODE
-    // =================================================================
     public function uploadAttachment(Request $request, $id)
     {
         $report = DailyReport::findOrFail($id);
@@ -320,36 +256,27 @@ class DailyReportController extends Controller
         return response()->json(['status' => 'success']);
     }
 
-    // =================================================================
-    // 6. HAPUS 1 LAMPIRAN SPESIFIK SAAT EDIT MODE
-    // =================================================================
     public function destroyAttachment($id)
     {
         try {
             $attachment = DailyReportAttachment::findOrFail($id);
-
             $path = str_replace('storage/', '', $attachment->path_file);
             if (Storage::disk('public')->exists($path)) {
                 Storage::disk('public')->delete($path);
             }
-
             $attachment->delete();
-
             return response()->json(['status' => 'success', 'message' => 'File berhasil dihapus']);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Gagal menghapus file'], 500);
         }
     }
 
-    // =================================================================
-    // 7. HAPUS SELURUH LAPORAN (DESTROY)
-    // =================================================================
     public function destroy($id)
     {
         try {
             DB::beginTransaction();
             $report = DailyReport::findOrFail($id);
-            $projectId = $report->project_id; // Simpan ID Proyek sebelum dihapus
+            $projectId = $report->project_id;
 
             foreach ($report->attachments as $attachment) {
                 $path = str_replace('storage/', '', $attachment->path_file);
@@ -359,12 +286,9 @@ class DailyReportController extends Controller
             }
 
             $report->delete();
-
-            // AUTO-UPDATE STATUS PROYEK
             $this->syncProjectStatus($projectId);
 
             DB::commit();
-
             return response()->json(['status' => 'success', 'message' => 'Laporan berhasil dihapus secara permanen']);
         } catch (Exception $e) {
             DB::rollBack();
@@ -372,9 +296,6 @@ class DailyReportController extends Controller
         }
     }
 
-    // =================================================================
-    // 8. VERIFIKASI LAPORAN (PPK APPROVAL)
-    // =================================================================
     public function verifyReport($id)
     {
         try {
@@ -384,7 +305,6 @@ class DailyReportController extends Controller
                 'verified_at' => now()
             ]);
 
-            // AUTO-UPDATE STATUS PROYEK (Cek apakah sudah 100% setelah ini disetujui)
             $this->syncProjectStatus($report->project_id);
 
             return response()->json([
@@ -392,35 +312,24 @@ class DailyReportController extends Controller
                 'message' => 'Laporan Lapangan berhasil disetujui & diverifikasi!'
             ]);
         } catch (Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal verifikasi laporan: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal verifikasi laporan: ' . $e->getMessage()], 500);
         }
     }
 
     public function exportPdf($id)
     {
         $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
-
         $pdf = Pdf::loadView('exports.laporan-harian', compact('report'))->setPaper('a4', 'portrait');
-
         $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
         $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.pdf';
-
         return $pdf->download($fileName);
     }
 
-    // =================================================================
-    // 10. EXPORT EXCEL
-    // =================================================================
     public function exportExcel($id)
     {
         $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
-
         $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
         $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.xlsx';
-
         return Excel::download(new DailyReportExport($report), $fileName);
     }
 }

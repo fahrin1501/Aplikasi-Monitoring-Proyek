@@ -121,14 +121,25 @@ class RabController extends Controller
         $rabs = \App\Models\RabCategory::with('items')->where('project_id', $id)->get();
         $reports = DailyReport::with('activities')->where('project_id', $id)->where('status', 'approved')->get();
 
+        // FIX: Integrasi logika persentase di RAB Export
         $realisasiMap = [];
         foreach ($reports as $report) {
             foreach ($report->activities as $act) {
                 if ($act->rab_item_id) {
                     if (!isset($realisasiMap[$act->rab_item_id])) {
-                        $realisasiMap[$act->rab_item_id] = 0;
+                        $realisasiMap[$act->rab_item_id] = [
+                            'vol' => 0,
+                            'persen_kumulatif' => 0,
+                            'has_persen' => false
+                        ];
                     }
-                    $realisasiMap[$act->rab_item_id] += (float)$act->volume;
+
+                    $realisasiMap[$act->rab_item_id]['vol'] += (float)$act->volume;
+
+                    if (!is_null($act->persentase)) {
+                        $realisasiMap[$act->rab_item_id]['persen_kumulatif'] += (float)$act->persentase;
+                        $realisasiMap[$act->rab_item_id]['has_persen'] = true;
+                    }
                 }
             }
         }
@@ -141,10 +152,19 @@ class RabController extends Controller
             $divRealisasi = 0;
             foreach ($divisi->items as $item) {
                 if (!$item->is_subheader) {
-                    $item->actualVol = $realisasiMap[$item->id] ?? 0;
-                    $item->actualTotal = $item->actualVol * $item->harga_satuan;
+                    $item->actualVol = $realisasiMap[$item->id]['vol'] ?? 0;
 
-                    // TAMBAHAN: Kalkulasi PPN 11% Per Item
+                    $hasPersen = $realisasiMap[$item->id]['has_persen'] ?? false;
+
+                    // Kalkulasi Aktual Berdasarkan Persentase (Bila ada)
+                    if ($hasPersen) {
+                        $persenData = $realisasiMap[$item->id]['persen_kumulatif'] ?? 0;
+                        $item->actualTotal = ($persenData / 100) * $item->total_harga;
+                    } else {
+                        // Fallback ke Volume x Harga Satuan
+                        $item->actualTotal = $item->actualVol * $item->harga_satuan;
+                    }
+
                     $item->rencanaTotalPPN = $item->total_harga + ($item->total_harga * 0.11);
                     $item->actualTotalPPN = $item->actualTotal + ($item->actualTotal * 0.11);
 
@@ -155,7 +175,6 @@ class RabController extends Controller
             $divisi->totalRencana = $divRencana;
             $divisi->totalRealisasi = $divRealisasi;
 
-            // TAMBAHAN: Kalkulasi PPN 11% Per Divisi
             $divisi->totalRencanaPPN = $divRencana + ($divRencana * 0.11);
             $divisi->totalRealisasiPPN = $divRealisasi + ($divRealisasi * 0.11);
 
@@ -163,7 +182,6 @@ class RabController extends Controller
             $grandTotalRealisasi += $divRealisasi;
         }
 
-        // TAMBAHAN: Kalkulasi PPN 11% Grand Total
         $grandTotalRencanaPPN = $grandTotalRencana + ($grandTotalRencana * 0.11);
         $grandTotalRealisasiPPN = $grandTotalRealisasi + ($grandTotalRealisasi * 0.11);
 
