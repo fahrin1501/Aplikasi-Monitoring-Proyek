@@ -82,7 +82,8 @@ export default function ScheduleData() {
       setLocalSchedules(schedRes.data.data.schedules || []);
       setWeekCumulativeInputs({});
     } catch (error) {
-      console.error("Gagal menarik data:", error);
+      console.error("Gagal menarik data jadwal:", error);
+      alert("Gagal memuat jadwal. Silakan refresh halaman.");
     } finally {
       setIsLoading(false);
     }
@@ -365,6 +366,7 @@ export default function ScheduleData() {
             </div>
 
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
+               {/* TANGGAL MINGGUAN */}
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/60">
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- <span className="text-slate-400 font-normal">(Ops)</span></label>
@@ -381,6 +383,7 @@ export default function ScheduleData() {
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                 {/* KOTAK 1: PILIH DIVISI */}
                  <div className="md:col-span-5 space-y-1.5 relative">
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Pilih Mode Filter Divisi</label>
                    <select 

@@ -35,9 +35,7 @@ export default function AddSchedule() {
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -55,10 +53,14 @@ export default function AddSchedule() {
           api.get(`/projects/${projectId}`),
           api.get(`/projects/${projectId}/schedules`)
         ]);
-        setProjectData(projRes.data);
+        // Amankan penarikan respon data objek
+        setProjectData(projRes.data?.data || projRes.data);
         setScheduleData(schedRes.data.data);
       } catch (error) {
-        console.error("Gagal menarik data jadwal:", error);
+        // TANGKAP ERROR DARI BACKEND LALU MUNCULKAN DI LAYAR!
+        const serverMsg = error.response?.data?.message || error.message;
+        alert("CRASH SERVER: " + serverMsg);
+        console.error("Gagal menarik data jadwal:", serverMsg);
       } finally {
         setIsLoadingSchedule(false);
       }
@@ -89,10 +91,7 @@ export default function AddSchedule() {
 
     return allItems.map(item => {
       if (item.is_subheader) return null;
-      
       const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      
-      // OPTIMASI O(1): Langsung tarik dari payload backend (Tidak perlu dilooping manual di React)
       const realisasiAktual = scheduleData.cumulative_actual?.[item.id] || 0;
       const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
 
