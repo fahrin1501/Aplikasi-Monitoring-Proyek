@@ -48,14 +48,20 @@ export default function ScheduleWorkData({
 
   return (
     <>
-      {/* TABEL MATRIX - Diperluas ke bawah secara dinamis */}
-      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm overflow-hidden flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in flex-1">
-        <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative min-h-[500px] max-h-[calc(100vh-240px)]">
+      {/* 
+        TABEL MATRIX CONTAINER 
+        PERBAIKAN: Menambahkan h-[calc(100vh-220px)] dan overflow-hidden pada pembungkus luar
+        agar tabel memiliki batas tinggi dan scrollbar custom bisa muncul.
+      */}
+      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full h-[calc(100vh-220px)] min-h-[400px] overflow-hidden">
+        
+        {/* Inner Scrollable Container */}
+        <div className="overflow-auto custom-scrollbar flex-1 w-full relative">
           <table className="w-full text-left border-collapse min-w-max text-xs">
             
             <thead className="sticky top-0 z-30 shadow-sm">
               <tr className="bg-slate-100 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95">Kode</th>
+                <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Kode</th>
                 <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan</th>
                 <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
                 
@@ -81,10 +87,10 @@ export default function ScheduleWorkData({
                 <React.Fragment key={cat.id}>
                   {/* BARIS HEADER DIVISI */}
                   <tr className="bg-amber-50/50 dark:bg-amber-900/10">
-                    <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415]">
+                    <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                       {cat.kode_divisi || '-'}
                     </td>
-                    <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-slate-200 dark:border-slate-700/60">
+                    <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">
                       {cat.nama_kategori}
                     </td>
                   </tr>
@@ -94,8 +100,8 @@ export default function ScheduleWorkData({
                     if (item.is_subheader) {
                       return (
                         <tr key={item.id} className="bg-slate-50/50 dark:bg-slate-800/40">
-                          <td className="p-2 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-slate-50 dark:bg-slate-800">{item.kode_pekerjaan || '-'}</td>
-                          <td colSpan={weeksArray.length + 2} className="p-2 font-bold text-[10px] uppercase text-slate-700 dark:text-slate-300 sticky left-[80px] z-20 bg-slate-50 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-slate-200 dark:border-slate-700/60">{item.uraian_pekerjaan}</td>
+                          <td className="p-2 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-slate-50 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{item.kode_pekerjaan || '-'}</td>
+                          <td colSpan={weeksArray.length + 2} className="p-2 font-bold text-[10px] uppercase text-slate-700 dark:text-slate-300 sticky left-[80px] z-20 bg-slate-50 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{item.uraian_pekerjaan}</td>
                         </tr>
                       );
                     }
@@ -109,10 +115,10 @@ export default function ScheduleWorkData({
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                        <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
+                        <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                           {item.kode_pekerjaan || '-'}
                         </td>
-                        <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
+                        <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
                           <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                         </td>
                         <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
@@ -171,7 +177,7 @@ export default function ScheduleWorkData({
                 {weeksArray.map(w => {
                   const weekSum = localSchedules.filter(s => parseInt(s.minggu_ke) === w).reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
                   return (
-                    <td key={w} className="p-3 text-center border-r border-slate-300 dark:border-slate-600 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                    <td key={w} className="p-3 text-center border-r border-slate-300 dark:border-slate-600 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/95">
                       {weekSum > 0 ? weekSum.toFixed(2) : '-'}
                     </td>
                   );
@@ -192,7 +198,7 @@ export default function ScheduleWorkData({
                   const displayCumulative = weekCumulativeInputs[w] !== undefined ? weekCumulativeInputs[w] : weekSum.toFixed(2);
 
                   return (
-                    <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-800/50">
+                    <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-[#172554]">
                       {isEditMode && weekItems.length > 0 ? (
                         <div className="flex items-center justify-center">
                           <input 
