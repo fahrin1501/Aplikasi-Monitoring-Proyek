@@ -19,7 +19,8 @@ class ProjectSchedule extends Model
         'bulan',
         'tanggal_awal',
         'tanggal_akhir',
-        'bobot_rencana'
+        'bobot_rencana',
+        'target_kumulatif'
     ];
 
     // Relasi ke Proyek
