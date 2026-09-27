@@ -83,7 +83,9 @@ export default function ScheduleData() {
       setWeekCumulativeInputs({});
     } catch (error) {
       console.error("Gagal menarik data jadwal:", error);
-      alert("Gagal memuat jadwal. Silakan refresh halaman.");
+      // PERBAIKAN: Menampilkan Error aslinya dari Backend agar mudah di-debug
+      const errorMsg = error.response?.data?.message || error.message;
+      alert(`Gagal memuat jadwal: \n\n${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +155,6 @@ export default function ScheduleData() {
       if (item.is_subheader) return null;
       const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
       
-      // OPTIMASI O(1): Langsung tarik dari payload backend (Tidak perlu dilooping manual)
       const realisasiAktual = scheduleData.cumulative_actual?.[item.id] || 0;
       const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
       

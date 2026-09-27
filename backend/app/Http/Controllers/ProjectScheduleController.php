@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Project;
-use Throwable; // Import fungsi penangkap crash mutlak PHP
+use Throwable; // Mencegah server mati jika terjadi error database
 
 class ProjectScheduleController extends Controller
 {
@@ -18,76 +18,80 @@ class ProjectScheduleController extends Controller
             $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
             $catIds = $rabCategories->pluck('id')->toArray();
 
-            $rabData = [];
+            $rabItems = collect([]);
             if (!empty($catIds)) {
                 $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $catIds)->get();
-                foreach ($rabCategories as $cat) {
-                    $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
-                    $rabData[] = [
-                        'id' => $cat->id,
-                        'nama_kategori' => $cat->nama_kategori,
-                        'kode_divisi' => $cat->kode_divisi ?? null,
-                        'items' => $items
-                    ];
-                }
             }
 
-            // 2. Ambil Schedule Plan (Target Jadwal) dengan filter aman
-            $schedules = [];
-            if (!empty($catIds)) {
-                $schedules = DB::table('schedules')
-                    ->join('rab_items', 'schedules.rab_item_id', '=', 'rab_items.id')
-                    ->whereIn('rab_items.rab_category_id', $catIds)
-                    ->select('schedules.*')
-                    ->get();
+            $rabData = [];
+            foreach ($rabCategories as $cat) {
+                $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
+                $rabData[] = [
+                    'id' => $cat->id,
+                    'nama_kategori' => $cat->nama_kategori,
+                    'kode_divisi' => $cat->kode_divisi ?? null,
+                    'items' => $items
+                ];
             }
 
-            // 3. AMBIL DATA MENTAH UNTUK MODAL POP-UP (H1-H7)
-            $rawRealizations = DB::table('daily_report_activities')
-                ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                ->where('daily_reports.project_id', $projectId)
-                ->where('daily_reports.status', 'approved')
-                ->select(
-                    'daily_report_activities.rab_item_id',
-                    'daily_reports.minggu_ke',
-                    'daily_reports.tanggal as tgl_input',
-                    'daily_report_activities.volume as volume_laporan',
-                    'daily_report_activities.persentase as bobot_realisasi',
-                    'daily_reports.status as status_laporan'
-                )
+            // 2. Ambil Schedule Plan (Target Jadwal)
+            $schedules = DB::table('schedules')
+                ->join('rab_items', 'schedules.rab_item_id', '=', 'rab_items.id')
+                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
+                ->where('rab_categories.project_id', $projectId)
+                ->select('schedules.*')
                 ->get();
 
-            // 4. OPTIMASI BACKEND: Hitung agregasi
-            $aggregatedActuals = DB::table('daily_report_activities')
-                ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                ->where('daily_reports.project_id', $projectId)
-                ->where('daily_reports.status', 'approved')
-                ->select(
-                    'daily_report_activities.rab_item_id',
-                    'daily_reports.minggu_ke',
-                    DB::raw('SUM(daily_report_activities.persentase) as total_persen')
-                )
-                ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
-                ->get();
-
-            // 5. BENTUK KAMUS DATA (DICTIONARY O(1))
+            // 3. AMBIL DATA AKTUAL (Dibungkus Try-Catch mandiri agar tidak crash jika tabel belum di-migrate)
+            $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
             $cumulative_actual = [];
 
-            foreach($aggregatedActuals as $r) {
-                $itemId = $r->rab_item_id ?? 'manual';
-                $minggu = $r->minggu_ke ?? 0;
-                $persen = (float) $r->total_persen;
+            try {
+                $rawRealizations = DB::table('daily_report_activities')
+                    ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                    ->where('daily_reports.project_id', $projectId)
+                    ->where('daily_reports.status', 'approved')
+                    ->select(
+                        'daily_report_activities.rab_item_id',
+                        'daily_reports.minggu_ke',
+                        'daily_reports.tanggal as tgl_input',
+                        'daily_report_activities.volume as volume_laporan',
+                        'daily_report_activities.persentase as bobot_realisasi',
+                        'daily_reports.status as status_laporan'
+                    )
+                    ->get();
 
-                if(!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
-                $matrix_actual[$itemId][$minggu] = $persen;
+                $aggregatedActuals = DB::table('daily_report_activities')
+                    ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                    ->where('daily_reports.project_id', $projectId)
+                    ->where('daily_reports.status', 'approved')
+                    ->select(
+                        'daily_report_activities.rab_item_id',
+                        'daily_reports.minggu_ke',
+                        DB::raw('SUM(daily_report_activities.persentase) as total_persen')
+                    )
+                    ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
+                    ->get();
 
-                if(!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
-                $weekly_actual[$minggu] += $persen;
+                foreach($aggregatedActuals as $r) {
+                    $itemId = $r->rab_item_id ?? 'manual';
+                    $minggu = $r->minggu_ke ?? 0;
+                    $persen = (float) $r->total_persen;
 
-                if(!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
-                $cumulative_actual[$itemId] += $persen;
+                    if(!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
+                    $matrix_actual[$itemId][$minggu] = $persen;
+
+                    if(!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
+                    $weekly_actual[$minggu] += $persen;
+
+                    if(!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
+                    $cumulative_actual[$itemId] += $persen;
+                }
+            } catch (Throwable $th) {
+                // Mengabaikan Error Database (Misal kolom belum di migrate)
+                // Halaman jadwal tetap akan terbuka, namun realisasi harian bernilai 0.
             }
 
             return response()->json([
@@ -104,11 +108,10 @@ class ProjectScheduleController extends Controller
             ]);
 
         } catch (Throwable $e) {
-            // Kita ubah response menjadi 400 agar hosting/Railway tidak menyembunyikan pesannya!
             return response()->json([
                 'status' => 'error',
-                'message' => 'Backend Error: ' . $e->getMessage() . ' | Baris: ' . $e->getLine()
-            ], 400);
+                'message' => 'Backend Crash: ' . $e->getMessage() . ' | Line: ' . $e->getLine()
+            ], 500);
         }
     }
 
@@ -120,21 +123,25 @@ class ProjectScheduleController extends Controller
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
+            // Jika Full Sync (Mode Edit dari Matriks Induk), hapus semua jadwal proyek ini dulu
             if ($isFullSync) {
                 $rabItemIds = DB::table('rab_items')
                     ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                     ->where('rab_categories.project_id', $projectId)
-                    ->pluck('rab_items.id')->toArray();
+                    ->pluck('rab_items.id')
+                    ->toArray();
 
                 if (!empty($rabItemIds)) {
                     DB::table('schedules')->whereIn('rab_item_id', $rabItemIds)->delete();
                 }
             } else {
+                // Jika tidak Full Sync (Dari Wizard AddSchedule Pertama Kali), hapus hanya minggu yang di-overwrite
                 foreach ($weeks as $week) {
                     $rabItemIds = DB::table('rab_items')
                         ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                         ->where('rab_categories.project_id', $projectId)
-                        ->pluck('rab_items.id')->toArray();
+                        ->pluck('rab_items.id')
+                        ->toArray();
 
                     if (!empty($rabItemIds)) {
                         DB::table('schedules')
@@ -153,6 +160,8 @@ class ProjectScheduleController extends Controller
                 if (empty($itemIds)) continue;
 
                 $targetKumulatif = (float) ($week['target_kumulatif'] ?? 0);
+
+                // BAGI RATA TARGET KUMULATIF KE SELURUH ITEM DI MINGGU TERSEBUT
                 $bobotPerItem = count($itemIds) > 0 ? ($targetKumulatif / count($itemIds)) : 0;
 
                 foreach ($itemIds as $itemId) {
@@ -170,7 +179,9 @@ class ProjectScheduleController extends Controller
                 }
             }
 
-            if (!empty($insertData)) DB::table('schedules')->insert($insertData);
+            if (!empty($insertData)) {
+                DB::table('schedules')->insert($insertData);
+            }
 
             $project = Project::find($projectId);
             if ($project && $project->status === 'Perencanaan') {
@@ -182,7 +193,7 @@ class ProjectScheduleController extends Controller
 
         } catch (Throwable $e) {
             DB::rollBack();
-            return response()->json(['status' => 'error', 'message' => 'System Crash: ' . $e->getMessage()], 400);
+            return response()->json(['status' => 'error', 'message' => 'System Crash: ' . $e->getMessage()], 500);
         }
     }
 
@@ -194,7 +205,8 @@ class ProjectScheduleController extends Controller
             $rabItemIds = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
-                ->pluck('rab_items.id')->toArray();
+                ->pluck('rab_items.id')
+                ->toArray();
 
             if (!empty($rabItemIds)) {
                 DB::table('schedules')->whereIn('rab_item_id', $rabItemIds)->delete();
@@ -204,7 +216,7 @@ class ProjectScheduleController extends Controller
             return response()->json(['status' => 'success', 'message' => 'Seluruh Jadwal Matriks berhasil dikosongkan.']);
         } catch (Throwable $e) {
             DB::rollBack();
-            return response()->json(['status' => 'error', 'message' => 'Gagal menghapus jadwal: ' . $e->getMessage()], 400);
+            return response()->json(['status' => 'error', 'message' => 'Gagal menghapus jadwal: ' . $e->getMessage()], 500);
         }
     }
 }
