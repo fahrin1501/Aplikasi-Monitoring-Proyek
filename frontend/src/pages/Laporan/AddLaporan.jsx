@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api'; 
 import { 
   ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
-  Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
+  Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, FileSpreadsheet,
   UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, X, FileText
 } from 'lucide-react';
 
@@ -302,7 +302,6 @@ export default function AddLaporan() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-              <ListTodo className="w-5 h-5 md:w-6 md:h-6 text-amber-500 shrink-0 hidden sm:block" /> 
               <span>Input Laporan Harian Baru</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Entri data pengawasan cuaca, personil, peralatan, dan rincian pekerjaan</p>
