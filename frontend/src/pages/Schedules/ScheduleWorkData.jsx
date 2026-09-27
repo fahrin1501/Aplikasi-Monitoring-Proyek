@@ -48,14 +48,19 @@ export default function ScheduleWorkData({
 
   return (
     <>
-      {/* 
-        TABEL MATRIX CONTAINER 
-        PERBAIKAN: Menambahkan h-[calc(100vh-220px)] dan overflow-hidden pada pembungkus luar
-        agar tabel memiliki batas tinggi dan scrollbar custom bisa muncul.
-      */}
-      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full h-[calc(100vh-220px)] min-h-[400px] overflow-hidden">
+      {/* SUNTIKAN CSS SCROLLBAR KHUSUS AGAR DIJAMIN JALAN */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+      
+      {/* TABEL MATRIX - Responsif max-h agar tidak ada sisa ruang kosong & scrollbar presisi */}
+      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full max-h-[calc(100vh-190px)] overflow-hidden">
         
-        {/* Inner Scrollable Container */}
+        {/* Inner Scrollable Container (Tanpa min-h agar menyusut jika isinya sedikit) */}
         <div className="overflow-auto custom-scrollbar flex-1 w-full relative">
           <table className="w-full text-left border-collapse min-w-max text-xs">
             
@@ -169,7 +174,7 @@ export default function ScheduleWorkData({
 
             {/* FOOTER TOTAL (KUMULATIF MINGGUAN) */}
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-              {/* BARIS: TOTAL DISTRIBUSI MINGGUAN */}
+              {/* BARIS: TOTAL DISTRIBUSI RENCANA */}
               <tr className="bg-slate-100 dark:bg-slate-900/95 border-t-2 border-slate-300 dark:border-slate-600">
                 <td colSpan="3" className="p-3 text-right font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px] sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-300 dark:border-slate-600">
                   Total Distribusi Rencana (Mingguan)
@@ -226,7 +231,7 @@ export default function ScheduleWorkData({
       </div>
 
       {/* --- INFO LEGEND (FOOTER) --- */}
-      <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm shrink-0">
+      <div className="mt-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm shrink-0">
         <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 flex items-center gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <span className="flex items-center gap-1.5">
