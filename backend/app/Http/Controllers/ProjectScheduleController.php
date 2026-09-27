@@ -27,129 +27,63 @@ class ProjectScheduleController extends Controller
         $totalHari = 0;
         $totalMinggu = 0;
 
-        // 1. Hitung durasi proyek (Total Minggu) berdasarkan kontrak
-        if ($project->tanggal_mulai && $project->tanggal_selesai) {
-            $start = Carbon::parse($project->tanggal_mulai)->startOfDay();
-            $end = Carbon::parse($project->tanggal_selesai)->startOfDay();
-
-            if ($end->greaterThanOrEqualTo($start)) {
-                $totalHari = $start->diffInDays($end) + 1;
-                $totalMinggu = ceil($totalHari / 7);
-            }
-        }
-
-        // 2. Ambil Master Data RAB
-        $rabData = RabCategory::with(['items' => function($q) {
-            $q->orderBy('id', 'asc');
-        }])->where('project_id', $projectId)->get();
-
-        // 3. Ambil Jadwal Rencana Mingguan (Untuk Target S-Curve & Table Schedule)
-        $schedules = ProjectSchedule::where('project_id', $projectId)->get();
-
-        // 4. Hitung Grand Total Uang RAB (Untuk pembagi dasar)
-        $grandTotalRAB = 0;
-        foreach($rabData as $cat) {
-            foreach($cat->items as $item) {
-                if(!$item->is_subheader) {
-                    $grandTotalRAB += (float)$item->total_harga;
-                }
-            }
-        }
-
-        // ==========================================
-        // 5. KALKULASI REALISASI AKTUAL (LAPORAN HARIAN) UNTUK S-CURVE
-        // ==========================================
-        // Tarik laporan harian yang HANYA BERSTATUS APPROVED (Disetujui PPK/Pengawas)
-        $approvedReports = DailyReport::with('activities')
-            ->where('project_id', $projectId)
-            ->where('status', 'approved')
-            ->orderBy('tanggal', 'asc')
+       $rawRealizations = \Illuminate\Support\Facades\DB::table('daily_report_activities')
+            ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+            ->where('daily_reports.project_id', $projectId)
+            ->where('daily_reports.status', 'approved')
+            ->select(
+                'daily_report_activities.rab_item_id',
+                'daily_reports.minggu_ke',
+                'daily_reports.tanggal as tgl_input',
+                'daily_report_activities.volume as volume_laporan',
+                'daily_report_activities.persentase as bobot_realisasi',
+                'daily_reports.status as status_laporan'
+            )
             ->get();
 
-        $realizations = [];
-        $realizedVolumes = []; // Menyimpan akumulasi Volume mentah
+        // 2. OPTIMASI BACKEND: Hitung agregasi langsung menggunakan Query SQL (Sangat Cepat)
+        $aggregatedActuals = \Illuminate\Support\Facades\DB::table('daily_report_activities')
+            ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+            ->where('daily_reports.project_id', $projectId)
+            ->where('daily_reports.status', 'approved')
+            ->select(
+                'daily_report_activities.rab_item_id',
+                'daily_reports.minggu_ke',
+                \Illuminate\Support\Facades\DB::raw('SUM(daily_report_activities.persentase) as total_persen')
+            )
+            ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
+            ->get();
 
-        foreach ($approvedReports as $report) {
-            // Ambil "Minggu Ke-" sesuai dengan isian manual di Laporan (bukan hitungan otomatis lagi)
-            $mingguKe = $report->minggu_ke ?: 0;
+        // 3. SUSUN MENJADI DICTIONARY AGAR REACT TIDAK NGE-LAG
+        $matrix_actual = [];
+        $weekly_actual = [];
+        $cumulative_actual = [];
 
-            foreach ($report->activities as $act) {
-                if ($act->rab_item_id) {
-                    // Akumulasi volume
-                    if (!isset($realizedVolumes[$act->rab_item_id])) {
-                        $realizedVolumes[$act->rab_item_id] = 0;
-                    }
-                    $realizedVolumes[$act->rab_item_id] += (float)$act->volume;
+        foreach($aggregatedActuals as $r) {
+            // Untuk isi sel matriks [itemId][minggu]
+            $matrix_actual[$r->rab_item_id][$r->minggu_ke] = (float) $r->total_persen;
 
-                    // Mengambil Persentase yang diketik manual di form Laporan (Prioritas Utama)
-                    // Jika user tidak mengisi persen di Laporan, fallback ke Volume * Harga
-                    $bobotRealisasi = 0;
-                    if (!is_null($act->persentase)) {
-                        $bobotRealisasi = (float)$act->persentase;
-                    } else {
-                        // Fallback (Jaga-jaga jika input persen kosong)
-                        $rabItem = RabItem::find($act->rab_item_id);
-                        if ($rabItem && $grandTotalRAB > 0) {
-                            $bobotTotalRAB = ($rabItem->total_harga / $grandTotalRAB) * 100;
-                            $volumeTotalRAB = $rabItem->volume > 0 ? $rabItem->volume : 1;
-                            $bobotRealisasi = ($act->volume / $volumeTotalRAB) * $bobotTotalRAB;
-                        }
-                    }
+            // Untuk total aktual per minggu (Footer Bawah)
+            if(!isset($weekly_actual[$r->minggu_ke])) $weekly_actual[$r->minggu_ke] = 0;
+            $weekly_actual[$r->minggu_ke] += (float) $r->total_persen;
 
-                    $realizations[] = [
-                        'rab_item_id' => $act->rab_item_id,
-                        'minggu_ke' => $mingguKe,
-                        'volume_laporan' => $act->volume,
-                        'bobot_realisasi' => $bobotRealisasi, // <-- Injeksi Persen Aktua S-Curve
-                        'tgl_input' => $report->tanggal,
-                        'tgl_verifikasi' => Carbon::parse($report->verified_at)->format('Y-m-d'),
-                    ];
-                }
-            }
-        }
-
-        // ==========================================
-        // 6. INJEKSI DATA KE RESPONSE JSON UNTUK TABEL JADWAL
-        // ==========================================
-        foreach($rabData as $cat) {
-            $bobotDivisi = 0;
-
-            foreach($cat->items as $item) {
-                if(!$item->is_subheader && $grandTotalRAB > 0) {
-                    $bobotStandar = ($item->total_harga / $grandTotalRAB) * 100;
-                    $bobotDivisi += $bobotStandar;
-
-                    // Ambil rencana kumulatif yang dibagi rata dari backend di form Jadwal
-                    $totalDijadwalkan = $schedules->where('rab_item_id', $item->id)->sum('bobot_rencana');
-
-                    // SISA BOBOT (Opsional, tapi tetap dihitung untuk info tabel)
-                    $sisaBobot = max(0, $bobotStandar - $totalDijadwalkan);
-
-                    $item->bobot_standar = round($bobotStandar, 4);
-                    $item->total_dijadwalkan = round($totalDijadwalkan, 4);
-                    $item->sisa_bobot = round($sisaBobot, 4);
-                } else {
-                    $item->bobot_standar = 0;
-                    $item->total_dijadwalkan = 0;
-                    $item->sisa_bobot = 0;
-                }
-            }
-            $cat->bobot_divisi = round($bobotDivisi, 4);
+            // Untuk kumulatif per pekerjaan (Kolom Ujung Kanan)
+            if(!isset($cumulative_actual[$r->rab_item_id])) $cumulative_actual[$r->rab_item_id] = 0;
+            $cumulative_actual[$r->rab_item_id] += (float) $r->total_persen;
         }
 
         return response()->json([
             'status' => 'success',
             'data' => [
-                'project_info' => [
-                    'nama_proyek' => $project->nama_proyek,
-                    'tanggal_mulai' => $project->tanggal_mulai,
-                    'tanggal_selesai' => $project->tanggal_selesai,
-                    'total_hari' => $totalHari,
-                    'total_minggu' => $totalMinggu
-                ],
-                'rab_data' => $rabData,
-                'schedules' => $schedules, // <-- Rencana Mingguan untuk S-Curve dikirim dari sini
-                'realizations' => $realizations // <-- Realisasi Harian (Persen Laporan) untuk S-Curve dikirim dari sini
+                'project_info' => $projectInfo ?? null,
+                'rab_data' => $rabData ?? [],
+                'schedules' => $schedules ?? [],
+
+                // --- PAYLOAD OPTIMASI BARU UNTUK FRONTEND ---
+                'matrix_actual' => $matrix_actual,
+                'weekly_actual' => $weekly_actual,
+                'cumulative_actual' => $cumulative_actual,
+                'realizations' => $rawRealizations // (Hanya dipakai saat modal pop-up diklik)
             ]
         ]);
     }
