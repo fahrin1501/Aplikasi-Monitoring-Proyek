@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
-  ArrowLeft, CalendarDays, Save, Loader2, AlertTriangle, Edit3, X, 
-  ListPlus, Clock, CheckCircle2, Trash2, ChevronDown, Plus, Layers, CheckSquare, Target, Info
+  ArrowLeft, Save, Loader2, AlertTriangle, Edit3, X, 
+  ListPlus, CheckCircle2, Trash2, ChevronDown, Layers, CheckSquare
 } from 'lucide-react';
+
+// --- IMPORT KOMPONEN MATRIX YANG BARU DIBUAT ---
+import ScheduleWorkData from './ScheduleWorkData';
 
 export default function ScheduleData() {
   const navigate = useNavigate();
@@ -196,10 +199,8 @@ export default function ScheduleData() {
 
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
-    if(!targetPeriod.start || !targetPeriod.end) return alert("Mohon isi Tanggal Mulai dan Selesai untuk minggu ini di form atas.");
     
     const weekNum = parseInt(targetPeriod.minggu_ke);
-    // Terapkan tanggal dari modal ke item baru
     const finalizedItems = modalAddedItems.map(item => ({
        ...item,
        bulan: targetPeriod.bulan,
@@ -263,35 +264,17 @@ export default function ScheduleData() {
     }
   };
 
-  // --- LOGIKA PEMBENTUKAN MATRIX ---
-  let maxWeek = scheduleData?.project_info?.total_minggu || 4; // Default 4 minggu jika kosong
+  // Kalkulasi total minggu dinamis
+  let maxWeek = scheduleData?.project_info?.total_minggu || 4; 
   if (localSchedules && localSchedules.length > 0) {
     const maxScheduled = Math.max(...localSchedules.map(s => parseInt(s.minggu_ke) || 0));
     if (maxScheduled > maxWeek) maxWeek = maxScheduled;
   }
   const weeksArray = Array.from({length: maxWeek}, (_, i) => i + 1);
 
-  const getCellVal = (itemId, weekNum) => {
-    const s = localSchedules.find(s => s.rab_item_id === itemId && parseInt(s.minggu_ke) === weekNum);
-    return s ? parseFloat(s.bobot_rencana || 0) : null;
-  };
-
-  const getItemCumulative = (itemId) => {
-    return localSchedules.filter(s => s.rab_item_id === itemId).reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
-  };
-
   return (
     <div className="w-full space-y-4 md:space-y-5 pb-20 relative animate-fade-in flex flex-col min-h-screen">
       
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; border: 2px solid #f1f5f9; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; border: 2px solid #1e293b; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer; }
-      `}</style>
-
       {/* HEADER NAVIGASI */}
       <div className="flex flex-col lg:flex-row justify-between gap-4 shrink-0">
         <div className="flex items-start gap-3 shrink-0">
@@ -352,195 +335,18 @@ export default function ScheduleData() {
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat Matrix Jadwal...</p>
         </div>
       ) : (
-        <>
-          {/* TABEL MATRIX - Diperluas ke bawah secara dinamis */}
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm overflow-hidden flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in flex-1">
-            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative min-h-[500px] max-h-[calc(100vh-240px)]">
-              <table className="w-full text-left border-collapse min-w-max text-xs">
-                
-                <thead className="sticky top-0 z-30 shadow-sm">
-                  <tr className="bg-slate-100 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95">Kode</th>
-                    <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan</th>
-                    <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
-                    
-                    {/* KOLOM MINGGU (Sumbu X) */}
-                    {weeksArray.map(w => (
-                      <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px]">
-                        <div className="flex flex-col items-center gap-1">
-                          <span>M-{w}</span>
-                          {isEditMode && canCreateData && (
-                            <button onClick={() => openAddItemModalFromMatrix(w)} className="p-1 bg-blue-100 hover:bg-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/40 text-blue-600 dark:text-blue-400 rounded transition-colors shadow-sm" title={`Tambah ke M-${w}`}>
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </th>
-                    ))}
-                    <th className="p-3 w-[100px] text-right font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">Kumulatif</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
-                  {(scheduleData?.rab_data || []).map(cat => (
-                    <React.Fragment key={cat.id}>
-                      {/* BARIS HEADER DIVISI */}
-                      <tr className="bg-amber-50/50 dark:bg-amber-900/10">
-                        <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415]">
-                          {cat.kode_divisi || '-'}
-                        </td>
-                        <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-slate-200 dark:border-slate-700/60">
-                          {cat.nama_kategori}
-                        </td>
-                      </tr>
-                      
-                      {/* BARIS ITEM PEKERJAAN */}
-                      {cat.items.map(item => {
-                        if (item.is_subheader) {
-                          return (
-                            <tr key={item.id} className="bg-slate-50/50 dark:bg-slate-800/40">
-                              <td className="p-2 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-slate-50 dark:bg-slate-800">{item.kode_pekerjaan || '-'}</td>
-                              <td colSpan={weeksArray.length + 2} className="p-2 font-bold text-[10px] uppercase text-slate-700 dark:text-slate-300 sticky left-[80px] z-20 bg-slate-50 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-slate-200 dark:border-slate-700/60">{item.uraian_pekerjaan}</td>
-                            </tr>
-                          );
-                        }
-
-                        const bobotStandar = grandTotalRAB > 0 ? ((Number(item.total_harga || 0) / grandTotalRAB) * 100).toFixed(2) : '0.00';
-                        const itemCumulative = getItemCumulative(item.id);
-                        
-                        // Cek apakah item ini dijadwalkan di manapun
-                        const isScheduled = localSchedules.some(s => s.rab_item_id === item.id);
-                        // Sembunyikan item yang tidak dijadwalkan JIKA bukan mode Edit
-                        if (!isEditMode && !isScheduled) return null;
-
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                            <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
-                              {item.kode_pekerjaan || '-'}
-                            </td>
-                            <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
-                              <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
-                            </td>
-                            <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
-                              {bobotStandar}%
-                            </td>
-
-                            {/* SEL MINGGU (MATRIX DATA) */}
-                            {weeksArray.map(w => {
-                              const val = getCellVal(item.id, w);
-                              return (
-                                <td key={w} className="p-2 text-center border-r border-slate-200 dark:border-slate-700/60 relative group/cell">
-                                  {val !== null ? (
-                                    <>
-                                      <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-800/30">
-                                        {val.toFixed(2)}
-                                      </span>
-                                      {isEditMode && (
-                                        <button 
-                                          onClick={() => setDeleteConfig({ show: true, rabItemId: item.id, weekNum: w, itemName: item.uraian_pekerjaan })} 
-                                          className="absolute top-1 right-1 opacity-0 group-hover/cell:opacity-100 text-rose-500 hover:text-white hover:bg-rose-500 p-0.5 rounded transition-all shadow-sm"
-                                          title="Hapus dari minggu ini"
-                                        >
-                                          <X className="w-3 h-3"/>
-                                        </button>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <span className="text-slate-300 dark:text-slate-600 text-[10px]">-</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-
-                            {/* KUMULATIF BARIS */}
-                            <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/10">
-                              {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-
-                {/* FOOTER TOTAL (KUMULATIF MINGGUAN) */}
-                <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-                  {/* BARIS: TOTAL DISTRIBUSI MINGGUAN */}
-                  <tr className="bg-slate-100 dark:bg-slate-900/95 border-t-2 border-slate-300 dark:border-slate-600">
-                    <td colSpan="3" className="p-3 text-right font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px] sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-300 dark:border-slate-600">
-                      Total Distribusi Rencana (Mingguan)
-                    </td>
-                    {weeksArray.map(w => {
-                      const weekSum = localSchedules.filter(s => parseInt(s.minggu_ke) === w).reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
-                      return (
-                        <td key={w} className="p-3 text-center border-r border-slate-300 dark:border-slate-600 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                          {weekSum > 0 ? weekSum.toFixed(2) : '-'}
-                        </td>
-                      );
-                    })}
-                    <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40">
-                      {localSchedules.reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0).toFixed(2)}%
-                    </td>
-                  </tr>
-
-                  {/* BARIS: TARGET KUMULATIF MINGGUAN (INPUT MODE) */}
-                  <tr className="bg-blue-50 dark:bg-blue-950/20 border-t border-blue-200 dark:border-blue-800/50">
-                    <td colSpan="3" className="p-3 text-right font-extrabold text-blue-700 dark:text-blue-400 uppercase tracking-wider text-[10px] sticky left-0 z-40 bg-blue-50 dark:bg-[#172554] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-blue-200 dark:border-blue-800/50">
-                      Target Kumulatif (Plan)
-                    </td>
-                    {weeksArray.map(w => {
-                      const weekItems = localSchedules.filter(s => parseInt(s.minggu_ke) === w);
-                      const weekSum = weekItems.reduce((sum, s) => sum + parseFloat(s.bobot_rencana || 0), 0);
-                      const displayCumulative = weekCumulativeInputs[w] !== undefined ? weekCumulativeInputs[w] : weekSum.toFixed(2);
-
-                      return (
-                        <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-800/50">
-                          {isEditMode && weekItems.length > 0 ? (
-                            <div className="flex items-center justify-center">
-                              <input 
-                                type="text" 
-                                value={displayCumulative}
-                                onChange={(e) => handleWeekCumulativeChange(w, e.target.value)}
-                                className="w-14 bg-white dark:bg-slate-900 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded border border-blue-300 dark:border-blue-600 py-1 text-[10px] shadow-inner"
-                              />
-                            </div>
-                          ) : (
-                            <span className="font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400">
-                              {weekSum > 0 ? weekSum.toFixed(2) : '-'}
-                            </span>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/40">
-                      -
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-          {/* --- INFO LEGEND (FOOTER) --- */}
-          <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm shrink-0">
-            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 flex items-center gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              <span className="flex items-center gap-1.5">
-                <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-800/30">0.00</span> 
-                Bobot Terjadwal
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800/30">0.00</span> 
-                Target Kumulatif (Plan)
-              </span>
-              {canCreateData && (
-                <span className="flex items-center gap-1.5 text-blue-500 font-medium">
-                  <Plus className="w-3.5 h-3.5" /> Klik (+) di Mode Edit untuk menyusun draf mingguan
-                </span>
-              )}
-            </div>
-          </div>
-        </>
+        <ScheduleWorkData 
+          scheduleData={scheduleData}
+          localSchedules={localSchedules}
+          isEditMode={isEditMode}
+          canCreateData={canCreateData}
+          weeksArray={weeksArray}
+          grandTotalRAB={grandTotalRAB}
+          weekCumulativeInputs={weekCumulativeInputs}
+          handleWeekCumulativeChange={handleWeekCumulativeChange}
+          openAddItemModalFromMatrix={openAddItemModalFromMatrix}
+          setDeleteConfig={setDeleteConfig}
+        />
       )}
 
       {/* --- MODAL BATCH TAMBAH PEKERJAAN (EDIT MODE) --- */}
@@ -558,7 +364,7 @@ export default function ScheduleData() {
             </div>
 
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
-               {/* TANGGAL MINGGUAN (BARU) */}
+               {/* TANGGAL MINGGUAN */}
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/60">
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- <span className="text-slate-400 font-normal">(Ops)</span></label>
@@ -589,7 +395,7 @@ export default function ScheduleData() {
                    >
                      <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
                      <option value="all" className="font-extrabold text-blue-600 dark:text-blue-400">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
-                     {scheduleData.rab_data.map(cat => (
+                     {scheduleData?.rab_data.map(cat => (
                        <option key={cat.id} value={cat.id}>{cat.nama_kategori}</option>
                      ))}
                    </select>
@@ -651,8 +457,7 @@ export default function ScheduleData() {
                      disabled={!draftDivisiId || draftItemIds.length === 0} 
                      className="w-full h-[42px] px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 text-xs whitespace-nowrap"
                    >
-                     <ListPlus className="w-4 h-4 shrink-0" /> 
-                     <span>Tambah Antrean</span>
+                     <ListPlus className="w-4 h-4 shrink-0" /> Tambah
                    </button>
                  </div>
                </div>
