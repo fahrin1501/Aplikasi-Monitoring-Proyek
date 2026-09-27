@@ -25,17 +25,16 @@ export default function KurvaS({ selectedProject }) {
   const [scheduleData, setScheduleData] = useState(null);
   const [userRole, setUserRole] = useState('Tamu');
 
-  // --- STATE FILTER WAKTU UNIFIED (BARU) ---
+  // --- STATE FILTER WAKTU UNIFIED ---
   const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   
   const [showFilterPopup, setShowFilterPopup] = useState(false);
-  const [filterMode, setFilterMode] = useState('Semua'); // Semua, Bulanan, Mingguan, Harian, Rentang
+  const [filterMode, setFilterMode] = useState('Semua'); // Semua, Bulanan, Mingguan, Rentang
   const [filterSelection, setFilterSelection] = useState({
     bulanLabel: '',
     mingguNum: '',
-    harian: '',
     rentangStart: '',
     rentangEnd: ''
   });
@@ -151,7 +150,7 @@ export default function KurvaS({ selectedProject }) {
     if (mode === 'Semua') {
       setStartDateFilter(projectBounds.start);
       setEndDateFilter(projectBounds.end);
-      setFilterSelection({ ...filterSelection, bulanLabel: '', mingguNum: '', harian: '', rentangStart: '', rentangEnd: '' });
+      setFilterSelection({ ...filterSelection, bulanLabel: '', mingguNum: '', rentangStart: '', rentangEnd: '' });
       setShowFilterPopup(false);
     } 
     else if (mode === 'Bulanan') {
@@ -178,21 +177,13 @@ export default function KurvaS({ selectedProject }) {
       }
       setShowFilterPopup(false);
     }
-    else if (mode === 'Harian') {
-      // Tunggu user klik terapkan untuk harian
-    }
     else if (mode === 'Rentang') {
       // Tunggu user klik terapkan untuk rentang
     }
   };
 
   const applyManualFilter = () => {
-    if (filterMode === 'Harian') {
-      if(!filterSelection.harian) return alert("Pilih tanggal terlebih dahulu!");
-      setStartDateFilter(filterSelection.harian);
-      setEndDateFilter(filterSelection.harian);
-      setShowFilterPopup(false);
-    } else if (filterMode === 'Rentang') {
+    if (filterMode === 'Rentang') {
       if(!filterSelection.rentangStart || !filterSelection.rentangEnd) return alert("Lengkapi tanggal mulai dan akhir!");
       setStartDateFilter(filterSelection.rentangStart);
       setEndDateFilter(filterSelection.rentangEnd);
@@ -204,7 +195,6 @@ export default function KurvaS({ selectedProject }) {
     if (filterMode === 'Semua') return 'Semua Waktu';
     if (filterMode === 'Bulanan') return `Bulan: ${filterSelection.bulanLabel}`;
     if (filterMode === 'Mingguan') return `Minggu Ke-${filterSelection.mingguNum}`;
-    if (filterMode === 'Harian') return `Harian: ${formatIndoDate(filterSelection.harian)}`;
     if (filterMode === 'Rentang') return `Rentang: ${formatIndoDate(filterSelection.rentangStart)} - ${formatIndoDate(filterSelection.rentangEnd)}`;
     return 'Filter Aktif';
   };
@@ -531,7 +521,7 @@ export default function KurvaS({ selectedProject }) {
                   
                   {/* TABS MODE */}
                   <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-4 shadow-inner border border-slate-200 dark:border-slate-700/50">
-                    {['Semua', 'Bulanan', 'Mingguan', 'Harian', 'Rentang'].map(mode => (
+                    {['Semua', 'Bulanan', 'Mingguan', 'Rentang'].map(mode => (
                       <button
                         key={mode}
                         onClick={() => setFilterMode(mode)}
@@ -585,21 +575,6 @@ export default function KurvaS({ selectedProject }) {
                             </button>
                           )
                         })}
-                      </div>
-                    )}
-
-                    {filterMode === 'Harian' && (
-                      <div className="flex flex-col gap-3 py-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Pilih Tanggal</label>
-                        <input 
-                          type="date" 
-                          min={projectBounds.start}
-                          max={projectBounds.end}
-                          value={filterSelection.harian}
-                          onChange={(e) => setFilterSelection({...filterSelection, harian: e.target.value})}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]"
-                        />
-                        <button onClick={applyManualFilter} className="mt-2 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Terapkan Tanggal</button>
                       </div>
                     )}
 
