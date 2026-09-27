@@ -26,15 +26,13 @@ export default function ScheduleWorkData({
     realizations: []
   });
 
-  // FUNGSI MEMANGGIL MODAL (Data H1-H7 difilter HANYA SAAT DIKLIK, sehingga tidak membebani render tabel)
+  // FUNGSI MEMANGGIL MODAL
   const handleOpenCellDetail = (item, weekNum) => {
-    // 1. Cari target plan minggu ini
     const existingSchedule = localSchedules.find(s => parseInt(s.minggu_ke) === weekNum);
     const targetVal = weekCumulativeInputs[weekNum] !== undefined 
         ? parseFloat(weekCumulativeInputs[weekNum]) || 0 
-        : existingSchedule?.target_kumulatif || 0;
+        : parseFloat(existingSchedule?.target_kumulatif) || 0;
 
-    // 2. Filter data mentah laporan harian untuk ditampilkan di tabel Modal Pop-up
     const dailyRealizations = scheduleData?.realizations?.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum) || [];
 
     setDetailModal({
@@ -44,6 +42,13 @@ export default function ScheduleWorkData({
       targetPlan: targetVal,
       realizations: dailyRealizations
     });
+  };
+
+  // Helper fungsi untuk memaksa konversi ke Float agar .toFixed() tidak crash
+  const getSafeFloat = (val) => {
+    if (val === null || val === undefined) return 0;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? 0 : parsed;
   };
 
   return (
@@ -56,7 +61,7 @@ export default function ScheduleWorkData({
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
       
-      {/* TABEL MATRIX - Responsif max-h agar tidak ada sisa ruang kosong & scrollbar presisi */}
+      {/* TABEL MATRIX CONTAINER */}
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full max-h-[calc(100vh-190px)] overflow-hidden">
         
         <div className="overflow-auto custom-scrollbar flex-1 w-full relative">
@@ -109,15 +114,12 @@ export default function ScheduleWorkData({
                       );
                     }
 
-                    const bobotStandar = grandTotalRAB > 0 ? ((Number(item.total_harga || 0) / grandTotalRAB) * 100).toFixed(2) : '0.00';
+                    const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
                     
                     // Tarik O(1) dari backend payload
-                    const itemCumulative = scheduleData?.cumulative_actual?.[item.id] || 0;
+                    const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
                     
-                    // Cek apakah item ini dijadwalkan di manapun
                     const isScheduledAnywhere = localSchedules.some(s => s.rab_item_id === item.id);
-                    
-                    // Tampilkan baris HANYA jika item dijadwalkan, ATAU memiliki aktual laporan (walau di luar jadwal)
                     if (!isEditMode && !isScheduledAnywhere && itemCumulative === 0) return null;
 
                     return (
@@ -129,15 +131,13 @@ export default function ScheduleWorkData({
                           <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                         </td>
                         <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
-                          {bobotStandar}%
+                          {bobotStandar.toFixed(2)}%
                         </td>
 
-                        {/* SEL MINGGU (MATRIX DATA) - O(1) CEPAT */}
+                        {/* SEL MINGGU (MATRIX DATA) */}
                         {weeksArray.map(w => {
                           const isScheduledThisWeek = localSchedules.some(s => s.rab_item_id === item.id && parseInt(s.minggu_ke) === w);
-                          
-                          // Tarik O(1) dari backend dictionary
-                          const totalActual = scheduleData?.matrix_actual?.[item.id]?.[w] || 0;
+                          const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
 
                           return (
                             <td key={w} className="p-2 text-center border-r border-slate-200 dark:border-slate-700/60 relative group/cell">
@@ -186,7 +186,7 @@ export default function ScheduleWorkData({
                   Total Aktual / Realisasi (Mingguan)
                 </td>
                 {weeksArray.map(w => {
-                  const weekActualSum = scheduleData?.weekly_actual?.[w] || 0;
+                  const weekActualSum = getSafeFloat(scheduleData?.weekly_actual?.[w]);
                   return (
                     <td key={w} className="p-3 text-center border-r border-emerald-200 dark:border-emerald-800/50 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                       {weekActualSum > 0 ? weekActualSum.toFixed(2) : '-'}
@@ -194,7 +194,7 @@ export default function ScheduleWorkData({
                   );
                 })}
                 <td className="p-3 text-right font-mono text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/40">
-                  {Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + parseFloat(val), 0).toFixed(2)}%
+                  {getSafeFloat(Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + getSafeFloat(val), 0)).toFixed(2)}%
                 </td>
               </tr>
 
@@ -204,8 +204,11 @@ export default function ScheduleWorkData({
                   Target Kumulatif Mingguan (Plan)
                 </td>
                 {weeksArray.map(w => {
-                  const existingTarget = localSchedules.find(s => parseInt(s.minggu_ke) === w)?.target_kumulatif || 0;
-                  const displayCumulative = weekCumulativeInputs[w] !== undefined ? weekCumulativeInputs[w] : existingTarget.toFixed(2);
+                  const existingTarget = getSafeFloat(localSchedules.find(s => parseInt(s.minggu_ke) === w)?.target_kumulatif);
+                  
+                  // Validasi Strict: Jika weekCumulativeInputs berisi string yang bisa diparse, parse. Jika tidak, pakai 0.
+                  const currentInput = weekCumulativeInputs[w];
+                  const displayCumulative = currentInput !== undefined ? currentInput : existingTarget.toFixed(2);
 
                   return (
                     <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-[#172554]">
@@ -220,7 +223,7 @@ export default function ScheduleWorkData({
                         </div>
                       ) : (
                         <span className="font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400">
-                          {existingTarget > 0 ? parseFloat(existingTarget).toFixed(2) : '-'}
+                          {existingTarget > 0 ? existingTarget.toFixed(2) : '-'}
                         </span>
                       )}
                     </td>
@@ -277,16 +280,16 @@ export default function ScheduleWorkData({
                {/* Indikator Total Aktual Pengerjaan Item Ini */}
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 flex flex-col justify-center shadow-sm">
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1.5 mb-1"><Target className="w-3.5 h-3.5 text-blue-500"/> Bobot Standar RAB</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1.5 mb-1"><Target className="w-3.5 h-3.5 text-blue-500"/> Target Mingguan (Plan)</span>
                     <span className="font-mono text-lg font-extrabold text-slate-700 dark:text-slate-300">
-                      {grandTotalRAB > 0 ? ((Number(detailModal.item?.total_harga || 0) / grandTotalRAB) * 100).toFixed(2) : '0.00'}%
+                      {getSafeFloat(detailModal.targetPlan).toFixed(2)}%
                     </span>
                   </div>
                   
                   <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/30 flex flex-col justify-center shadow-sm">
                     <span className="text-[10px] text-emerald-700 dark:text-emerald-500 font-bold uppercase flex items-center gap-1.5 mb-1"><BarChart className="w-3.5 h-3.5 text-emerald-500"/> Total Aktual Tercapai (Minggu Ini)</span>
                     <span className="font-mono text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
-                      {detailModal.realizations.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi || 0), 0).toFixed(2)}%
+                      {getSafeFloat(detailModal.realizations.reduce((sum, r) => sum + getSafeFloat(r.bobot_realisasi), 0)).toFixed(2)}%
                     </span>
                   </div>
                </div>
@@ -324,7 +327,7 @@ export default function ScheduleWorkData({
                              {r.volume_laporan} {detailModal.item?.satuan || ''}
                            </td>
                            <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
-                             {parseFloat(r.bobot_realisasi || 0).toFixed(2)}%
+                             {getSafeFloat(r.bobot_realisasi).toFixed(2)}%
                            </td>
                            <td className="p-3 text-center">
                              {r.status_laporan === 'approved' ? (
