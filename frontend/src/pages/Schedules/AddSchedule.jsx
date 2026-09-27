@@ -20,7 +20,6 @@ export default function AddSchedule() {
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Default otomatis diarahkan ke Minggu ke-1
   const [periodForm, setPeriodForm] = useState({
     bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: ''
   });
@@ -92,9 +91,9 @@ export default function AddSchedule() {
       if (item.is_subheader) return null;
       
       const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.realizations
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      
+      // OPTIMASI O(1): Langsung tarik dari payload backend (Tidak perlu dilooping manual di React)
+      const realisasiAktual = scheduleData.cumulative_actual?.[item.id] || 0;
       const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
 
       return { ...item, sisaPlafon };
@@ -109,16 +108,12 @@ export default function AddSchedule() {
   const availableItems = getAvailableItems();
 
   const toggleItem = (itemId) => {
-    if (draftItemIds.includes(itemId)) {
-      setDraftItemIds(draftItemIds.filter(id => id !== itemId));
-    } else {
-      setDraftItemIds([...draftItemIds, itemId]);
-    }
+    if (draftItemIds.includes(itemId)) setDraftItemIds(draftItemIds.filter(id => id !== itemId));
+    else setDraftItemIds([...draftItemIds, itemId]);
   };
 
   const handleAddItems = () => {
     if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang minimal 1 Uraian Pekerjaan terlebih dahulu!");
-
     const itemsToAdd = availableItems.filter(i => draftItemIds.includes(i.id));
 
     const newItems = itemsToAdd.map(itemAsli => ({
@@ -142,7 +137,7 @@ export default function AddSchedule() {
     if (addedItems.length === 0) return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     
     const targetVal = parseFloat(targetKumulatif.replace(',', '.')) || 0;
-    if (targetVal <= 0) return alert("Target Kumulatif Mingguan harus diisi dan lebih dari 0!");
+    if (targetVal <= 0) return alert("Target Kumulatif (Plan) harus diisi dan lebih dari 0!");
 
     setIsSaving(true);
     try {
@@ -214,9 +209,7 @@ export default function AddSchedule() {
         </label>
         
         <div className="space-y-1.5 pb-2">
-          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Proyek Aktif
-          </label>
+          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Proyek Aktif</label>
           <div className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-inner">
              <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug">{namaProyekAktif}</p>
           </div>

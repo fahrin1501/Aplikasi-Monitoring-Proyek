@@ -6,7 +6,7 @@ import {
   ListPlus, CheckCircle2, Trash2, ChevronDown, Layers, CheckSquare
 } from 'lucide-react';
 
-// --- IMPORT KOMPONEN MATRIX YANG BARU DIBUAT ---
+// --- IMPORT KOMPONEN MATRIX ---
 import ScheduleWorkData from './ScheduleWorkData';
 
 export default function ScheduleData() {
@@ -40,7 +40,7 @@ export default function ScheduleData() {
   const [saveModal, setSaveModal] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState({ show: false, rabItemId: null, weekNum: null, itemName: '' });
 
-  // STATE MODAL BATCH TAMBAH ITEM
+  // STATE MODAL BATCH TAMBAH ITEM (EDIT MODE MATRIKS)
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [targetPeriod, setTargetPeriod] = useState({ bulan: '', minggu_ke: '', start: '', end: '' });
   const [modalAddedItems, setModalAddedItems] = useState([]);
@@ -151,10 +151,11 @@ export default function ScheduleData() {
     return allItems.map(item => {
       if (item.is_subheader) return null;
       const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.realizations
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
+      
+      // OPTIMASI O(1): Langsung tarik dari payload backend (Tidak perlu dilooping manual)
+      const realisasiAktual = scheduleData.cumulative_actual?.[item.id] || 0;
       const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
+      
       return { ...item, sisaPlafon };
     }).filter(item => {
       if (!item) return false;
@@ -199,6 +200,7 @@ export default function ScheduleData() {
 
   const handleSaveModalCartToWeek = () => {
     if(modalAddedItems.length === 0) return alert("Keranjang kosong! Tambahkan pekerjaan terlebih dahulu.");
+    if(!targetPeriod.start || !targetPeriod.end) return alert("Mohon isi Tanggal Mulai dan Selesai untuk minggu ini di form atas.");
     
     const weekNum = parseInt(targetPeriod.minggu_ke);
     const finalizedItems = modalAddedItems.map(item => ({
@@ -264,7 +266,6 @@ export default function ScheduleData() {
     }
   };
 
-  // Kalkulasi total minggu dinamis
   let maxWeek = scheduleData?.project_info?.total_minggu || 4; 
   if (localSchedules && localSchedules.length > 0) {
     const maxScheduled = Math.max(...localSchedules.map(s => parseInt(s.minggu_ke) || 0));
@@ -364,7 +365,6 @@ export default function ScheduleData() {
             </div>
 
             <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
-               {/* TANGGAL MINGGUAN */}
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700/60">
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- <span className="text-slate-400 font-normal">(Ops)</span></label>
@@ -381,7 +381,6 @@ export default function ScheduleData() {
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                 {/* KOTAK 1: PILIH DIVISI */}
                  <div className="md:col-span-5 space-y-1.5 relative">
                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Pilih Mode Filter Divisi</label>
                    <select 
