@@ -162,9 +162,10 @@
             <td colspan="12" class="font-bold bg-grey">E. CATATAN / PELAPORAN / TANDA TANGAN</td>
         </tr>
         <tr>
-            <td colspan="12" style="height: 40px;" class="align-top">
-                Catatan Harian: <br>
-                -
+            <!-- MENGGABUNGKAN CATATAN KE DALAM TABEL UTAMA AGAR EXCEL TIDAK BERANTAKAN -->
+            <td colspan="12" style="min-height: 60px; padding: 10px;" class="align-top text-sm">
+                <b>Catatan Tambahan / Instruksi Pengawas:</b><br><br>
+                {!! nl2br(e($report->catatan ?: 'Tidak ada catatan tambahan pada hari ini.')) !!}
             </td>
         </tr>
         <tr class="text-center font-bold text-sm">
