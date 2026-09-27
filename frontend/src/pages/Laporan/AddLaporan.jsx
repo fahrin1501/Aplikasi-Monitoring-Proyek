@@ -4,7 +4,7 @@ import api from '../../api';
 import { 
   ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, 
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, FileSpreadsheet, X
+  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, FileSpreadsheet, X, FileText
 } from 'lucide-react';
 
 const defaultPersonilList = [
@@ -35,19 +35,19 @@ export default function AddLaporan() {
 
   const [scheduleData, setScheduleData] = useState(null);
 
-  // --- STATE PERUBAHAN: Form Utama (Tambah Minggu Ke) ---
+  // --- STATE PERUBAHAN: Form Utama (Tambah Catatan) ---
   const [formData, setFormData] = useState({
     tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
     minggu_ke: editData?.minggu_ke || '',
     namaPengawas: editData?.namaPengawas || '',
-    lokasi: editData?.lokasi || ''
+    lokasi: editData?.lokasi || '',
+    catatan: editData?.catatan || '' // STATE CATATAN BARU
   });
 
   const [cuacaItems, setCuacaItems] = useState([
     { id: Date.now(), kondisi: 'Cerah', keterangan: '' }
   ]);
 
-  // --- STATE PERUBAHAN: Kegiatan (Tambah Persentase) ---
   const [kegiatanItems, setKegiatanItems] = useState(
     editData?.kegiatan?.length > 0 
       ? editData.kegiatan.map((k, i) => {
@@ -130,7 +130,6 @@ export default function AddLaporan() {
       });
 
       if (detailItem) {
-        // Cek dengan minggu_ke yang dipilih secara manual oleh user
         const isThisWeek = parseInt(sched.minggu_ke) === parseInt(formData.minggu_ke);
         if (!scheduledItemsMap.has(sched.rab_item_id)) {
           scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
@@ -147,7 +146,6 @@ export default function AddLaporan() {
   }
 
   const unscheduledRabOptions = rabOptions.filter(opt => !scheduledItemsMap.has(opt.id));
-  const isScheduleEmpty = scheduleData && (!scheduleData.schedules || scheduleData.schedules.length === 0);
 
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -238,9 +236,10 @@ export default function AddLaporan() {
     try {
       const payload = new FormData();
       payload.append('tanggal', formData.tanggalPengawasan);
-      payload.append('minggu_ke', formData.minggu_ke); // PAYLOAD BARU
+      payload.append('minggu_ke', formData.minggu_ke); 
       payload.append('pengawas', formData.namaPengawas);
       payload.append('lokasi', formData.lokasi);
+      payload.append('catatan', formData.catatan); // PAYLOAD BARU CATATAN
       
       const cuacaGabungan = cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
       payload.append('cuaca', cuacaGabungan);
@@ -253,7 +252,7 @@ export default function AddLaporan() {
         sta_akhir: k.koordinat_akhir, 
         volume: k.volume,
         satuan: k.satuan,
-        persentase: k.persentase // PAYLOAD BARU
+        persentase: k.persentase 
       }));
 
       payload.append('kegiatan', JSON.stringify(payloadKegiatan));
@@ -317,9 +316,9 @@ export default function AddLaporan() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
         
-        {/* SECTION 1: Info Proyek & Pengawas (STYLING DIRAPIKAN) */}
+        {/* SECTION 1: Info Proyek & Pengawas (TETAP FULL WIDTH) */}
         <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
           <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-2">
             <Building2 className="w-4 h-4" /> 1. Informasi Pengawasan
@@ -351,7 +350,6 @@ export default function AddLaporan() {
               </div>
             </div>
 
-            {/* FIELD BARU: DROPDOWN MINGGU KE */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Minggu Ke- <span className="text-rose-500">*</span></label>
               <div className="relative">
@@ -383,212 +381,243 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* SECTION 2: Cuaca */}
-        <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
-            <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-              <Sun className="w-4 h-4" /> 2. Kondisi Cuaca Lapangan
-            </label>
-            <button type="button" onClick={() => { if (cuacaItems.length < 4) setCuacaItems([...cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }]); else alert("Maksimal 4 entri cuaca per hari."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm">
-              <Plus className="w-3.5 h-3.5" /> Tambah Cuaca
-            </button>
-          </div>
+        {/* ============================================================== */}
+        {/* CONTAINER SPLIT 2 KOLOM UNTUK SECTION SISANYA                 */}
+        {/* ============================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
           
-          <div className="space-y-3">
-            {cuacaItems.map((item, index) => (
-              <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 relative group shadow-sm">
-                {cuacaItems.length > 1 && (
-                  <button type="button" onClick={() => setCuacaItems(cuacaItems.filter(c => c.id !== item.id))} className="absolute -top-2 -right-2 p-1.5 bg-rose-500 text-white rounded-full transition-transform hover:scale-110 shadow-md z-10"><Trash2 className="w-3 h-3" /></button>
+          {/* KOLOM KIRI (Cuaca, Personil, Alat, Catatan) */}
+          <div className="flex flex-col space-y-5 lg:space-y-6">
+            
+            {/* SECTION 2: Cuaca */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+                <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                  <Sun className="w-4 h-4" /> 2. Kondisi Cuaca Lapangan
+                </label>
+                <button type="button" onClick={() => { if (cuacaItems.length < 4) setCuacaItems([...cuacaItems, { id: Date.now(), kondisi: 'Cerah', keterangan: '' }]); else alert("Maksimal 4 entri cuaca per hari."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm">
+                  <Plus className="w-3.5 h-3.5" /> Tambah
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {cuacaItems.map((item, index) => (
+                  <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 relative group shadow-sm">
+                    {cuacaItems.length > 1 && (
+                      <button type="button" onClick={() => setCuacaItems(cuacaItems.filter(c => c.id !== item.id))} className="absolute -top-2 -right-2 p-1.5 bg-rose-500 text-white rounded-full transition-transform hover:scale-110 shadow-md z-10"><Trash2 className="w-3 h-3" /></button>
+                    )}
+                    <div className="space-y-1.5 sm:col-span-1">
+                      <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider">Cuaca <span className="text-rose-500">*</span></label>
+                      <div className="relative">
+                        <select value={item.kondisi} onChange={(e) => { const newC = [...cuacaItems]; newC[index].kondisi = e.target.value; setCuacaItems(newC); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner">
+                          <option value="Cerah">Cerah</option><option value="Berawan">Berawan</option><option value="Hujan Gerimis">Hujan Gerimis</option><option value="Hujan Lebat">Hujan Lebat</option>
+                        </select>
+                        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider">Waktu / Durasi</label>
+                      <input type="text" value={item.keterangan} onChange={(e) => { const newC = [...cuacaItems]; newC[index].keterangan = e.target.value; setCuacaItems(newC); }} placeholder="Contoh: 08:00 - 12:00..." className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SECTION 4: Personil */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+                <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> 4. Personil Lapangan</h2>
+                <button type="button" onClick={() => openPersonilModal()} className="text-[10px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
+              </div>
+              <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar flex-1 pr-1">
+                {personilItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium text-xs">Belum ada personil diinput</p></div>
+                ) : (
+                  personilItems.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{p.peran}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-md text-xs font-bold font-mono">{p.jumlah} Org</span>
+                        <button type="button" onClick={() => setPersonilItems(personilItems.filter(item => item.id !== p.id))} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                  ))
                 )}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider">Cuaca <span className="text-rose-500">*</span></label>
-                  <div className="relative">
-                    <select value={item.kondisi} onChange={(e) => { const newC = [...cuacaItems]; newC[index].kondisi = e.target.value; setCuacaItems(newC); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner">
-                      <option value="Cerah">Cerah</option><option value="Berawan">Berawan</option><option value="Hujan Gerimis">Hujan Gerimis</option><option value="Hujan Lebat">Hujan Lebat</option>
-                    </select>
-                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-                <div className="sm:col-span-2 space-y-1.5">
-                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider">Waktu / Durasi / Keterangan</label>
-                  <input type="text" value={item.keterangan} onChange={(e) => { const newC = [...cuacaItems]; newC[index].keterangan = e.target.value; setCuacaItems(newC); }} placeholder="Contoh: 08:00 - 12:00..." className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
-                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* SECTION 3: Kegiatan (DENGAN TAMBAHAN KOLOM PERSEN) */}
-        <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
-            <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-              <ListTodo className="w-4 h-4" /> 3. Kegiatan & Geografis
-            </label>
-            <button type="button" onClick={() => { if (kegiatanItems.length < 6) setKegiatanItems([...kegiatanItems, { id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '', persentase: '' }]); else alert("Maksimal 6 Kegiatan."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah Kegiatan</button>
-          </div>
-          
-          <div className="space-y-4">
-            {kegiatanItems.map((item, index) => (
-              <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm">
-                
-                <div className="md:col-span-12 flex justify-between items-center mb-1">
-                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Uraian Pekerjaan {index + 1}
-                  </span>
-                  {kegiatanItems.length > 1 && (
-                    <button type="button" onClick={() => setKegiatanItems(kegiatanItems.filter(k => k.id !== item.id))} className="text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md border border-rose-200 dark:border-rose-500/30 transition-colors hover:bg-rose-500 hover:text-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
-                  )}
-                </div>
-                
-                <div className="md:col-span-12">
-                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Pilih dari Jadwal / RAB <span className="text-rose-500">*</span></span>
-                    {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat RAB...</span>}
-                  </label>
-                  
-                  {rabOptions.length > 0 ? (
-                    <div className="relative mb-2">
-                      <select
-                        value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
-                        onChange={(e) => handleKegiatanSelect(index, e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner truncate pr-10"
-                      >
-                        <option value="" disabled>-- Pilih Pekerjaan Terjadwal --</option>
-                        {optionsMingguIni.length > 0 && <optgroup label={`>>> TARGET MINGGU INI`}>{optionsMingguIni.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                        {optionsMingguLain.length > 0 && <optgroup label=">>> TARGET MINGGU LAINNYA">{optionsMingguLain.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                        {unscheduledRabOptions.length > 0 && <optgroup label=">>> PEKERJAAN DI LUAR JADWAL (RAB TERDAFTAR)">{unscheduledRabOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>)}</optgroup>}
-                        <option value="manual">+ Pekerjaan Tambah/Kurang (Input Manual)</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  ) : (
-                    <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Mohon pilih proyek terlebih dahulu.</div>
-                  )}
-
-                  {(item.rab_item_id === null || rabOptions.length === 0) && (
-                    <textarea rows="2" placeholder="Ketik manual uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner" />
-                  )}
-                </div>
-                
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
-                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Titik Awal (STA Awal)</label>
-                  <input type="text" placeholder="-3.3191, 114.5911" value={item.koordinat_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
-                </div>
-                
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
-                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> Titik Akhir (STA Akhir)</label>
-                  <input type="text" placeholder="-3.3215, 114.6102" value={item.koordinat_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
-                </div>
-                
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
-                  {/* GRID BARU: VOLUME - SATUAN - PERSENTASE */}
-                  <div className="grid grid-cols-12 gap-2 w-full">
-                    <div className="col-span-5">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                      <input type="number" step="any" required placeholder="0" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center" />
-                    </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
-                      <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
-                    </div>
-                    <div className="col-span-4">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
-                      <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs text-blue-700 dark:text-blue-400 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center" />
-                    </div>
-                  </div>
-                </div>
-
+            {/* SECTION 5: Peralatan */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+                <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" /> 5. Pemakaian Peralatan</h2>
+                <button type="button" onClick={() => openPeralatanModal()} className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-blue-200 dark:border-blue-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* SECTION 4 & 5 (SAMA SEPERTI SEBELUMNYA TAPI RAPI) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> Personil Lapangan</h2>
-              <button type="button" onClick={() => openPersonilModal()} className="text-[10px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
-            </div>
-            <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar flex-1 pr-1">
-              {personilItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium text-xs">Belum ada personil diinput</p></div>
-              ) : (
-                personilItems.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{p.peran}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-md text-xs font-bold font-mono">{p.jumlah} Org</span>
-                      <button type="button" onClick={() => setPersonilItems(personilItems.filter(item => item.id !== p.id))} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+              <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar flex-1 pr-1">
+                {peralatanItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><Wrench className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium text-xs">Belum ada alat diinput</p></div>
+                ) : (
+                  peralatanItems.map((alat) => (
+                    <div key={alat.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{alat.namaAlat}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-md text-xs font-bold font-mono">{alat.jumlah} Unit</span>
+                        <button type="button" onClick={() => setPeralatanItems(peralatanItems.filter(item => item.id !== alat.id))} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
+
+            {/* SECTION 7: Catatan Laporan (BARU) */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
+                <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> 7. Catatan Tambahan Laporan
+                </label>
+              </div>
+              <textarea
+                name="catatan"
+                rows="4"
+                value={formData.catatan}
+                onChange={handleInputChange}
+                placeholder="Tuliskan catatan khusus, kendala lapangan, atau instruksi pengawas di sini..."
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner custom-scrollbar"
+              />
+            </div>
+
           </div>
 
-          <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" /> Pemakaian Peralatan</h2>
-              <button type="button" onClick={() => openPeralatanModal()} className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-blue-200 dark:border-blue-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
-            </div>
-            <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar flex-1 pr-1">
-              {peralatanItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><Wrench className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium text-xs">Belum ada alat diinput</p></div>
-              ) : (
-                peralatanItems.map((alat) => (
-                  <div key={alat.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{alat.namaAlat}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-md text-xs font-bold font-mono">{alat.jumlah} Unit</span>
-                      <button type="button" onClick={() => setPeralatanItems(peralatanItems.filter(item => item.id !== alat.id))} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+          {/* KOLOM KANAN (Kegiatan, Foto, File Lampiran) */}
+          <div className="flex flex-col space-y-5 lg:space-y-6">
+            
+            {/* SECTION 3: Kegiatan (Disesuaikan grid dalamnya) */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
+                <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                  <ListTodo className="w-4 h-4" /> 3. Kegiatan & Geografis
+                </label>
+                <button type="button" onClick={() => { if (kegiatanItems.length < 6) setKegiatanItems([...kegiatanItems, { id: Date.now(), rab_item_id: '', uraian: '', koordinat_awal: '', koordinat_akhir: '', volume: '', satuan: '', persentase: '' }]); else alert("Maksimal 6 Kegiatan."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
+              </div>
+              
+              <div className="space-y-4">
+                {kegiatanItems.map((item, index) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm">
+                    
+                    <div className="col-span-12 flex justify-between items-center mb-1">
+                      <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Pekerjaan {index + 1}
+                      </span>
+                      {kegiatanItems.length > 1 && (
+                        <button type="button" onClick={() => setKegiatanItems(kegiatanItems.filter(k => k.id !== item.id))} className="text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md border border-rose-200 dark:border-rose-500/30 transition-colors hover:bg-rose-500 hover:text-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
+                      )}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+                    
+                    <div className="col-span-12">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>Pilih RAB <span className="text-rose-500">*</span></span>
+                        {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat...</span>}
+                      </label>
+                      
+                      {rabOptions.length > 0 ? (
+                        <div className="relative mb-2">
+                          <select
+                            value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
+                            onChange={(e) => handleKegiatanSelect(index, e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner truncate pr-10"
+                          >
+                            <option value="" disabled>-- Pilih Pekerjaan --</option>
+                            {optionsMingguIni.length > 0 && <optgroup label={`>>> TARGET MINGGU INI`}>{optionsMingguIni.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
+                            {optionsMingguLain.length > 0 && <optgroup label=">>> TARGET MINGGU LAINNYA">{optionsMingguLain.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
+                            {unscheduledRabOptions.length > 0 && <optgroup label=">>> PEKERJAAN DI LUAR JADWAL">{unscheduledRabOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>)}</optgroup>}
+                            <option value="manual">+ Pekerjaan Baru (Manual)</option>
+                          </select>
+                          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Pilih proyek terlebih dahulu.</div>
+                      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Dokumentasi (Foto)</h2>
-              <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={handleFotoLampiranChange} />
-              <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] rounded-lg border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><UploadCloud className="w-3.5 h-3.5" /> Upload Foto</button>
-            </div>
-            <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-              {fotoLampiran.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium">Belum ada foto</p></div>
-              ) : (
-                fotoLampiran.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
-                    <div className="min-w-0 flex-1 pr-2"><p className="font-bold text-slate-800 dark:text-white truncate">{file.name}</p></div>
-                    <button type="button" onClick={() => handleRemoveFoto(idx)} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                      {(item.rab_item_id === null || rabOptions.length === 0) && (
+                        <textarea rows="2" placeholder="Ketik uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner" />
+                      )}
+                    </div>
+                    
+                    <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> Titik Awal (STA)</label>
+                      <input type="text" placeholder="-3.3191, 114.59" value={item.koordinat_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
+                    </div>
+                    
+                    <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> Titik Akhir (STA)</label>
+                      <input type="text" placeholder="-3.3215, 114.61" value={item.koordinat_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].koordinat_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
+                    </div>
+                    
+                    <div className="col-span-12 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
+                      <div className="grid grid-cols-12 gap-2 w-full">
+                        <div className="col-span-5">
+                          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
+                          <input type="number" step="any" required placeholder="0" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center" />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
+                          <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
+                        </div>
+                        <div className="col-span-4">
+                          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
+                          <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs text-blue-700 dark:text-blue-400 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center" />
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
-              <h2 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><Paperclip className="w-4 h-4" /> File Lampiran</h2>
-              <input type="file" id="docUploadAdd" className="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={handleDokumenLampiranChange} />
-              <button type="button" onClick={() => document.getElementById('docUploadAdd').click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] rounded-lg border border-emerald-200 dark:border-emerald-500/30 transition-colors shadow-sm"><UploadCloud className="w-3.5 h-3.5" /> Upload File</button>
-            </div>
-            <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-              {dokumenLampiran.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><FileSpreadsheet className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium">Belum ada file</p></div>
-              ) : (
-                dokumenLampiran.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
-                    <div className="min-w-0 flex-1 pr-2"><p className="font-bold text-slate-800 dark:text-white truncate">{file.name}</p></div>
-                    <button type="button" onClick={() => handleRemoveDokumen(idx)} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
+
+            {/* SECTION 6A: Foto Lapangan */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+                <h2 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4" /> 6. Dokumentasi (Foto)</h2>
+                <input type="file" id="fotoUploadAdd" className="hidden" multiple accept="image/*" onChange={handleFotoLampiranChange} />
+                <button type="button" onClick={() => document.getElementById('fotoUploadAdd').click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] rounded-lg border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><UploadCloud className="w-3.5 h-3.5" /> Upload Foto</button>
+              </div>
+              <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                {fotoLampiran.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium">Belum ada foto</p></div>
+                ) : (
+                  fotoLampiran.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
+                      <div className="min-w-0 flex-1 pr-2"><p className="font-bold text-slate-800 dark:text-white truncate">{file.name}</p></div>
+                      <button type="button" onClick={() => handleRemoveFoto(idx)} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 6B: File Lampiran */}
+            <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
+                <h2 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><Paperclip className="w-4 h-4" /> File Lampiran (Opsional)</h2>
+                <input type="file" id="docUploadAdd" className="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={handleDokumenLampiranChange} />
+                <button type="button" onClick={() => document.getElementById('docUploadAdd').click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] rounded-lg border border-emerald-200 dark:border-emerald-500/30 transition-colors shadow-sm"><UploadCloud className="w-3.5 h-3.5" /> Upload File</button>
+              </div>
+              <div className="space-y-2 text-xs flex-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                {dokumenLampiran.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/40"><FileSpreadsheet className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" /><p className="text-slate-500 font-medium">Belum ada file dokumen</p></div>
+                ) : (
+                  dokumenLampiran.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm">
+                      <div className="min-w-0 flex-1 pr-2"><p className="font-bold text-slate-800 dark:text-white truncate">{file.name}</p></div>
+                      <button type="button" onClick={() => handleRemoveDokumen(idx)} className="p-1.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -602,7 +631,7 @@ export default function AddLaporan() {
         </div>
       </form>
 
-      {/* MODALS PERSONIL & PERALATAN (TIDAK BERUBAH) */}
+      {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">

@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, Download, Edit3, Copy, Clock, 
-  CheckCircle2, Save, X, Loader2, Trash2, FileSpreadsheet 
+  CheckCircle2, Save, X, Loader2, Trash2, FileSpreadsheet, FileText 
 } from 'lucide-react';
 
 // IMPORT KOMPONEN TERPISAH
@@ -30,8 +30,9 @@ export default function LaporanData() {
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingRab, setIsLoadingRab] = useState(false);
   
+  // Menambahkan Catatan ke dalam State Draf
   const [editForm, setEditForm] = useState({
-    tanggal: '', minggu_ke: '', pengawas: '', lokasi: '',
+    tanggal: '', minggu_ke: '', pengawas: '', lokasi: '', catatan: '',
     cuacaItems: [], activities: [], personnels: [], equipments: []
   });
   
@@ -133,6 +134,7 @@ export default function LaporanData() {
         minggu_ke: reportData.minggu_ke || '',
         pengawas: reportData.pengawas,
         lokasi: reportData.lokasi,
+        catatan: reportData.catatan || '',
         cuacaItems: parsedCuaca,
         activities: JSON.parse(JSON.stringify(reportData.activities || [])).map(act => ({
           ...act, persentase: act.persentase || ''
@@ -155,6 +157,7 @@ export default function LaporanData() {
         minggu_ke: editForm.minggu_ke,
         pengawas: editForm.pengawas,
         lokasi: editForm.lokasi,
+        catatan: editForm.catatan, 
         cuaca: cuacaGabungan, 
         kondisi_cuaca: JSON.stringify(editForm.cuacaItems), 
         kegiatan: JSON.stringify(editForm.activities),
@@ -185,10 +188,20 @@ export default function LaporanData() {
     }
   };
 
-  // --- FIX: MENGAMBIL NILAI MINGGU KE- BERDASARKAN MODE ---
+  const handleRejectLaporan = async () => {
+    const confirmReject = window.confirm("Apakah Anda yakin ingin menolak laporan ini? \n\nLaporan akan dikembalikan ke pengawas untuk direvisi.");
+    if (!confirmReject) return;
+    try {
+      await api.put(`/daily-reports/${reportId}/reject`);
+      alert("Laporan berhasil ditolak dan dikembalikan!");
+      fetchReport(); 
+    } catch (error) {
+      alert("Terjadi kesalahan saat menolak laporan.");
+    }
+  };
+
   const currentMingguKe = isEditMode ? editForm.minggu_ke : reportData?.minggu_ke;
 
-  // LOGIKA PENGELOMPOKAN URAIAN PEKERJAAN
   let optionsMingguIni = [];
   let optionsMingguLain = [];
   let scheduledItemsMap = new Map();
@@ -284,7 +297,7 @@ export default function LaporanData() {
     let manpowerText = reportData.personnels?.length ? reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n') : "1. Tidak Ada Pekerja = -";
     let alatText = reportData.equipments?.length ? reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n') : "1. Tidak Ada Alat = -";
 
-    const textToCopy = `*Daily Report ${formattedDate}*\n\n*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*\n\nPekerjaan :\n${pekerjaanText}\n\nMANPOWER :\n${manpowerText}\n\nAlat : \n${alatText}\n\nCuaca Harian : \n${reportData.cuaca || '-'}\n           \nJam Kerja : -\n \nCatatan : \n* -`;
+    const textToCopy = `*Daily Report ${formattedDate}*\n\n*PENGAWASAN TEKNIS ${(reportData.project?.nama_proyek || 'NAMA PROYEK').toUpperCase()}*\n\nPekerjaan :\n${pekerjaanText}\n\nMANPOWER :\n${manpowerText}\n\nAlat : \n${alatText}\n\nCuaca Harian : \n${reportData.cuaca || '-'}\n           \nJam Kerja : -\n \nCatatan : \n* ${reportData.catatan || '-'}`;
     navigator.clipboard.writeText(textToCopy).then(() => alert("Teks Laporan berhasil disalin ke Clipboard! Silakan paste di WhatsApp.")).catch(() => alert("Gagal menyalin text."));
   };
 
@@ -363,9 +376,14 @@ export default function LaporanData() {
               ) : (
                 <>
                   {canVerify && displayStatus === 'pending' ? (
-                    <button onClick={handleVerifyLaporan} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Verifikasi Laporan</span>
-                    </button>
+                    <>
+                      <button onClick={handleRejectLaporan} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-rose-500 hover:bg-rose-600 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm">
+                        <X className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Tolak Laporan</span>
+                      </button>
+                      <button onClick={handleVerifyLaporan} className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Verifikasi Laporan</span>
+                      </button>
+                    </>
                   ) : displayStatus === 'approved' ? (
                     <div className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-bold rounded-lg cursor-default">
                       <CheckCircle2 className="w-3.5 h-3.5" /> <span className="hidden lg:inline">Telah Disetujui</span>
@@ -413,31 +431,57 @@ export default function LaporanData() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* COMPONENT 1: INFO PENGAWASAN */}
-        <InfoPengawasan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
-        {/* COMPONENT 2: CUACA LAPANGAN */}
-        <CuacaLapangan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
+      {/* COMPONENT 1: INFO PENGAWASAN (Full Width) */}
+      <InfoPengawasan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
+
+      {/* ============================================================== */}
+      {/* CONTAINER SPLIT 2 KOLOM UNTUK SECTION SISANYA                 */}
+      {/* ============================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+        
+        {/* KOLOM KIRI (Cuaca, Personil-Alat, Catatan) */}
+        <div className="flex flex-col space-y-5 lg:space-y-6">
+          <CuacaLapangan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
+          <PersonilAlatLaporan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} openPersonilModal={openPersonilModal} openPeralatanModal={openPeralatanModal} />
+          
+          {/* CATATAN TAMBAHAN */}
+          <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} p-4 md:p-5 rounded-2xl flex flex-col transition-all relative backdrop-blur-sm`}>
+             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-3">
+               <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                 <FileText className="w-4 h-4" /> Catatan Tambahan Laporan
+               </h3>
+             </div>
+             {isEditMode ? (
+               <textarea
+                 name="catatan"
+                 rows="4"
+                 value={editForm.catatan}
+                 onChange={(e) => setEditForm({...editForm, catatan: e.target.value})}
+                 placeholder="Tuliskan catatan khusus, kendala lapangan, atau instruksi pengawas di sini..."
+                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner custom-scrollbar"
+               />
+             ) : (
+               <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed shadow-sm">
+                 {reportData.catatan || 'Tidak ada catatan tambahan.'}
+               </div>
+             )}
+          </div>
+        </div>
+
+        {/* KOLOM KANAN (Kegiatan, Dokumentasi, Lampiran) */}
+        <div className="flex flex-col space-y-5 lg:space-y-6">
+          <KegiatanGeografis 
+            isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
+            rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
+            optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
+          />
+          <LampiranDokumentasi 
+            isEditMode={isEditMode} reportData={reportData} handleUploadFile={handleUploadFile} 
+            handleDeleteFile={handleDeleteFile} getDocUrl={getDocUrl}
+          />
+        </div>
+
       </div>
-
-      {/* COMPONENT 3: KEGIATAN & GEOGRAFIS */}
-      <KegiatanGeografis 
-        isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
-        rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
-        optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
-      />
-
-      {/* COMPONENT 4: PERSONIL & PERALATAN */}
-      <PersonilAlatLaporan 
-        isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
-        openPersonilModal={openPersonilModal} openPeralatanModal={openPeralatanModal}
-      />
-
-      {/* COMPONENT 5: DOKUMENTASI & LAMPIRAN */}
-      <LampiranDokumentasi 
-        isEditMode={isEditMode} reportData={reportData} handleUploadFile={handleUploadFile} 
-        handleDeleteFile={handleDeleteFile} getDocUrl={getDocUrl}
-      />
 
       {/* Action Submit */}
       {isEditMode && (

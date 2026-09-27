@@ -103,6 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/daily-reports/{id}/attachments', [DailyReportController::class, 'uploadAttachment']);
     Route::delete('/daily-report-attachments/{id}', [DailyReportController::class, 'destroyAttachment']);
     Route::put('/daily-reports/{id}/verify', [DailyReportController::class, 'verifyReport']);
+    Route::put('/daily-reports/{id}/reject', [DailyReportController::class, 'rejectReport']);
 
     // --- MANAJEMEN TIME SCHEDULE (RENCANA KURVA S) ---
     Route::get('/projects/{projectId}/schedules', [ProjectScheduleController::class, 'getSchedules']);

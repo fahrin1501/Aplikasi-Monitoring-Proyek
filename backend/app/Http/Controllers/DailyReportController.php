@@ -107,6 +107,7 @@ class DailyReportController extends Controller
                 'lokasi' => $request->lokasi,
                 'cuaca' => $request->cuaca,
                 'kondisi_cuaca' => $request->kondisi_cuaca,
+                'catatan' => $request->catatan,
                 'status' => 'pending',
             ]);
 
@@ -181,6 +182,7 @@ class DailyReportController extends Controller
                 'lokasi' => $request->lokasi ?? $report->lokasi,
                 'cuaca' => $request->cuaca ?? $report->cuaca,
                 'kondisi_cuaca' => $request->kondisi_cuaca ?? $report->kondisi_cuaca,
+                'catatan' => $request->has('catatan') ? $request->catatan : $report->catatan,
                 'status' => 'pending',
                 'verified_at' => null
             ]);
@@ -313,6 +315,31 @@ class DailyReportController extends Controller
             ]);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Gagal verifikasi laporan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // Fungsi Menolak Laporan (Kembalikan ke Pengawas)
+    public function rejectReport($id)
+    {
+        try {
+            $report = DailyReport::findOrFail($id);
+            $report->update([
+                'status' => 'rejected',
+                'verified_at' => null // Reset tanggal verifikasi jika ada
+            ]);
+
+            // Sinkronisasi status proyek (jika diperlukan)
+            $this->syncProjectStatus($report->project_id);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Laporan Lapangan dikembalikan (Ditolak)!'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menolak laporan: ' . $e->getMessage()
+            ], 500);
         }
     }
 
