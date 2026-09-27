@@ -10,8 +10,8 @@ import {
 import InfoPengawasan from './IsiLaporan/InfoPengawasan';
 import CuacaLapangan from './IsiLaporan/CuacaLapangan';
 import KegiatanGeografis from './IsiLaporan/KegiatanGeografis';
-import PersonilAlatLaporan from './IsiLaporan/PersonilAlatLaporan';
-import LampiranDokumentasi from './IsiLaporan/LampiranDokumentasi';
+import { PersonilCard, PeralatanCard } from './IsiLaporan/PersonilAlatLaporan';
+import { FotoCard, DokumenCard } from './IsiLaporan/LampiranDokumentasi';
 
 export default function LaporanData() {
   const navigate = useNavigate();
@@ -334,8 +334,8 @@ export default function LaporanData() {
   return (
     <div className="w-full space-y-5 md:space-y-6 relative pb-20 animate-fade-in">
 
-      {/* --- TOP HEADER / ACTION BAR (PERBAIKAN RESPONSIVE) --- */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
+      {/* --- TOP HEADER / ACTION BAR (RESPONSIVE: TIDAK TERPOTONG) --- */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all cursor-pointer shadow-sm">
             <ArrowLeft className="w-5 h-5" />
@@ -360,19 +360,15 @@ export default function LaporanData() {
         </div>
 
         {!isGuest && (
-          <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto">
-            {/* 
-              Perbaikan Container Navbar Action:
-              Menggunakan flex-wrap dan mengurangi padding/ukuran agar tombol tidak tumpah ke luar layar. 
-            */}
-            <div className="flex flex-wrap items-center justify-start gap-1.5 w-full bg-white dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
+          <div className="flex items-center w-full xl:w-auto">
+            <div className="flex flex-wrap items-center justify-start gap-1.5 w-full bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
               
               {isEditMode ? (
                 <>
-                  <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap shadow-sm">
+                  <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap shadow-sm">
                     <X className="w-3.5 h-3.5" /> <span>Batal</span>
                   </button>
-                  <button onClick={handleSaveChanges} disabled={isSaving} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 whitespace-nowrap">
+                  <button onClick={handleSaveChanges} disabled={isSaving} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 whitespace-nowrap">
                     {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} <span>Simpan Perubahan</span>
                   </button>
                 </>
@@ -380,23 +376,23 @@ export default function LaporanData() {
                 <>
                   {canVerify && displayStatus === 'pending' ? (
                     <>
-                      <button onClick={handleRejectLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
+                      <button onClick={handleRejectLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
                         <X className="w-3.5 h-3.5" /> <span>Tolak Laporan</span>
                       </button>
-                      <button onClick={handleVerifyLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
+                      <button onClick={handleVerifyLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
                         <CheckCircle2 className="w-3.5 h-3.5" /> <span>Verifikasi Laporan</span>
                       </button>
                     </>
                   ) : displayStatus === 'approved' ? (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
+                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
                       <CheckCircle2 className="w-3.5 h-3.5" /> <span>Telah Disetujui</span>
                     </div>
                   ) : displayStatus === 'rejected' ? (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
+                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
                       <X className="w-3.5 h-3.5" /> <span>Telah Ditolak</span>
                     </div>
                   ) : (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
+                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
                       <Clock className="w-3.5 h-3.5" /> <span>Menunggu Verifikasi</span>
                     </div>
                   )}
@@ -405,25 +401,25 @@ export default function LaporanData() {
 
                   {canCreateData && (
                     <>
-                      <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
+                      <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
                         <Edit3 className="w-3.5 h-3.5" /> <span>Mode Edit Draf</span>
                       </button>
-                      <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
+                      <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
                         <Trash2 className="w-3.5 h-3.5" /> <span>Hapus</span>
                       </button>
                       <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                     </>
                   )}
                   
-                  <button onClick={handleCopyText} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
+                  <button onClick={handleCopyText} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
                     <Copy className="w-3.5 h-3.5 text-blue-500" /> <span>Copy Text</span>
                   </button>
 
-                  <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                  <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
                     {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} 
                     <span>{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
                   </button>
-                  <button onClick={handleExportPdf} disabled={isExportingPdf} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                  <button onClick={handleExportPdf} disabled={isExportingPdf} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
                     {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 
                     <span>{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
                   </button>
@@ -434,56 +430,80 @@ export default function LaporanData() {
         )}
       </div>
 
-      {/* COMPONENT 1: INFO PENGAWASAN (Full Width) */}
+      {/* ============================================================== */}
+      {/* 1. INFORMASI PENGAWASAN (FULL WIDTH)                            */}
+      {/* ============================================================== */}
       <InfoPengawasan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
 
       {/* ============================================================== */}
-      {/* CONTAINER SPLIT 2 KOLOM (MASONRY BALANCE)                     */}
-      {/* Kolom Kiri: Kegiatan (Sangat Panjang) & Catatan               */}
-      {/* Kolom Kanan: Cuaca, Personil-Alat, Lampiran (Kumpulan Pendek) */}
+      {/* 2. SPLIT ROW: CUACA (KIRI) & CATATAN (KANAN)                   */}
+      {/* ============================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-stretch">
+        <div className="flex flex-col h-full">
+          <CuacaLapangan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
+        </div>
+        
+        <div className="flex flex-col h-full">
+          <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} p-4 md:p-5 rounded-2xl flex flex-col transition-all relative backdrop-blur-sm h-full`}>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-3">
+              <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Catatan Tambahan Laporan
+              </h3>
+            </div>
+            {isEditMode ? (
+              <textarea
+                name="catatan"
+                value={editForm.catatan}
+                onChange={(e) => setEditForm({...editForm, catatan: e.target.value})}
+                placeholder="Tuliskan catatan khusus, kendala lapangan, atau instruksi pengawas di sini..."
+                className="w-full h-full min-h-[130px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner custom-scrollbar transition-colors"
+              />
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed shadow-sm h-full min-h-[130px]">
+                {reportData.catatan || 'Tidak ada catatan tambahan.'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* 3. URAIAN KEGIATAN & GEOGRAFIS (FULL WIDTH)                    */}
+      {/* ============================================================== */}
+      <div className="w-full">
+        <KegiatanGeografis 
+          isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
+          rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
+          optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
+        />
+      </div>
+
+      {/* ============================================================== */}
+      {/* 4. SPLIT ROW:                                                  */}
+      {/*    KIRI : Personil Lapangan & Dokumentasi Foto                */}
+      {/*    KANAN: Pemakaian Alat & File Lampiran Dokumen              */}
       {/* ============================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
         
-        {/* KOLOM KIRI (Fokus pada Progress Pekerjaan) */}
+        {/* KOLOM KIRI (Personil & Foto) */}
         <div className="flex flex-col space-y-5 lg:space-y-6">
-          <KegiatanGeografis 
-            isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
-            rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
-            optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
+          <PersonilCard 
+            isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} 
+            openPersonilModal={openPersonilModal} 
           />
-          
-          {/* CATATAN TAMBAHAN (Diletakkan di bawah Kegiatan agar seimbang) */}
-          <div className={`bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} p-4 md:p-5 rounded-2xl flex flex-col transition-all relative backdrop-blur-sm`}>
-             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-3">
-               <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-                 <FileText className="w-4 h-4" /> Catatan Tambahan Laporan
-               </h3>
-             </div>
-             {isEditMode ? (
-               <textarea
-                 name="catatan"
-                 rows="4"
-                 value={editForm.catatan}
-                 onChange={(e) => setEditForm({...editForm, catatan: e.target.value})}
-                 placeholder="Tuliskan catatan khusus, kendala lapangan, atau instruksi pengawas di sini..."
-                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner custom-scrollbar"
-               />
-             ) : (
-               <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed shadow-sm">
-                 {reportData.catatan || 'Tidak ada catatan tambahan.'}
-               </div>
-             )}
-          </div>
+          <FotoCard 
+            isEditMode={isEditMode} reportData={reportData} handleUploadFile={handleUploadFile} 
+            handleDeleteFile={handleDeleteFile} getDocUrl={getDocUrl}
+          />
         </div>
 
-        {/* KOLOM KANAN (Fokus pada Data Pendukung) */}
+        {/* KOLOM KANAN (Alat & Dokumen) */}
         <div className="flex flex-col space-y-5 lg:space-y-6">
-          <CuacaLapangan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
-          
-          {/* Komponen PersonilAlatLaporan sudah otomatis responsive grid di dalamnya */}
-          <PersonilAlatLaporan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} openPersonilModal={openPersonilModal} openPeralatanModal={openPeralatanModal} />
-          
-          <LampiranDokumentasi 
+          <PeralatanCard 
+            isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} 
+            openPeralatanModal={openPeralatanModal} 
+          />
+          <DokumenCard 
             isEditMode={isEditMode} reportData={reportData} handleUploadFile={handleUploadFile} 
             handleDeleteFile={handleDeleteFile} getDocUrl={getDocUrl}
           />
@@ -502,7 +522,7 @@ export default function LaporanData() {
         </div>
       )}
 
-      {/* MODALS DARI COMPONENT LAIN TETAP DI RENDER DI SINI */}
+      {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">

@@ -3,7 +3,7 @@ import { Building2, MapPin, Calendar, UserCheck, Target, ChevronDown } from 'luc
 
 export default function InfoPengawasan({ isEditMode, reportData, editForm, setEditForm }) {
   return (
-    <div className={`lg:col-span-2 bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative backdrop-blur-sm`}>
+    <div className={`w-full bg-white dark:bg-slate-800/60 border ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60 shadow-sm'} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all relative backdrop-blur-sm`}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
         <div className="space-y-3">
           <div>
