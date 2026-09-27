@@ -58,12 +58,18 @@ export default function KurvaS({ selectedProject }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // --- HELPER AMAN UNTUK ANGKA (Mencegah Crash toFixed) ---
+  const getSafeFloat = (val) => {
+    if (val === null || val === undefined) return 0;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const formatIndoDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // Helper format tanggal DD/MM/YYYY
   const formatDateSlash = (dateStr) => {
     if (!dateStr) return '-';
     const parts = dateStr.split('-');
@@ -112,7 +118,6 @@ export default function KurvaS({ selectedProject }) {
       return;
     }
 
-    // Cari jadwal minggu tersebut
     const targetSchedule = (scheduleData?.schedules || []).find(s => parseInt(s.minggu_ke) === parseInt(weekNum));
     if (targetSchedule && targetSchedule.tanggal_awal && targetSchedule.tanggal_akhir) {
       setStartDateFilter(targetSchedule.tanggal_awal);
@@ -122,7 +127,6 @@ export default function KurvaS({ selectedProject }) {
 
     if (!projectBounds.start) return;
 
-    // Fallback jika tanggal jadwal belum ditentukan
     const startDate = new Date(projectBounds.start);
     startDate.setHours(0, 0, 0, 0);
 
@@ -205,12 +209,12 @@ export default function KurvaS({ selectedProject }) {
       });
     });
 
-    // 1. Progress Tiap Item Pekerjaan (Berdasarkan Laporan Terverifikasi)
+    // 1. Progress Tiap Item Pekerjaan (SUPER CEPAT DENGAN O(1) BACKEND)
     const progressList = allItems.map(item => {
       const baseBobot = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const itemRealisasi = (scheduleData.realizations || [])
-        ?.filter(r => r.rab_item_id === item.id)
-        ?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi || 0), 0) || 0;
+      
+      // Menggunakan data aktual yang dihitung di backend, bukan nge-looping manual lagi
+      const itemRealisasi = getSafeFloat(scheduleData.cumulative_actual?.[item.id]);
       const progressPercent = baseBobot > 0 ? (itemRealisasi / baseBobot) * 100 : 0;
       
       return { 
@@ -239,7 +243,7 @@ export default function KurvaS({ selectedProject }) {
           target_kumulatif: 0
         };
       }
-      weekMap[w].target_kumulatif += parseFloat(s.bobot_rencana || 0);
+      weekMap[w].target_kumulatif += getSafeFloat(s.bobot_rencana);
       if (!weekMap[w].tanggal_awal && s.tanggal_awal) weekMap[w].tanggal_awal = s.tanggal_awal;
       if (!weekMap[w].tanggal_akhir && s.tanggal_akhir) weekMap[w].tanggal_akhir = s.tanggal_akhir;
     });
@@ -254,7 +258,7 @@ export default function KurvaS({ selectedProject }) {
     (scheduleData.realizations || []).forEach(r => {
       if (!r.tgl_input) return;
       const ymd = r.tgl_input.split('T')[0];
-      dailyRealisasi[ymd] = (dailyRealisasi[ymd] || 0) + parseFloat(r.bobot_realisasi || 0);
+      dailyRealisasi[ymd] = getSafeFloat(dailyRealisasi[ymd]) + getSafeFloat(r.bobot_realisasi);
       if (r.minggu_ke) {
         dailyRealisasiWeeks[ymd] = r.minggu_ke;
       }
@@ -307,7 +311,6 @@ export default function KurvaS({ selectedProject }) {
       const displayDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
       const dateSlash = formatDateSlash(yyyymmdd);
 
-      // Cari minggu yang menaungi tanggal ini (berdasarkan tanggal_awal s/d tanggal_akhir)
       let matchedWeek = sortedWeeks.find(w => {
         if (w.tanggal_awal && w.tanggal_akhir) {
           return yyyymmdd >= w.tanggal_awal && yyyymmdd <= w.tanggal_akhir;
@@ -331,10 +334,9 @@ export default function KurvaS({ selectedProject }) {
         }
       }
 
-      // LOGIKA UTAMA: Target kumulatif flat/horizontal di sepanjang tanggal_awal s/d tanggal_akhir
-      const targetKumulatifMingguan = matchedWeek ? Number(matchedWeek.target_kumulatif.toFixed(2)) : null;
+      const targetKumulatifMingguan = matchedWeek ? getSafeFloat(matchedWeek.target_kumulatif) : null;
 
-      const actVal = dailyRealisasi[yyyymmdd] || 0;
+      const actVal = getSafeFloat(dailyRealisasi[yyyymmdd]);
       const hasReportToday = dailyRealisasi[yyyymmdd] !== undefined;
 
       if (hasReportToday) {
@@ -343,9 +345,8 @@ export default function KurvaS({ selectedProject }) {
 
       const isFuture = yyyymmdd > todayStr && (!maxReportedDayStr || yyyymmdd > maxReportedDayStr);
 
-      // Deviasi dihitung terhadap target kumulatif minggu terkait
       const deviasiVal = (hasReportToday && targetKumulatifMingguan !== null) 
-        ? Number((cumRealisasi - targetKumulatifMingguan).toFixed(2)) 
+        ? getSafeFloat(cumRealisasi - targetKumulatifMingguan)
         : null;
 
       tempChartData.push({
@@ -358,9 +359,9 @@ export default function KurvaS({ selectedProject }) {
         mingguKe: currentWeekNum,
         isFuture,
         targetKumulatifMingguan: targetKumulatifMingguan,
-        rencanaKumulatif: targetKumulatifMingguan, // Titik garis rencana
+        rencanaKumulatif: targetKumulatifMingguan, 
         bobotRealisasi: actVal,
-        realisasiKumulatif: isFuture && !hasReportToday ? null : Number(cumRealisasi.toFixed(2)),
+        realisasiKumulatif: isFuture && !hasReportToday ? null : getSafeFloat(cumRealisasi),
         deviasi: deviasiVal,
         hasReportToday
       });
@@ -400,7 +401,7 @@ export default function KurvaS({ selectedProject }) {
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
                   <span className="text-slate-600 dark:text-slate-300">{entry.name}</span>
                 </div>
-                <span className="font-mono font-bold" style={{ color: entry.color }}>{Number(entry.value).toFixed(2)}%</span>
+                <span className="font-mono font-bold" style={{ color: entry.color }}>{getSafeFloat(entry.value).toFixed(2)}%</span>
               </div>
             );
           })}
@@ -412,7 +413,6 @@ export default function KurvaS({ selectedProject }) {
 
   const isScheduleEmpty = !scheduleData?.schedules || scheduleData.schedules.length === 0;
 
-  // Filter baris tabel hanya yang benar-benar ada laporan harian terverifikasi
   const deviasiTableData = chartData.filter(row => row.hasReportToday);
 
   return (
@@ -604,9 +604,7 @@ export default function KurvaS({ selectedProject }) {
                         <XAxis dataKey="shortDate" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                         <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                         <Tooltip content={<CustomTooltip />} />
-                        {/* GARIS TARGET RENCANA (Horizontal di sepanjang tanggal_awal s/d tanggal_akhir) */}
                         <Line type="monotone" dataKey="rencanaKumulatif" name="Target Mingguan" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={true} />
-                        {/* GARIS REALISASI AKTUAL KUMULATIF */}
                         <Line type="monotone" dataKey="realisasiKumulatif" name="Kumulatif Realisasi" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -639,11 +637,11 @@ export default function KurvaS({ selectedProject }) {
                             <div className="truncate font-medium leading-snug" title={item.nama}>{item.nama}</div>
                           </td>
                           <td className="px-2 py-3 text-center text-slate-500 dark:text-slate-400 font-mono text-[10px] truncate">{item.volume} {item.satuan}</td>
-                          <td className="px-2 py-3 text-center text-slate-500 dark:text-slate-400 font-mono text-[10px] font-bold">{item.bobot.toFixed(2)}%</td>
+                          <td className="px-2 py-3 text-center text-slate-500 dark:text-slate-400 font-mono text-[10px] font-bold">{getSafeFloat(item.bobot).toFixed(2)}%</td>
                           <td className="px-3 py-3 text-right">
                             <div className="flex flex-col items-end gap-1.5">
                               <span className={`text-[10px] font-bold font-mono ${item.progress >= 100 ? 'text-emerald-500' : 'text-amber-600 dark:text-amber-400'}`}>
-                                {item.progress.toFixed(1)}%
+                                {getSafeFloat(item.progress).toFixed(1)}%
                               </span>
                               <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                                 <div className={`${item.progress >= 100 ? 'bg-emerald-500' : 'bg-amber-500'} h-full transition-all duration-500`} style={{ width: `${item.progress}%` }} />
@@ -700,16 +698,16 @@ export default function KurvaS({ selectedProject }) {
                             {row.mingguKe ? `Minggu ${row.mingguKe}` : '-'}
                           </td>
                           <td className="p-3.5 text-right text-blue-600 dark:text-blue-400 font-bold bg-blue-50/30 dark:bg-blue-950/10">
-                            {row.targetKumulatifMingguan !== null ? `${row.targetKumulatifMingguan.toFixed(2)}%` : '-'}
+                            {row.targetKumulatifMingguan !== null ? `${getSafeFloat(row.targetKumulatifMingguan).toFixed(2)}%` : '-'}
                           </td>
                           <td className="p-3.5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
-                            {row.bobotRealisasi.toFixed(2)}%
+                            {getSafeFloat(row.bobotRealisasi).toFixed(2)}%
                           </td>
                           <td className="p-3.5 text-right text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50/30 dark:bg-emerald-950/10">
-                            {row.realisasiKumulatif !== null ? `${row.realisasiKumulatif.toFixed(2)}%` : '-'}
+                            {row.realisasiKumulatif !== null ? `${getSafeFloat(row.realisasiKumulatif).toFixed(2)}%` : '-'}
                           </td>
                           <td className={`p-3.5 text-center font-bold ${isDevNegative ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {row.deviasi !== null ? (row.deviasi > 0 ? `+${row.deviasi.toFixed(2)}%` : `${row.deviasi.toFixed(2)}%`) : '-'}
+                            {row.deviasi !== null ? (row.deviasi > 0 ? `+${getSafeFloat(row.deviasi).toFixed(2)}%` : `${getSafeFloat(row.deviasi).toFixed(2)}%`) : '-'}
                           </td>
                           <td className="p-3.5 text-center">
                             {row.deviasi === null ? (

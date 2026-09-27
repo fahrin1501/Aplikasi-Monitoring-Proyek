@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, Save, Loader2, AlertTriangle, Edit3, X, 
-  ListPlus, CheckCircle2, Trash2, ChevronDown, Layers, CheckSquare
+  ListPlus, CheckCircle2, Trash2, ChevronDown, Layers, CheckSquare, TrendingUp
 } from 'lucide-react';
 
 // --- IMPORT KOMPONEN MATRIX ---
@@ -77,13 +77,23 @@ export default function ScheduleData() {
         api.get(`/projects/${id}`),
         api.get(`/projects/${id}/schedules`)
       ]);
+      
+      const fetchedSchedules = schedRes.data.data.schedules || [];
+      
+      // --- LOGIKA SMART ROUTING ---
+      // Jika jadwal masih kosong, otomatis redirect langsung ke Wizard AddSchedule
+      if (fetchedSchedules.length === 0 && canCreateData) {
+        setIsLoading(false);
+        navigate(`/schedules/${id}/data/input`, { replace: true, state: projRes.data });
+        return; 
+      }
+
       setProjectData(projRes.data);
       setScheduleData(schedRes.data.data);
-      setLocalSchedules(schedRes.data.data.schedules || []);
+      setLocalSchedules(fetchedSchedules);
       setWeekCumulativeInputs({});
     } catch (error) {
       console.error("Gagal menarik data jadwal:", error);
-      // PERBAIKAN: Menampilkan Error aslinya dari Backend agar mudah di-debug
       const errorMsg = error.response?.data?.message || error.message;
       alert(`Gagal memuat jadwal: \n\n${errorMsg}`);
     } finally {
@@ -299,36 +309,36 @@ export default function ScheduleData() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
-          {canCreateData && (
-            <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
-              {!isEditMode && (
-                <button 
-                  disabled={isLoading} 
-                  onClick={() => navigate(`/schedules/${id}/data/input`)} 
-                  className="flex items-center justify-center flex-1 lg:flex-none gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ListPlus className="w-4 h-4" /> <span className="hidden sm:inline">Buat Jadwal Pertama</span>
+          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
+            
+            {/* TOMBOL LIHAT KURVA S MENGGANTIKAN TOMBOL ADD SCHEDULE */}
+            {!isEditMode && (
+              <button 
+                disabled={isLoading} 
+                onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} 
+                className="flex items-center justify-center flex-1 lg:flex-none gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Lihat Kurva S</span>
+              </button>
+            )}
+            
+            {canCreateData && !isEditMode && <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1.5 shrink-0"></div>}
+            
+            {canCreateData && isEditMode ? (
+              <>
+                <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 dark:border-slate-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                  <X className="w-3.5 h-3.5" /> Batal Edit
                 </button>
-              )}
-              
-              {!isEditMode && <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1.5 shrink-0"></div>}
-              
-              {isEditMode ? (
-                <>
-                  <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 dark:border-slate-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    <X className="w-3.5 h-3.5" /> Batal Edit
-                  </button>
-                  <button onClick={() => setSaveModal(true)} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg ml-1 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Simpan
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => setIsEditMode(true)} disabled={isLoading || localSchedules.length === 0} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Edit3 className="w-3.5 h-3.5" /> Mode Edit Draf
+                <button onClick={() => setSaveModal(true)} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg ml-1 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Simpan
                 </button>
-              )}
-            </div>
-          )}
+              </>
+            ) : canCreateData ? (
+              <button onClick={() => setIsEditMode(true)} disabled={isLoading || localSchedules.length === 0} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <Edit3 className="w-3.5 h-3.5" /> Mode Edit Draf
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
