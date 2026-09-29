@@ -14,7 +14,6 @@ export default function ScheduleData() {
 
   useEffect(() => { document.title = "Prisma Group - Data Jadwal Matrix"; }, []);
 
-  // PERBAIKAN: Membaca hak akses secara INSTAN saat komponen pertama dimuat
   const [userRole] = useState(() => {
     try {
       const userDataStr = localStorage.getItem('user_data');
@@ -50,7 +49,6 @@ export default function ScheduleData() {
       let rawSchedules = schedRes.data?.data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
       
-      // PERBAIKAN: Routing otomatis sekarang dijamin tereksekusi jika jadwal kosong & user berhak
       if (fetchedSchedules.length === 0 && canCreateData) {
         navigate(`/schedules/${id}/data/input`, { replace: true, state: projRes.data?.data || projRes.data });
         return; 
@@ -141,14 +139,8 @@ export default function ScheduleData() {
     }
   };
 
-  let grandTotalRAB = 0;
-  if (scheduleData && scheduleData.rab_data) {
-    const safeRabData = Array.isArray(scheduleData.rab_data) ? scheduleData.rab_data : Object.values(scheduleData.rab_data);
-    grandTotalRAB = safeRabData.reduce((sum, cat) => {
-      const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
-      return sum + safeItems.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0);
-    }, 0);
-  }
+  // MENGGUNAKAN DATA GRAND TOTAL DARI BACKEND LANGSUNG (O(1) Memory)
+  const grandTotalRAB = scheduleData?.grand_total_rab || 0;
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -204,7 +196,7 @@ export default function ScheduleData() {
                 </button>
               </>
             ) : canCreateData ? (
-              <button onClick={() => setIsEditMode(true)} disabled={isLoading || localWeeks.length === 0} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50">
+              <button onClick={() => setIsEditMode(true)} disabled={isLoading || (Array.isArray(localWeeks) && localWeeks.length === 0)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50">
                 <Edit3 className="w-3.5 h-3.5" /> Mode Edit Target
               </button>
             ) : null}

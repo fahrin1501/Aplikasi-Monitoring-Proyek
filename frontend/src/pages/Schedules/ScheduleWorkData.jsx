@@ -19,37 +19,19 @@ export default function ScheduleWorkData({
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  const handleOpenCellDetail = (item, weekNum) => {
-    const targetVal = getSafeFloat((localWeeks || []).find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
-    const dailyRealizations = (scheduleData?.realizations || []).filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
-    
-    setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
-  };
+  const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
+  const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
 
-  const weeksArray = Array.isArray(localWeeks) ? localWeeks.map(w => parseInt(w.minggu_ke)) : [];
+  // Murni menangkap data bersih dari Backend
   const rawRabData = scheduleData?.rab_data;
   const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
 
-  // --- LOGIKA FILTER PINTAR (HANYA TAMPIL JIKA ADA REALISASI) ---
-  const categoriesToRender = [];
-  safeRabData.forEach(cat => {
-    const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
-    
-    // Saring item yang sudah punya progres laporan harian (> 0)
-    const reportedItems = safeItems.filter(item => {
-      if (item.is_subheader) return false; // Abaikan subheader
-      const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
-      return itemCumulative > 0;
-    });
-
-    // Jika divisi ini punya minimal 1 pekerjaan yang sudah dilaporkan, masukkan ke daftar render
-    if (reportedItems.length > 0) {
-      categoriesToRender.push({
-        ...cat,
-        items: reportedItems
-      });
-    }
-  });
+  const handleOpenCellDetail = (item, weekNum) => {
+    const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
+    const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
+    const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
+  };
 
   return (
     <>
@@ -68,10 +50,9 @@ export default function ScheduleWorkData({
             <thead className="sticky top-0 z-30 shadow-sm">
               <tr className="bg-slate-100 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                 <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Kode</th>
-                <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan (Realisasi)</th>
+                <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan (Realisasi Aktual)</th>
                 <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
                 
-                {/* HEADER MINGGUAN MAKRO */}
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px]">
                     <div className="flex flex-col items-center gap-1">
@@ -89,73 +70,73 @@ export default function ScheduleWorkData({
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
-              {categoriesToRender.length === 0 ? (
-                // TAMPILAN KOSONG JIKA BELUM ADA LAPORAN
+              {safeRabData.length === 0 ? (
                 <tr>
                   <td colSpan={weeksArray.length + 4} className="p-12 text-center bg-slate-50/50 dark:bg-slate-800/40">
                     <div className="flex flex-col items-center justify-center">
                       <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
                       <h4 className="font-bold text-slate-600 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
                       <p className="text-slate-500 dark:text-slate-400 text-xs max-w-md mx-auto leading-relaxed">
-                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui untuk minggu terkait.
+                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui.
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                // RENDER BARIS YANG SUDAH ADA LAPORANNYA SAJA
-                categoriesToRender.map(cat => (
-                  <React.Fragment key={cat.id || Math.random()}>
-                    <tr className="bg-amber-50/50 dark:bg-amber-900/10">
-                      <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
-                      <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
-                    </tr>
-                    
-                    {cat.items.map(item => {
-                      const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
-                      const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
+                safeRabData.map(cat => {
+                  const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
+                  return (
+                    <React.Fragment key={cat.id || Math.random()}>
+                      <tr className="bg-amber-50/50 dark:bg-amber-900/10">
+                        <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
+                        <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
+                      </tr>
+                      
+                      {safeItems.map(item => {
+                        const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
+                        const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
 
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
-                          <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{item.kode_pekerjaan || '-'}</td>
-                          <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
-                            <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
-                          </td>
-                          <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
-                            {bobotStandar.toFixed(2)}%
-                          </td>
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                            <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{item.kode_pekerjaan || '-'}</td>
+                            <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
+                              <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
+                            </td>
+                            <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
+                              {bobotStandar.toFixed(2)}%
+                            </td>
 
-                          {weeksArray.map(w => {
-                            const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
-                            return (
-                              <td key={w} className="p-2 text-center border-r border-slate-200 dark:border-slate-700/60 relative">
-                                {totalActual > 0 ? (
-                                  <button 
-                                    onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
-                                    title="Klik untuk lihat rincian laporan (H1-H7)"
-                                    className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-sm active:scale-95 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border-emerald-200 dark:border-emerald-800/30"
-                                  >
-                                    {totalActual.toFixed(2)}
-                                  </button>
-                                ) : (
-                                  <span className="text-slate-300 dark:text-slate-600 text-[10px]">-</span>
-                                )}
-                              </td>
-                            );
-                          })}
+                            {weeksArray.map(w => {
+                              const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
+                              return (
+                                <td key={w} className="p-2 text-center border-r border-slate-200 dark:border-slate-700/60 relative">
+                                  {totalActual > 0 ? (
+                                    <button 
+                                      onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
+                                      title="Klik untuk lihat rincian laporan"
+                                      className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-sm active:scale-95 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border-emerald-200 dark:border-emerald-800/30"
+                                    >
+                                      {totalActual.toFixed(2)}
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-300 dark:text-slate-600 text-[10px]">-</span>
+                                  )}
+                                </td>
+                              );
+                            })}
 
-                          <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
-                            {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))
+                            <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
+                              {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
 
-            {/* FOOTER TOTAL (TARGET & AKTUAL MINGGUAN) TETAP MUNCUL! */}
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
               <tr className="bg-emerald-50/80 dark:bg-emerald-900/20 border-t-2 border-emerald-200 dark:border-emerald-800/50">
                 <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-700 dark:text-emerald-400 uppercase text-[10px] sticky left-0 z-40 bg-emerald-50/90 dark:bg-[#064e3b] border-r border-emerald-200 dark:border-emerald-800/50">
@@ -179,7 +160,7 @@ export default function ScheduleWorkData({
                   Target Kumulatif Mingguan (Plan)
                 </td>
                 {weeksArray.map(w => {
-                  const existingTarget = getSafeFloat((localWeeks || []).find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
+                  const existingTarget = getSafeFloat(safeLocalWeeks.find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
                   const displayCumulative = isEditMode ? existingTarget : existingTarget.toFixed(2);
 
                   return (
@@ -208,16 +189,14 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
-      {/* --- INFO LEGEND (FOOTER) --- */}
       <div className="mt-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs flex gap-4 shadow-sm shrink-0">
         <span className="font-semibold text-slate-700 dark:text-slate-300 flex gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
         <div className="flex gap-x-5 flex-wrap text-slate-500 dark:text-slate-400">
-          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 cursor-pointer font-bold">0.00</span> Aktual Laporan Harian (Klik untuk Rincian)</span>
+          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 cursor-pointer font-bold">0.00</span> Aktual Laporan Harian</span>
           <span className="flex items-center gap-1.5"><span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/30 font-bold">0.00</span> Target Kumulatif Rencana</span>
         </div>
       </div>
 
-      {/* --- MODAL RINCIAN HARIAN --- */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
