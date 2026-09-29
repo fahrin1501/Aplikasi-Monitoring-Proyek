@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
-import { ArrowLeft, CalendarDays, Save, Loader2, Target, Calendar } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Save, Loader2, Target, Calendar, Plus, Trash2 } from 'lucide-react';
 
 export default function AddSchedule() {
   const navigate = useNavigate();
@@ -14,10 +14,10 @@ export default function AddSchedule() {
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  const [periodForm, setPeriodForm] = useState({
-    bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: ''
-  });
-  const [targetKumulatif, setTargetKumulatif] = useState('');
+  // STATE MINGGUAN DINAMIS (Bisa ditambah lebih dari 1)
+  const [weeksForm, setWeeksForm] = useState([
+    { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
+  ]);
 
   useEffect(() => {
     if (!projectId) { navigate('/projects'); return; }
@@ -35,27 +35,71 @@ export default function AddSchedule() {
     fetchTimeSchedule();
   }, [projectId, navigate]);
 
-  const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
+  // FUNGSI TAMBAH BARIS MINGGU
+  const handleAddWeek = () => {
+    const lastWeek = weeksForm[weeksForm.length - 1];
+    const nextMingguKe = lastWeek && lastWeek.minggu_ke ? parseInt(lastWeek.minggu_ke) + 1 : weeksForm.length + 1;
+    
+    setWeeksForm([
+      ...weeksForm, 
+      { 
+        id: Date.now(), 
+        bulan: lastWeek ? lastWeek.bulan : '1', 
+        minggu_ke: nextMingguKe.toString(), 
+        tanggal_mulai: '', 
+        tanggal_selesai: '', 
+        target_kumulatif: '' 
+      }
+    ]);
+  };
+
+  // FUNGSI HAPUS BARIS MINGGU
+  const handleRemoveWeek = (idToRemove) => {
+    if (weeksForm.length === 1) return alert("Minimal harus ada 1 minggu target!");
+    setWeeksForm(weeksForm.filter(w => w.id !== idToRemove));
+  };
+
+  // FUNGSI UBAH DATA DI DALAM BARIS
+  const handleWeekChange = (id, field, value) => {
+    setWeeksForm(weeksForm.map(w => {
+      if (w.id === id) {
+        if (field === 'target_kumulatif') {
+          const val = value.replace(',', '.');
+          if (isNaN(val) && val !== '.') return w;
+          return { ...w, [field]: val };
+        }
+        return { ...w, [field]: value };
+      }
+      return w;
+    }));
+  };
 
   const handleSaveSchedule = async () => {
-    if (!periodForm.bulan || !periodForm.minggu_ke || !periodForm.tanggal_mulai || !periodForm.tanggal_selesai) {
-      return alert("Mohon lengkapi data Bulan, Minggu Ke-, serta Tanggal Mulai & Selesai terlebih dahulu!");
+    // Validasi semua form
+    for (let i = 0; i < weeksForm.length; i++) {
+      const w = weeksForm[i];
+      if (!w.minggu_ke || !w.tanggal_mulai || !w.tanggal_selesai) {
+        return alert(`Mohon lengkapi data Minggu Ke, Tanggal Mulai, dan Tanggal Selesai pada baris ke-${i + 1}!`);
+      }
+      const targetVal = parseFloat(w.target_kumulatif) || 0;
+      if (targetVal <= 0) {
+        return alert(`Target Kumulatif pada baris ke-${i + 1} harus diisi dan lebih dari 0!`);
+      }
     }
-    
-    const targetVal = parseFloat(targetKumulatif.replace(',', '.')) || 0;
-    if (targetVal <= 0) return alert("Target Kumulatif (Plan) harus diisi dan lebih dari 0!");
 
     setIsSaving(true);
     try {
+      const payloadWeeks = weeksForm.map(w => ({
+        minggu_ke: parseInt(w.minggu_ke),
+        bulan: parseInt(w.bulan) || null,
+        tanggal_awal: w.tanggal_mulai,
+        tanggal_akhir: w.tanggal_selesai,
+        target_kumulatif: parseFloat(w.target_kumulatif) || 0,
+      }));
+
       const payload = {
         full_sync: false,
-        weeks: [{
-            minggu_ke: parseInt(periodForm.minggu_ke),
-            bulan: parseInt(periodForm.bulan) || null,
-            tanggal_awal: periodForm.tanggal_mulai,
-            tanggal_akhir: periodForm.tanggal_selesai,
-            target_kumulatif: targetVal,
-        }]
+        weeks: payloadWeeks
       };
 
       await api.post(`/projects/${projectId}/schedules`, payload);
@@ -89,65 +133,88 @@ export default function AddSchedule() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800/60 p-5 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-6 backdrop-blur-sm">
-        <div className="space-y-1.5 pb-4 border-b border-slate-100 dark:border-slate-700/60">
+      {/* INFORMASI PROYEK */}
+      <div className="bg-white dark:bg-slate-800/60 p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
+        <div className="space-y-1.5">
           <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Proyek Aktif</label>
           <div className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-inner">
              <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug">{projectData?.nama_proyek || 'Memuat Data...'}</p>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-             <label className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-4 h-4" /> 1. Rentang Waktu</label>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke-</label>
-                  <input type="number" min="1" name="bulan" value={periodForm.bulan} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Minggu Ke-</label>
-                  <input type="number" min="1" name="minggu_ke" value={periodForm.minggu_ke} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai <span className="text-rose-500">*</span></label>
-                  <input type="date" name="tanggal_mulai" value={periodForm.tanggal_mulai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir <span className="text-rose-500">*</span></label>
-                  <input type="date" name="tanggal_selesai" value={periodForm.tanggal_selesai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
-                </div>
-             </div>
+      {/* RENDER DYNAMIC WEEKS FORM */}
+      <div className="space-y-4">
+        {weeksForm.map((week, index) => (
+          <div key={week.id} className="bg-white dark:bg-slate-800/60 p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm relative animate-fade-in">
+            
+            {/* Tombol Hapus Baris (Tampil jika baris > 1) */}
+            {weeksForm.length > 1 && (
+              <button 
+                onClick={() => handleRemoveWeek(week.id)}
+                className="absolute top-4 right-4 p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 rounded-lg transition-colors border border-rose-200 dark:border-rose-500/30"
+                title="Hapus Minggu Ini"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                 <label className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-4 h-4" /> Rentang Waktu (Baris {index + 1})</label>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke-</label>
+                      <input type="number" min="1" value={week.bulan} onChange={(e) => handleWeekChange(week.id, 'bulan', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Minggu Ke-</label>
+                      <input type="number" min="1" value={week.minggu_ke} onChange={(e) => handleWeekChange(week.id, 'minggu_ke', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Mulai <span className="text-rose-500">*</span></label>
+                      <input type="date" value={week.tanggal_mulai} onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Akhir <span className="text-rose-500">*</span></label>
+                      <input type="date" value={week.tanggal_selesai} onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                    </div>
+                 </div>
+              </div>
+
+              <div className="space-y-4 md:border-l md:border-slate-100 md:dark:border-slate-700/60 md:pl-6">
+                 <label className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Target className="w-4 h-4" /> Target S-Curve</label>
+                 <div className="space-y-2 pt-2">
+                   <label className="text-[10px] font-bold text-slate-500 uppercase">Target Kumulatif (Plan) <span className="text-rose-500">*</span></label>
+                   <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="0.00"
+                        value={week.target_kumulatif}
+                        onChange={(e) => handleWeekChange(week.id, 'target_kumulatif', e.target.value)}
+                        className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/30 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-700 dark:text-emerald-400 py-3 shadow-inner"
+                      />
+                      <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
+                   </div>
+                 </div>
+              </div>
+            </div>
           </div>
+        ))}
 
-          <div className="space-y-4 md:border-l md:border-slate-100 md:dark:border-slate-700/60 md:pl-6">
-             <label className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Target className="w-4 h-4" /> 2. Target S-Curve</label>
-             <div className="space-y-2 pt-2">
-               <label className="text-[10px] font-bold text-slate-500 uppercase">Target Kumulatif (Plan) Minggu {periodForm.minggu_ke} <span className="text-rose-500">*</span></label>
-               <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Contoh: 5.50"
-                    value={targetKumulatif}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(',', '.');
-                      if (isNaN(val) && val !== '.') return;
-                      setTargetKumulatif(val);
-                    }}
-                    className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/30 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-700 dark:text-emerald-400 py-3 shadow-inner"
-                  />
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
-               </div>
-               <p className="text-xs text-slate-400 mt-2 italic">Persentase ini akan menjadi patokan dasar evaluasi deviasi laporan harian untuk minggu tersebut.</p>
-             </div>
+        {/* TOMBOL TAMBAH MINGGU */}
+        <button 
+          onClick={handleAddWeek}
+          className="w-full py-4 border-2 border-dashed border-blue-300 hover:border-blue-500 dark:border-blue-700 dark:hover:border-blue-500 rounded-2xl bg-blue-50/50 hover:bg-blue-100 dark:bg-blue-900/10 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold text-xs flex justify-center items-center gap-2 transition-colors shadow-sm"
+        >
+          <Plus className="w-5 h-5" /> Tambah Minggu Berikutnya
+        </button>
+      </div>
 
-             <div className="pt-6">
-               <button onClick={handleSaveSchedule} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all active:scale-95">
-                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Save className="w-5 h-5 shrink-0" />} Buka Matriks Jadwal
-               </button>
-             </div>
-          </div>
-        </div>
+      <div className="pt-4 sticky bottom-6 z-40">
+        <button onClick={handleSaveSchedule} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-xl disabled:opacity-50 transition-all active:scale-95 text-sm">
+          {isSaving ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Save className="w-5 h-5 shrink-0" />} Simpan Total {weeksForm.length} Minggu & Buka Matriks
+        </button>
       </div>
     </div>
   );

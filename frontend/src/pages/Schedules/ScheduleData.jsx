@@ -117,6 +117,16 @@ export default function ScheduleData() {
     setWeekModal({ show: false, minggu_ke: '', bulan: '', tanggal_awal: '', tanggal_akhir: '' });
   };
 
+  // FITUR BARU: Hapus minggu dari UI draf sebelum simpan
+  const handleRemoveWeek = (weekNum) => {
+    if (window.confirm(`Anda yakin ingin menghapus kolom Target Minggu Ke-${weekNum}?\nKolom akan terhapus dari draf tampilan sebelum Anda menyimpannya ke database.`)) {
+      setLocalWeeks(prev => {
+        const safePrev = Array.isArray(prev) ? prev : [];
+        return safePrev.filter(w => parseInt(w.minggu_ke) !== parseInt(weekNum));
+      });
+    }
+  };
+
   const handleSaveSchedule = async () => {
     setSaveModal(false);
     setIsSaving(true);
@@ -139,8 +149,14 @@ export default function ScheduleData() {
     }
   };
 
-  // MENGGUNAKAN DATA GRAND TOTAL DARI BACKEND LANGSUNG (O(1) Memory)
-  const grandTotalRAB = scheduleData?.grand_total_rab || 0;
+  let grandTotalRAB = 0;
+  if (scheduleData && scheduleData.rab_data) {
+    const safeRabData = Array.isArray(scheduleData.rab_data) ? scheduleData.rab_data : Object.values(scheduleData.rab_data);
+    grandTotalRAB = safeRabData.reduce((sum, cat) => {
+      const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
+      return sum + safeItems.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0);
+    }, 0);
+  }
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -185,9 +201,6 @@ export default function ScheduleData() {
             
             {canCreateData && isEditMode ? (
               <>
-                <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50">
-                  <ListPlus className="w-3.5 h-3.5" /> Tambah Minggu
-                </button>
                 <button onClick={handleBatalEdit} disabled={isSaving} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 shadow-sm">
                   <X className="w-3.5 h-3.5" /> Batal
                 </button>
@@ -218,6 +231,7 @@ export default function ScheduleData() {
           grandTotalRAB={grandTotalRAB}
           handleWeekCumulativeChange={handleWeekCumulativeChange}
           openWeekModal={openWeekModal}
+          handleRemoveWeek={handleRemoveWeek}
         />
       )}
 

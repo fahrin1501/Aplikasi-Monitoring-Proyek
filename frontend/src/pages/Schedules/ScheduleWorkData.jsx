@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Info, Activity, BarChart, CheckCircle2, Clock, X, CalendarDays, Inbox } from 'lucide-react';
+import { Target, Info, Activity, BarChart, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2 } from 'lucide-react';
 
 export default function ScheduleWorkData({
   scheduleData,
@@ -8,7 +8,8 @@ export default function ScheduleWorkData({
   canCreateData,
   grandTotalRAB,
   handleWeekCumulativeChange,
-  openWeekModal
+  openWeekModal,
+  handleRemoveWeek
 }) {
   
   const [detailModal, setDetailModal] = useState({ show: false, item: null, weekNum: null, targetPlan: 0, realizations: [] });
@@ -22,7 +23,6 @@ export default function ScheduleWorkData({
   const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
   const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
 
-  // Murni menangkap data bersih dari Backend
   const rawRabData = scheduleData?.rab_data;
   const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
 
@@ -32,6 +32,9 @@ export default function ScheduleWorkData({
     const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
   };
+
+  // Dinamis colSpan menyesuaikan Mode Edit
+  const extraCols = isEditMode && canCreateData ? 3 : 2; 
 
   return (
     <>
@@ -55,16 +58,32 @@ export default function ScheduleWorkData({
                 
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px]">
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center justify-center h-full gap-1.5">
                       <span>M-{w}</span>
                       {isEditMode && canCreateData && (
-                        <button onClick={() => openWeekModal(w)} className="p-1 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded transition-colors shadow-sm" title="Atur Tanggal">
-                          <CalendarDays className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openWeekModal(w)} className="p-1 bg-blue-100 hover:bg-blue-200 text-blue-600 dark:bg-blue-500/20 dark:hover:bg-blue-500/40 dark:text-blue-400 rounded transition-colors shadow-sm" title="Atur Tanggal">
+                            <CalendarDays className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-rose-100 hover:bg-rose-200 text-rose-600 dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:text-rose-400 rounded transition-colors shadow-sm" title="Hapus Minggu Ini">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </th>
                 ))}
+
+                {/* KOLOM BARU KHUSUS TAMBAH MINGGU (HANYA MUNCUL DI EDIT MODE) */}
+                {isEditMode && canCreateData && (
+                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px] bg-blue-50/50 dark:bg-blue-900/20 align-middle">
+                     <button onClick={() => openWeekModal()} className="w-full py-2 flex flex-col items-center justify-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded-lg transition-colors border border-dashed border-blue-300 dark:border-blue-600/50 shadow-sm">
+                       <Plus className="w-4 h-4" />
+                       <span className="text-[9px] font-bold">Baru</span>
+                     </button>
+                  </th>
+                )}
+
                 <th className="p-3 w-[100px] text-right font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">Kumulatif Aktual</th>
               </tr>
             </thead>
@@ -72,7 +91,7 @@ export default function ScheduleWorkData({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
               {safeRabData.length === 0 ? (
                 <tr>
-                  <td colSpan={weeksArray.length + 4} className="p-12 text-center bg-slate-50/50 dark:bg-slate-800/40">
+                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 5 : 4)} className="p-12 text-center bg-slate-50/50 dark:bg-slate-800/40">
                     <div className="flex flex-col items-center justify-center">
                       <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
                       <h4 className="font-bold text-slate-600 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
@@ -89,7 +108,7 @@ export default function ScheduleWorkData({
                     <React.Fragment key={cat.id || Math.random()}>
                       <tr className="bg-amber-50/50 dark:bg-amber-900/10">
                         <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
-                        <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
+                        <td colSpan={weeksArray.length + extraCols} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
                       </tr>
                       
                       {safeItems.map(item => {
@@ -125,6 +144,11 @@ export default function ScheduleWorkData({
                               );
                             })}
 
+                            {/* PLACEHOLDER KOSONG UNTUK KOLOM TAMBAH SAAT EDIT MODE */}
+                            {isEditMode && canCreateData && (
+                              <td className="p-2 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/10"></td>
+                            )}
+
                             <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
                               {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
                             </td>
@@ -150,6 +174,12 @@ export default function ScheduleWorkData({
                     </td>
                   );
                 })}
+
+                {/* PLACEHOLDER KOSONG BAWAH UNTUK KOLOM TAMBAH */}
+                {isEditMode && canCreateData && (
+                  <td className="border-r border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
+                )}
+
                 <td className="p-3 text-right font-mono text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/40">
                   {getSafeFloat(Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + getSafeFloat(val), 0)).toFixed(2)}%
                 </td>
@@ -182,6 +212,12 @@ export default function ScheduleWorkData({
                     </td>
                   );
                 })}
+
+                {/* PLACEHOLDER KOSONG BAWAH UNTUK KOLOM TAMBAH */}
+                {isEditMode && canCreateData && (
+                  <td className="border-r border-blue-200 dark:border-blue-800/50 bg-blue-50/30 dark:bg-blue-950/20"></td>
+                )}
+
                 <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/40">-</td>
               </tr>
             </tfoot>
