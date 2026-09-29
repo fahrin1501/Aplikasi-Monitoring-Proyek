@@ -1,66 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
-import { 
-  ArrowLeft, CalendarDays, Save, Loader2, 
-  Layers, Trash2, ListPlus, ChevronDown, CheckSquare, Target, Calendar
-} from 'lucide-react';
+import { ArrowLeft, CalendarDays, Save, Loader2, Target, Calendar } from 'lucide-react';
 
 export default function AddSchedule() {
   const navigate = useNavigate();
   const { id } = useParams();
   const projectId = id;
 
-  useEffect(() => {
-    document.title = "Prisma Group - Jadwal Awal Proyek";
-  }, []);
+  useEffect(() => { document.title = "Prisma Group - Jadwal Awal Proyek"; }, []);
 
   const [projectData, setProjectData] = useState(null);
-  const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
   const [periodForm, setPeriodForm] = useState({
     bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: ''
   });
-
-  const [addedItems, setAddedItems] = useState([]); 
-  const [draftDivisiId, setDraftDivisiId] = useState('');
-  
-  const [draftItemIds, setDraftItemIds] = useState([]); 
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
   const [targetKumulatif, setTargetKumulatif] = useState('');
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!projectId) {
-      navigate('/projects');
-      return;
-    }
+    if (!projectId) { navigate('/projects'); return; }
     const fetchTimeSchedule = async () => {
       setIsLoadingSchedule(true);
       try {
-        const [projRes, schedRes] = await Promise.all([
-          api.get(`/projects/${projectId}`),
-          api.get(`/projects/${projectId}/schedules`)
-        ]);
-        // Amankan penarikan respon data objek
+        const projRes = await api.get(`/projects/${projectId}`);
         setProjectData(projRes.data?.data || projRes.data);
-        setScheduleData(schedRes.data.data);
       } catch (error) {
-        // TANGKAP ERROR DARI BACKEND LALU MUNCULKAN DI LAYAR!
-        const serverMsg = error.response?.data?.message || error.message;
-        alert("CRASH SERVER: " + serverMsg);
-        console.error("Gagal menarik data jadwal:", serverMsg);
+        alert("CRASH SERVER: " + (error.response?.data?.message || error.message));
       } finally {
         setIsLoadingSchedule(false);
       }
@@ -70,70 +37,10 @@ export default function AddSchedule() {
 
   const handlePeriodChange = (e) => setPeriodForm({ ...periodForm, [e.target.name]: e.target.value });
 
-  const grandTotalRAB = scheduleData ? scheduleData.rab_data.reduce((sum, cat) => 
-    sum + cat.items.reduce((itemSum, item) => itemSum + Number(item.total_harga || 0), 0)
-  , 0) : 0;
-
-  const getAvailableItems = () => {
-    if (!draftDivisiId || !scheduleData) return [];
-    
-    let allItems = [];
-    if (draftDivisiId === 'all') {
-      scheduleData.rab_data.forEach(cat => {
-        cat.items.forEach(item => allItems.push({ ...item, kategori_nama: cat.nama_kategori }));
-      });
-    } else {
-      const divisi = scheduleData.rab_data.find(cat => cat.id.toString() === draftDivisiId);
-      if (divisi) {
-        divisi.items.forEach(item => allItems.push({ ...item, kategori_nama: divisi.nama_kategori }));
-      }
-    }
-
-    return allItems.map(item => {
-      if (item.is_subheader) return null;
-      const bobotStandarHitungan = grandTotalRAB > 0 ? (Number(item.total_harga || 0) / grandTotalRAB) * 100 : 0;
-      const realisasiAktual = scheduleData.cumulative_actual?.[item.id] || 0;
-      const sisaPlafon = Math.max(0, bobotStandarHitungan - realisasiAktual);
-
-      return { ...item, sisaPlafon };
-    }).filter(item => {
-      if (!item) return false;
-      if (item.sisaPlafon <= 0) return false; 
-      if (addedItems.some(draft => draft.rab_item_id === item.id)) return false; 
-      return true;
-    });
-  };
-
-  const availableItems = getAvailableItems();
-
-  const toggleItem = (itemId) => {
-    if (draftItemIds.includes(itemId)) setDraftItemIds(draftItemIds.filter(id => id !== itemId));
-    else setDraftItemIds([...draftItemIds, itemId]);
-  };
-
-  const handleAddItems = () => {
-    if (!draftDivisiId || draftItemIds.length === 0) return alert("Pilih Divisi dan centang minimal 1 Uraian Pekerjaan terlebih dahulu!");
-    const itemsToAdd = availableItems.filter(i => draftItemIds.includes(i.id));
-
-    const newItems = itemsToAdd.map(itemAsli => ({
-      rab_item_id: itemAsli.id,
-      kode_pekerjaan: itemAsli.kode_pekerjaan || '',
-      uraian_pekerjaan: itemAsli.uraian_pekerjaan,
-      kategori_nama: itemAsli.kategori_nama,
-    }));
-
-    setAddedItems([...addedItems, ...newItems]);
-    setDraftItemIds([]); 
-    setIsDropdownOpen(false); 
-  };
-
-  const handleRemoveItem = (idToRemove) => setAddedItems(addedItems.filter(item => item.rab_item_id !== idToRemove));
-
   const handleSaveSchedule = async () => {
     if (!periodForm.bulan || !periodForm.minggu_ke || !periodForm.tanggal_mulai || !periodForm.tanggal_selesai) {
       return alert("Mohon lengkapi data Bulan, Minggu Ke-, serta Tanggal Mulai & Selesai terlebih dahulu!");
     }
-    if (addedItems.length === 0) return alert("Anda belum menambahkan uraian pekerjaan satupun ke dalam jadwal.");
     
     const targetVal = parseFloat(targetKumulatif.replace(',', '.')) || 0;
     if (targetVal <= 0) return alert("Target Kumulatif (Plan) harus diisi dan lebih dari 0!");
@@ -142,16 +49,13 @@ export default function AddSchedule() {
     try {
       const payload = {
         full_sync: false,
-        weeks: [
-          {
+        weeks: [{
             minggu_ke: parseInt(periodForm.minggu_ke),
             bulan: parseInt(periodForm.bulan) || null,
             tanggal_awal: periodForm.tanggal_mulai,
             tanggal_akhir: periodForm.tanggal_selesai,
             target_kumulatif: targetVal,
-            rab_item_ids: addedItems.map(item => item.rab_item_id)
-          }
-        ]
+        }]
       };
 
       await api.post(`/projects/${projectId}/schedules`, payload);
@@ -164,7 +68,7 @@ export default function AddSchedule() {
     }
   };
 
-  if (isLoadingSchedule || !scheduleData || !projectData) {
+  if (isLoadingSchedule || !projectData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in backdrop-blur-sm">
         <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
@@ -173,239 +77,78 @@ export default function AddSchedule() {
     );
   }
 
-  const namaProyekAktif = projectData?.nama_proyek || 'Memuat Data...';
-
   return (
-    <div className="w-full space-y-6 pb-24 relative animate-fade-in">
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
-      `}</style>
-
-      {/* HEADER NAVIGASI */}
+    <div className="w-full space-y-6 pb-24 relative animate-fade-in max-w-4xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <button onClick={() => navigate(-1)} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <button onClick={() => navigate(-1)} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm transition-colors"><ArrowLeft className="w-5 h-5" /></button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 md:w-6 md:h-6 text-blue-500 shrink-0 hidden sm:block" /> 
-              <span>Buat Jadwal Pertama</span>
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Langkah awal untuk membuka akses kalender Matriks Time Schedule proyek.</p>
+            <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2"><CalendarDays className="w-5 h-5 md:w-6 md:h-6 text-blue-500 shrink-0 hidden sm:block" /> <span>Buat Jadwal Pertama</span></h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Tetapkan rentang tanggal dan target mingguan untuk mengawali kalender S-Curve.</p>
           </div>
         </div>
       </div>
 
-      {/* CARD 1: INFORMASI PROYEK & PERIODE */}
-      <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
-        <label className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-2">
-          <Calendar className="w-4 h-4" /> Detail Periode (Pemanasan Jadwal)
-        </label>
-        
-        <div className="space-y-1.5 pb-2">
+      <div className="bg-white dark:bg-slate-800/60 p-5 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-6 backdrop-blur-sm">
+        <div className="space-y-1.5 pb-4 border-b border-slate-100 dark:border-slate-700/60">
           <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Proyek Aktif</label>
           <div className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-inner">
-             <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug">{namaProyekAktif}</p>
+             <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug">{projectData?.nama_proyek || 'Memuat Data...'}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Bulan Ke- <span className="text-slate-400 font-normal">(Ops)</span></label>
-            <input type="number" min="1" name="bulan" value={periodForm.bulan} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Minggu Ke- <span className="text-rose-500">*</span></label>
-            <input type="number" min="1" name="minggu_ke" value={periodForm.minggu_ke} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Tanggal Mulai <span className="text-rose-500">*</span></label>
-            <input type="date" name="tanggal_mulai" value={periodForm.tanggal_mulai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors [color-scheme:light_dark]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Tanggal Selesai <span className="text-rose-500">*</span></label>
-            <input type="date" name="tanggal_selesai" value={periodForm.tanggal_selesai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors [color-scheme:light_dark]" />
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 2: KERANJANG PEKERJAAN (FULL WIDTH) */}
-      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm backdrop-blur-sm flex flex-col transition-all relative">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-emerald-50/50 dark:bg-emerald-900/10 flex flex-col md:flex-row justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-2"><Layers className="w-4 h-4" /> Keranjang Pekerjaan Awal</h3>
-            <p className="text-[10px] text-slate-500 mt-1">Pilih pekerjaan yang akan dicicil atau dikerjakan pada Minggu ke-{periodForm.minggu_ke || '...'}. Bobot akan didistribusikan otomatis di Matriks.</p>
-          </div>
-        </div>
-
-        <div className="p-5 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
-           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-             
-             {/* KOTAK 1: PILIH DIVISI */}
-             <div className="md:col-span-5 space-y-1.5 relative">
-               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Filter Divisi Pekerjaan</label>
-               <select 
-                 value={draftDivisiId} 
-                 onChange={(e) => { 
-                   setDraftDivisiId(e.target.value); 
-                   setDraftItemIds([]); 
-                   setIsDropdownOpen(false);
-                 }} 
-                 className="w-full h-[42px] px-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors appearance-none"
-               >
-                 <option value="" disabled>-- Pilih Filter List Pekerjaan --</option>
-                 <option value="all" className="font-extrabold text-emerald-600 dark:text-emerald-500">❖ TAMPILKAN SEMUA PEKERJAAN LINTAS DIVISI</option>
-                 {scheduleData.rab_data.map(cat => (
-                   <option key={cat.id} value={cat.id}>{cat.nama_kategori}</option>
-                 ))}
-               </select>
-               <ChevronDown className="w-4 h-4 absolute right-3 top-[29px] text-slate-400 pointer-events-none" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+             <label className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-4 h-4" /> 1. Rentang Waktu</label>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke-</label>
+                  <input type="number" min="1" name="bulan" value={periodForm.bulan} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Minggu Ke-</label>
+                  <input type="number" min="1" name="minggu_ke" value={periodForm.minggu_ke} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai <span className="text-rose-500">*</span></label>
+                  <input type="date" name="tanggal_mulai" value={periodForm.tanggal_mulai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir <span className="text-rose-500">*</span></label>
+                  <input type="date" name="tanggal_selesai" value={periodForm.tanggal_selesai} onChange={handlePeriodChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                </div>
              </div>
-             
-             {/* KOTAK 2: MULTI-SELECT URAIAN PEKERJAAN */}
-             <div className="md:col-span-5 space-y-1.5 relative" ref={dropdownRef}>
-               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Centang Uraian Pekerjaan</label>
-               
-               <div 
-                  onClick={() => { if(draftDivisiId && availableItems.length > 0) setIsDropdownOpen(!isDropdownOpen) }}
-                  className={`w-full h-[42px] px-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium shadow-sm flex items-center justify-between transition-colors ${(!draftDivisiId || availableItems.length === 0) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : 'cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-500/50'}`}
-               >
-                 <span className="truncate text-slate-700 dark:text-slate-200">
-                    {!draftDivisiId 
-                      ? '-- Pilih Mode Divisi Dulu --' 
-                      : availableItems.length === 0 
-                        ? '-- Semua Pekerjaan Sudah Ditambahkan --' 
-                        : draftItemIds.length > 0 
-                          ? <span className="font-bold text-emerald-600 dark:text-emerald-400">{draftItemIds.length} Pekerjaan Terpilih</span>
-                          : '-- Klik untuk Memilih --'}
-                 </span>
-                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ml-2 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </div>
+
+          <div className="space-y-4 md:border-l md:border-slate-100 md:dark:border-slate-700/60 md:pl-6">
+             <label className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Target className="w-4 h-4" /> 2. Target S-Curve</label>
+             <div className="space-y-2 pt-2">
+               <label className="text-[10px] font-bold text-slate-500 uppercase">Target Kumulatif (Plan) Minggu {periodForm.minggu_ke} <span className="text-rose-500">*</span></label>
+               <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: 5.50"
+                    value={targetKumulatif}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(',', '.');
+                      if (isNaN(val) && val !== '.') return;
+                      setTargetKumulatif(val);
+                    }}
+                    className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/30 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-700 dark:text-emerald-400 py-3 shadow-inner"
+                  />
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
                </div>
-
-               {isDropdownOpen && (
-                 <div className="absolute z-50 mt-1.5 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex flex-col overflow-hidden animate-fade-in">
-                    <div className="p-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 flex gap-2">
-                       <button type="button" onClick={(e) => { e.preventDefault(); setDraftItemIds(availableItems.map(i => i.id)); }} className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/20 px-2 py-1.5 rounded transition-colors"><CheckSquare className="w-3.5 h-3.5"/> Pilih Semua</button>
-                       <button type="button" onClick={(e) => { e.preventDefault(); setDraftItemIds([]); }} className="text-[10px] font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 px-3 py-1.5 rounded transition-colors">Kosongkan</button>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto custom-scrollbar">
-                      {availableItems.map(item => (
-                        <div 
-                          key={item.id} 
-                          onClick={() => toggleItem(item.id)}
-                          className="flex items-start gap-3 p-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0 transition-colors"
-                        >
-                          <input 
-                            type="checkbox" 
-                            checked={draftItemIds.includes(item.id)}
-                            readOnly
-                            className="mt-0.5 rounded w-4 h-4 text-emerald-500 focus:ring-emerald-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 cursor-pointer"
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 leading-snug">{item.uraian_pekerjaan}</span>
-                            {draftDivisiId === 'all' && (
-                              <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase mt-1">{item.kategori_nama}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                 </div>
-               )}
+               <p className="text-xs text-slate-400 mt-2 italic">Persentase ini akan menjadi patokan dasar evaluasi deviasi laporan harian untuk minggu tersebut.</p>
              </div>
 
-             {/* KOTAK 3: TOMBOL TAMBAH MASUK KERANJANG */}
-             <div className="md:col-span-2">
-               <button 
-                 onClick={handleAddItems} 
-                 disabled={!draftDivisiId || draftItemIds.length === 0} 
-                 className="w-full h-[42px] px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 text-xs whitespace-nowrap"
-               >
-                 <ListPlus className="w-4 h-4 shrink-0" /> Tambah
+             <div className="pt-6">
+               <button onClick={handleSaveSchedule} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all active:scale-95">
+                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Save className="w-5 h-5 shrink-0" />} Buka Matriks Jadwal
                </button>
              </div>
-           </div>
-        </div>
-        
-        {/* TABEL HASIL (KERANJANG MINGGU 1) */}
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead className="bg-slate-100 dark:bg-slate-900/80 sticky top-0 z-10 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shadow-sm border-b border-slate-200 dark:border-slate-700/60">
-              <tr>
-                <th className="p-4 w-[10%] text-center border-r border-slate-200 dark:border-slate-700/60">No</th>
-                <th className="p-4 w-[75%] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan Tersimpan (M-{periodForm.minggu_ke})</th>
-                <th className="p-4 text-center w-[15%]">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs">
-              {addedItems.length === 0 ? (
-                 <tr><td colSpan="3" className="p-10 text-center text-slate-500 dark:text-slate-400 italic">Keranjang kosong. Tambahkan minimal 1 pekerjaan untuk di-set targetnya.</td></tr>
-              ) : (
-                addedItems.map((item, index) => (
-                  <tr key={item.rab_item_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
-                    <td className="p-4 border-r border-slate-200 dark:border-slate-700/60 text-center align-middle">
-                      <span className="inline-flex items-center justify-center w-6 h-6 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full font-mono text-[10px] font-bold shadow-sm">
-                        {index + 1}
-                      </span>
-                    </td>
-                    <td className="p-4 border-r border-slate-200 dark:border-slate-700/60">
-                      <div className="font-bold text-[12px] text-slate-800 dark:text-slate-200 leading-snug">{item.kode_pekerjaan ? `${item.kode_pekerjaan} ` : ''}{item.uraian_pekerjaan}</div>
-                      <div className="text-[9px] text-amber-600 dark:text-amber-500 mt-1 uppercase font-semibold">{item.kategori_nama}</div>
-                    </td>
-                    <td className="p-3 text-center align-middle">
-                      <button 
-                        onClick={() => handleRemoveItem(item.rab_item_id)} 
-                        className="p-1.5 mx-auto flex items-center justify-center text-rose-500 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 border border-rose-200 dark:border-rose-500/30 rounded-lg shadow-sm transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* FLOATING SAVE BUTTON & KUMULATIF INPUT */}
-      {scheduleData && addedItems.length > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none px-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 md:p-3 rounded-2xl shadow-2xl flex flex-wrap items-center justify-center gap-4 md:gap-6 pointer-events-auto backdrop-blur-md bg-opacity-95">
-            
-            <div className="flex items-center gap-3 border-r border-slate-200 dark:border-slate-700 pr-4 md:pr-6">
-              <Target className="w-6 h-6 text-blue-500 hidden sm:block" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Target Kumulatif (Plan) M-{periodForm.minggu_ke}:</span>
-                <div className="flex items-center gap-1.5">
-                   <input 
-                     type="text" 
-                     placeholder="0.00"
-                     value={targetKumulatif}
-                     onChange={(e) => {
-                       const val = e.target.value.replace(',', '.');
-                       if (isNaN(val) && val !== '.') return;
-                       setTargetKumulatif(val);
-                     }}
-                     className="w-20 h-9 bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-500/30 text-center font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg text-blue-700 dark:text-blue-400 shadow-inner transition-colors"
-                   />
-                   <span className="font-extrabold text-blue-600 dark:text-blue-500 text-lg">%</span>
-                </div>
-              </div>
-            </div>
-
-            <button onClick={handleSaveSchedule} disabled={isSaving} className="flex items-center justify-center gap-2 px-6 h-10 md:h-[42px] bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Buka Matriks Jadwal
-            </button>
           </div>
         </div>
-      )}
-
+      </div>
     </div>
   );
 }

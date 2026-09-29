@@ -5,19 +5,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Project;
-use Throwable;
+use Throwable; 
 
 class ProjectScheduleController extends Controller
 {
     public function getSchedules($projectId)
     {
         try {
-            // 1. Ambil Data Project & RAB secara aman
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
-
             $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
             $catIds = $rabCategories->pluck('id')->toArray();
-
+            
             $rabItems = collect([]);
             if (!empty($catIds)) {
                 $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $catIds)->get();
@@ -34,15 +32,15 @@ class ProjectScheduleController extends Controller
                 ];
             }
 
-            // 2. Ambil Schedule Plan (Target Jadwal) dari tabel project_schedules
+            // Unik per minggu (karena target kumulatif sekarang global per minggu)
             $schedules = DB::table('project_schedules')
                 ->join('rab_items', 'project_schedules.rab_item_id', '=', 'rab_items.id')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
-                ->select('project_schedules.*')
+                ->select('project_schedules.minggu_ke', 'project_schedules.bulan', 'project_schedules.tanggal_awal', 'project_schedules.tanggal_akhir', 'project_schedules.target_kumulatif')
+                ->distinct()
                 ->get();
 
-            // 3. AMBIL DATA AKTUAL (Dibungkus Try-Catch agar aman dari crash)
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
@@ -89,9 +87,7 @@ class ProjectScheduleController extends Controller
                     if(!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
                     $cumulative_actual[$itemId] += $persen;
                 }
-            } catch (Throwable $th) {
-                // Abaikan error laporan harian jika kolom persentase belum ter-migrate
-            }
+            } catch (Throwable $th) {}
 
             return response()->json([
                 'status' => 'success',
@@ -102,7 +98,7 @@ class ProjectScheduleController extends Controller
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,
                     'cumulative_actual' => $cumulative_actual,
-                    'realizations' => $rawRealizations
+                    'realizations' => $rawRealizations 
                 ]
             ]);
 
@@ -122,31 +118,26 @@ class ProjectScheduleController extends Controller
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
-            // Hapus data lama di project_schedules sesuai mode (Full Sync vs Add Single Week)
-            if ($isFullSync) {
-                $rabItemIds = DB::table('rab_items')
-                    ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                    ->where('rab_categories.project_id', $projectId)
-                    ->pluck('rab_items.id')
-                    ->toArray();
+            // Tarik seluruh ID RAB Proyek Ini
+            $allRabItemIds = DB::table('rab_items')
+                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
+                ->where('rab_categories.project_id', $projectId)
+                ->pluck('rab_items.id')
+                ->toArray();
 
-                if (!empty($rabItemIds)) {
-                    DB::table('project_schedules')->whereIn('rab_item_id', $rabItemIds)->delete();
-                }
+            if (empty($allRabItemIds)) {
+                return response()->json(['status' => 'error', 'message' => 'Data RAB Kosong! Silakan input RAB terlebih dahulu.'], 400);
+            }
+
+            // Penghapusan data lama sesuai mode
+            if ($isFullSync) {
+                DB::table('project_schedules')->whereIn('rab_item_id', $allRabItemIds)->delete();
             } else {
                 foreach ($weeks as $week) {
-                    $rabItemIds = DB::table('rab_items')
-                        ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                        ->where('rab_categories.project_id', $projectId)
-                        ->pluck('rab_items.id')
-                        ->toArray();
-
-                    if (!empty($rabItemIds)) {
-                        DB::table('project_schedules')
-                            ->whereIn('rab_item_id', $rabItemIds)
-                            ->where('minggu_ke', $week['minggu_ke'])
-                            ->delete();
-                    }
+                    DB::table('project_schedules')
+                        ->whereIn('rab_item_id', $allRabItemIds)
+                        ->where('minggu_ke', $week['minggu_ke'])
+                        ->delete();
                 }
             }
 
@@ -154,23 +145,19 @@ class ProjectScheduleController extends Controller
             $now = now();
 
             foreach ($weeks as $week) {
-                $itemIds = $week['rab_item_ids'] ?? [];
-                if (empty($itemIds)) continue;
-
                 $targetKumulatif = (float) ($week['target_kumulatif'] ?? 0);
+                $bobotPerItem = count($allRabItemIds) > 0 ? ($targetKumulatif / count($allRabItemIds)) : 0;
 
-                // Distribusi bobot_rencana (bagi rata) ke masing-masing item
-                $bobotPerItem = count($itemIds) > 0 ? ($targetKumulatif / count($itemIds)) : 0;
-
-                foreach ($itemIds as $itemId) {
+                // Masukkan seluruh item RAB secara massal ke minggu tersebut
+                foreach ($allRabItemIds as $itemId) {
                     $insertData[] = [
-                        'project_id' => $projectId,
+                        'project_id' => $projectId, 
                         'rab_item_id' => $itemId,
                         'minggu_ke' => $week['minggu_ke'],
                         'bulan' => $week['bulan'] ?? null,
                         'tanggal_awal' => $week['tanggal_awal'] ?? null,
                         'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
-                        'target_kumulatif' => $targetKumulatif, // Kolom baru yang telah di migrate
+                        'target_kumulatif' => $targetKumulatif, 
                         'bobot_rencana' => $bobotPerItem,
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -179,7 +166,10 @@ class ProjectScheduleController extends Controller
             }
 
             if (!empty($insertData)) {
-                DB::table('project_schedules')->insert($insertData);
+                // Di-chunk agar MySQL tidak menolak query yang terlalu besar
+                foreach (array_chunk($insertData, 500) as $chunk) {
+                    DB::table('project_schedules')->insert($chunk);
+                }
             }
 
             $project = Project::find($projectId);
