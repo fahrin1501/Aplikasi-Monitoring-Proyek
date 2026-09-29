@@ -33,7 +33,6 @@ export default function ScheduleWorkData({
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
   };
 
-  // Dinamis colSpan menyesuaikan Mode Edit
   const extraCols = isEditMode && canCreateData ? 3 : 2; 
 
   return (
@@ -62,7 +61,7 @@ export default function ScheduleWorkData({
                       <span>M-{w}</span>
                       {isEditMode && canCreateData && (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openWeekModal(w)} className="p-1 bg-blue-100 hover:bg-blue-200 text-blue-600 dark:bg-blue-500/20 dark:hover:bg-blue-500/40 dark:text-blue-400 rounded transition-colors shadow-sm" title="Atur Tanggal">
+                          <button onClick={() => openWeekModal(w)} className="p-1 bg-amber-100 hover:bg-amber-200 text-amber-600 dark:bg-amber-500/20 dark:hover:bg-amber-500/40 dark:text-amber-400 rounded transition-colors shadow-sm" title="Atur Tanggal">
                             <CalendarDays className="w-3 h-3" />
                           </button>
                           <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-rose-100 hover:bg-rose-200 text-rose-600 dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:text-rose-400 rounded transition-colors shadow-sm" title="Hapus Minggu Ini">
@@ -74,10 +73,10 @@ export default function ScheduleWorkData({
                   </th>
                 ))}
 
-                {/* KOLOM BARU KHUSUS TAMBAH MINGGU (HANYA MUNCUL DI EDIT MODE) */}
+                {/* KOLOM BARU KHUSUS TAMBAH MINGGU */}
                 {isEditMode && canCreateData && (
-                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px] bg-blue-50/50 dark:bg-blue-900/20 align-middle">
-                     <button onClick={() => openWeekModal()} className="w-full py-2 flex flex-col items-center justify-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded-lg transition-colors border border-dashed border-blue-300 dark:border-blue-600/50 shadow-sm">
+                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px] bg-emerald-50/50 dark:bg-emerald-900/10 align-middle">
+                     <button onClick={() => openWeekModal()} className="w-full py-2 flex flex-col items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-600/50 shadow-sm">
                        <Plus className="w-4 h-4" />
                        <span className="text-[9px] font-bold">Baru</span>
                      </button>
@@ -146,7 +145,7 @@ export default function ScheduleWorkData({
 
                             {/* PLACEHOLDER KOSONG UNTUK KOLOM TAMBAH SAAT EDIT MODE */}
                             {isEditMode && canCreateData && (
-                              <td className="p-2 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/10"></td>
+                              <td className="p-2 border-r border-slate-200 dark:border-slate-700/60 bg-emerald-50/5 dark:bg-emerald-900/5"></td>
                             )}
 
                             <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
@@ -175,7 +174,6 @@ export default function ScheduleWorkData({
                   );
                 })}
 
-                {/* PLACEHOLDER KOSONG BAWAH UNTUK KOLOM TAMBAH */}
                 {isEditMode && canCreateData && (
                   <td className="border-r border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
                 )}
@@ -201,7 +199,7 @@ export default function ScheduleWorkData({
                             type="text" 
                             value={displayCumulative}
                             onChange={(e) => handleWeekCumulativeChange(w, e.target.value)}
-                            className="w-14 bg-white dark:bg-slate-900 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded border border-blue-300 dark:border-blue-600 py-1 text-[10px] shadow-inner"
+                            className="w-14 bg-white dark:bg-slate-900 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg border border-blue-300 dark:border-blue-600 py-1 text-[10px] shadow-inner transition-colors"
                           />
                         </div>
                       ) : (
@@ -213,9 +211,8 @@ export default function ScheduleWorkData({
                   );
                 })}
 
-                {/* PLACEHOLDER KOSONG BAWAH UNTUK KOLOM TAMBAH */}
                 {isEditMode && canCreateData && (
-                  <td className="border-r border-blue-200 dark:border-blue-800/50 bg-blue-50/30 dark:bg-blue-950/20"></td>
+                  <td className="border-r border-blue-200 dark:border-blue-800/50 bg-blue-50/20 dark:bg-blue-900/10"></td>
                 )}
 
                 <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/40">-</td>
@@ -238,7 +235,7 @@ export default function ScheduleWorkData({
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-emerald-50/50 dark:bg-emerald-900/10 flex items-center justify-between">
               <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase flex gap-2"><Activity className="w-4 h-4" /> BUKTI REALISASI HARIAN (Minggu Ke-{detailModal.weekNum})</h3>
-              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><X className="w-5 h-5"/></button>
+              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5"/></button>
             </div>
             
             <div className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50 dark:bg-slate-900/20 p-5">
@@ -261,13 +258,13 @@ export default function ScheduleWorkData({
                      </thead>
                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
                        {(detailModal.realizations || []).map((r, index) => (
-                         <tr key={index}>
+                         <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                            <td className="p-3 text-center font-mono font-bold text-slate-500">H{index + 1}</td>
                            <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
                            <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</td>
                            <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</td>
                            <td className="p-3 text-center">
-                             {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
+                             {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
                            </td>
                          </tr>
                        ))}
@@ -277,7 +274,7 @@ export default function ScheduleWorkData({
                )}
             </div>
             <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end shrink-0">
-              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs shadow-sm">Tutup</button>
+              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs shadow-sm transition-colors">Tutup Rincian</button>
             </div>
           </div>
         </div>
