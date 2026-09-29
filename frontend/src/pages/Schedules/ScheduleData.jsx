@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, Save, Loader2, Edit3, X, 
-  ListPlus, CheckCircle2, TrendingUp, CalendarDays, Calendar
+  ListPlus, CheckCircle2, TrendingUp, CalendarDays
 } from 'lucide-react';
 import ScheduleWorkData from './ScheduleWorkData';
 
@@ -14,11 +14,15 @@ export default function ScheduleData() {
 
   useEffect(() => { document.title = "Prisma Group - Data Jadwal Matrix"; }, []);
 
-  const [userRole, setUserRole] = useState('Tamu');
-  useEffect(() => {
-    const userDataStr = localStorage.getItem('user_data');
-    if (userDataStr) setUserRole(JSON.parse(userDataStr).role || 'Tamu');
-  }, []);
+  // PERBAIKAN: Membaca hak akses secara INSTAN saat komponen pertama dimuat
+  const [userRole] = useState(() => {
+    try {
+      const userDataStr = localStorage.getItem('user_data');
+      return userDataStr ? JSON.parse(userDataStr).role || 'Tamu' : 'Tamu';
+    } catch {
+      return 'Tamu';
+    }
+  });
 
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
 
@@ -43,13 +47,12 @@ export default function ScheduleData() {
         api.get(`/projects/${id}/schedules`)
       ]);
       
-      // Proteksi ekstrim untuk membaca array schedules
       let rawSchedules = schedRes.data?.data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
       
+      // PERBAIKAN: Routing otomatis sekarang dijamin tereksekusi jika jadwal kosong & user berhak
       if (fetchedSchedules.length === 0 && canCreateData) {
-        setIsLoading(false);
-        navigate(`/schedules/${id}/data/input`, { replace: true, state: projRes.data });
+        navigate(`/schedules/${id}/data/input`, { replace: true, state: projRes.data?.data || projRes.data });
         return; 
       }
 
@@ -138,7 +141,6 @@ export default function ScheduleData() {
     }
   };
 
-  // Proteksi kalkulasi Grand Total RAB (Anti Crash Array)
   let grandTotalRAB = 0;
   if (scheduleData && scheduleData.rab_data) {
     const safeRabData = Array.isArray(scheduleData.rab_data) ? scheduleData.rab_data : Object.values(scheduleData.rab_data);
@@ -202,7 +204,7 @@ export default function ScheduleData() {
                 </button>
               </>
             ) : canCreateData ? (
-              <button onClick={() => setIsEditMode(true)} disabled={isLoading || (Array.isArray(localWeeks) && localWeeks.length === 0)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50">
+              <button onClick={() => setIsEditMode(true)} disabled={isLoading || localWeeks.length === 0} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50">
                 <Edit3 className="w-3.5 h-3.5" /> Mode Edit Target
               </button>
             ) : null}
