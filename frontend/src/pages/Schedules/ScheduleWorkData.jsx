@@ -20,13 +20,17 @@ export default function ScheduleWorkData({
   };
 
   const handleOpenCellDetail = (item, weekNum) => {
-    const targetVal = getSafeFloat(localWeeks?.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
-    const dailyRealizations = scheduleData?.realizations?.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum) || [];
+    // Proteksi pencarian target mingguan
+    const targetVal = getSafeFloat((localWeeks || []).find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
+    
+    // Proteksi filter realisasi harian
+    const dailyRealizations = (scheduleData?.realizations || []).filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
   };
 
-  // PERBAIKAN: Memastikan weeksArray selalu berupa Array, meskipun localWeeks belum siap
-  const weeksArray = localWeeks ? localWeeks.map(w => parseInt(w.minggu_ke)) : [];
+  // Proteksi ekstrim untuk memastikan weeksArray selalu berupa Array meskipun props gagal dimuat
+  const weeksArray = Array.isArray(localWeeks) ? localWeeks.map(w => parseInt(w.minggu_ke)) : [];
 
   return (
     <>
@@ -48,6 +52,7 @@ export default function ScheduleWorkData({
                 <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan (RAB Keseluruhan)</th>
                 <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
                 
+                {/* HEADER MINGGUAN MAKRO */}
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px]">
                     <div className="flex flex-col items-center gap-1">
@@ -65,6 +70,7 @@ export default function ScheduleWorkData({
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
+              {/* PROTEKSI: (scheduleData?.rab_data || []) */}
               {(scheduleData?.rab_data || []).map(cat => (
                 <React.Fragment key={cat.id}>
                   <tr className="bg-amber-50/50 dark:bg-amber-900/10">
@@ -72,7 +78,8 @@ export default function ScheduleWorkData({
                     <td colSpan={weeksArray.length + 2} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori}</td>
                   </tr>
                   
-                  {cat.items.map(item => {
+                  {/* PROTEKSI: (cat.items || []) Mencegah Crash Undefined Array */}
+                  {(cat.items || []).map(item => {
                     if (item.is_subheader) {
                       return (
                         <tr key={item.id} className="bg-slate-50/50 dark:bg-slate-800/40">
@@ -95,6 +102,7 @@ export default function ScheduleWorkData({
                           {bobotStandar.toFixed(2)}%
                         </td>
 
+                        {/* SEL MINGGU: HANYA MENAMPILKAN AKTUAL DARI LAPORAN HARIAN */}
                         {weeksArray.map(w => {
                           const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
                           return (
@@ -124,7 +132,9 @@ export default function ScheduleWorkData({
               ))}
             </tbody>
 
+            {/* FOOTER TOTAL (TARGET & AKTUAL MINGGUAN) */}
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+              {/* TOTAL AKTUAL */}
               <tr className="bg-emerald-50/80 dark:bg-emerald-900/20 border-t-2 border-emerald-200 dark:border-emerald-800/50">
                 <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-700 dark:text-emerald-400 uppercase text-[10px] sticky left-0 z-40 bg-emerald-50/90 dark:bg-[#064e3b] border-r border-emerald-200 dark:border-emerald-800/50">
                   Total Aktual / Realisasi (Mingguan)
@@ -142,12 +152,13 @@ export default function ScheduleWorkData({
                 </td>
               </tr>
 
+              {/* TARGET KUMULATIF MINGGUAN (DAPAT DI-EDIT OLEH USER DI MODE EDIT) */}
               <tr className="bg-blue-50 dark:bg-blue-950/20 border-t border-blue-200 dark:border-blue-800/50">
                 <td colSpan="3" className="p-3 text-right font-extrabold text-blue-700 dark:text-blue-400 uppercase text-[10px] sticky left-0 z-40 bg-blue-50 dark:bg-[#172554] border-r border-blue-200 dark:border-blue-800/50">
                   Target Kumulatif Mingguan (Plan)
                 </td>
                 {weeksArray.map(w => {
-                  const existingTarget = getSafeFloat(localWeeks?.find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
+                  const existingTarget = getSafeFloat((localWeeks || []).find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
                   const displayCumulative = isEditMode ? existingTarget : existingTarget.toFixed(2);
 
                   return (
@@ -176,6 +187,7 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
+      {/* --- INFO LEGEND (FOOTER) --- */}
       <div className="mt-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs flex gap-4 shadow-sm shrink-0">
         <span className="font-semibold text-slate-700 dark:text-slate-300 flex gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
         <div className="flex gap-x-5 flex-wrap text-slate-500 dark:text-slate-400">
@@ -184,6 +196,7 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
+      {/* --- MODAL RINCIAN HARIAN --- */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
@@ -193,7 +206,7 @@ export default function ScheduleWorkData({
             </div>
             
             <div className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50 dark:bg-slate-900/20 p-5">
-               {detailModal.realizations.length === 0 ? (
+               {(detailModal.realizations || []).length === 0 ? (
                  <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/60 rounded-xl">
                    <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
                    <p className="text-slate-500 dark:text-slate-400 text-xs text-center">Belum ada progres harian yang diinput oleh pengawas untuk pekerjaan ini.</p>
@@ -211,7 +224,7 @@ export default function ScheduleWorkData({
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
-                       {detailModal.realizations.map((r, index) => (
+                       {(detailModal.realizations || []).map((r, index) => (
                          <tr key={index}>
                            <td className="p-3 text-center font-mono font-bold text-slate-500">H{index + 1}</td>
                            <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
