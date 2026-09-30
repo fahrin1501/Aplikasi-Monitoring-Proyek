@@ -48,10 +48,11 @@ export default function KurvaS({ selectedProject }) {
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
 
   // --- STATE CHART & FILTER (REMASTERED SCALING) ---
+  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [showFilterPopup, setShowFilterPopup] = useState(false);
-  const [filterMode, setFilterMode] = useState('Mingguan'); // Default Skala Sumbu X Mingguan
+  const [filterMode, setFilterMode] = useState('Mingguan'); 
   const filterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
@@ -102,9 +103,15 @@ export default function KurvaS({ selectedProject }) {
       let rawSchedules = data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
 
-      // ROUTING PINTAR: Munculkan Modal Setup Awal jika jadwal kosong
       if (fetchedSchedules.length === 0 && canCreateData) {
         setShowAddScheduleModal(true);
+      }
+
+      if (data?.project_info) {
+        setProjectBounds({
+          start: data.project_info.tanggal_mulai || '',
+          end: data.project_info.tanggal_selesai || ''
+        });
       }
 
       const wMap = {};
@@ -398,7 +405,6 @@ export default function KurvaS({ selectedProject }) {
 
       const response = await api.post(`/projects/${projectId}/export-kurva/${type}`, {
         chart_image: base64Image,
-        // Optional: Anda bisa menambahkan payload itemProgressData jika export backend membutuhkannya
         start_date: startDateFilter,
         end_date: endDateFilter,
         view_mode: filterMode.toLowerCase()
@@ -445,7 +451,7 @@ export default function KurvaS({ selectedProject }) {
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Matriks Waktu</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-500/20 text-blue-400 rounded-md animate-pulse border border-blue-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
@@ -492,11 +498,25 @@ export default function KurvaS({ selectedProject }) {
                     <div className="flex flex-col gap-3">
                       <div className="space-y-1.5">
                          <label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label>
-                         <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" />
+                         <input 
+                           type="date" 
+                           min={projectBounds.start}
+                           max={endDateFilter || projectBounds.end}
+                           value={startDateFilter} 
+                           onChange={e => setStartDateFilter(e.target.value)} 
+                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" 
+                         />
                       </div>
                       <div className="space-y-1.5">
                          <label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label>
-                         <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" />
+                         <input 
+                           type="date" 
+                           min={startDateFilter || projectBounds.start}
+                           max={projectBounds.end}
+                           value={endDateFilter} 
+                           onChange={e => setEndDateFilter(e.target.value)} 
+                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" 
+                         />
                       </div>
                       
                       <div className="flex gap-2 mt-2">
@@ -564,12 +584,12 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* TAMPILAN LABEL FILTER AKTIF */}
+      {/* TAMPILAN LABEL FILTER AKTIF DI BAWAH HEADER */}
       {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
-            {getActiveFilterLabel()}
-            <button onClick={() => {setFilterMode('Mingguan'); setStartDateFilter(''); setEndDateFilter('');}} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
+            Tampilan Grafik: {getActiveFilterLabel()}
+            <button onClick={() => applyFilter('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
           </span>
         </div>
       )}
@@ -674,20 +694,20 @@ export default function KurvaS({ selectedProject }) {
             <div className="space-y-4 mb-6">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- (Opsional)</label>
-                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 [color-scheme:light_dark]" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 [color-scheme:light_dark]" />
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
+              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs">Batal</button>
+              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md flex justify-center gap-2 text-xs transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
             </div>
           </div>
         </div>
