@@ -19,6 +19,7 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { document.title = "Prisma Group - Kurva S & Time Schedule"; }, []);
 
+  // Variabel penyimpan info proyek bernama "project"
   const project = selectedProject || location.state || { id: id, nama_proyek: 'Memuat Data...'};
   const projectId = project.id || id;
 
@@ -47,12 +48,13 @@ export default function KurvaS({ selectedProject }) {
   // STATE MODAL SETUP AWAL
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
 
-  // --- STATE CHART & FILTER (REMASTERED SCALING) ---
+  // --- STATE CHART & FILTER ---
   const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [filterMode, setFilterMode] = useState('Mingguan'); 
+  const [filterSelection, setFilterSelection] = useState({ bulanLabel: '', mingguNum: '', rentangStart: '', rentangEnd: '' });
   const filterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
@@ -91,7 +93,7 @@ export default function KurvaS({ selectedProject }) {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
 
-  // --- FETCH DATA (GABUNGAN KURVA & SCHEDULE) ---
+  // --- FETCH DATA ---
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
@@ -138,7 +140,6 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { if (projectId) fetchSchedule(); }, [projectId]);
 
-  // --- FUNGSI EDIT MATRIKS SCHEDULE ---
   const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(); };
 
   const handleWeekCumulativeChange = (weekNum, value) => {
@@ -201,7 +202,61 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  // --- LABEL FILTER GRAFIK DINAMIS ---
+  const getAvailableMonths = () => {
+    if (!projectBounds.start || !projectBounds.end) return [];
+    const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
+    const months = [];
+    let current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const limit = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    while (current <= limit) {
+      const mStart = current.getTime() < start.getTime() ? start : current;
+      const nextMonthFirstDay = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      const lastDayOfMonth = new Date(nextMonthFirstDay.getTime() - 1);
+      const mEnd = lastDayOfMonth.getTime() > end.getTime() ? end : lastDayOfMonth;
+
+      months.push({ label: mStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
+      current = nextMonthFirstDay;
+    }
+    return months;
+  };
+
+  const availableMonths = getAvailableMonths();
+
+  const applyFilter = (mode, data) => {
+    setFilterMode(mode);
+    if (mode === 'Semua') {
+      setStartDateFilter(projectBounds.start); setEndDateFilter(projectBounds.end);
+      setFilterSelection({ ...filterSelection, bulanLabel: '', mingguNum: '', rentangStart: '', rentangEnd: '' });
+      setShowFilterPopup(false);
+    } 
+    else if (mode === 'Bulanan') {
+      setStartDateFilter(data.start); setEndDateFilter(data.end);
+      setFilterSelection({ ...filterSelection, bulanLabel: data.label }); setShowFilterPopup(false);
+    } 
+    else if (mode === 'Mingguan') {
+      const weekNum = data;
+      setFilterSelection({ ...filterSelection, mingguNum: weekNum });
+      const targetSchedule = (scheduleData?.schedules || []).find(s => parseInt(s.minggu_ke) === parseInt(weekNum));
+      if (targetSchedule && targetSchedule.tanggal_awal && targetSchedule.tanggal_akhir) {
+        setStartDateFilter(targetSchedule.tanggal_awal); setEndDateFilter(targetSchedule.tanggal_akhir);
+      } else if (projectBounds.start) {
+        const startDate = new Date(projectBounds.start); startDate.setHours(0, 0, 0, 0);
+        const weekStart = new Date(startDate.getTime() + (weekNum - 1) * 7 * 24 * 3600 * 1000);
+        const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 3600 * 1000);
+        setStartDateFilter(weekStart.toISOString().split('T')[0]); setEndDateFilter(weekEnd.toISOString().split('T')[0]);
+      }
+      setShowFilterPopup(false);
+    }
+  };
+
+  const applyManualFilter = () => {
+    if (filterMode === 'Rentang') {
+      if(!filterSelection.rentangStart || !filterSelection.rentangEnd) return alert("Lengkapi tanggal mulai dan akhir!");
+      setStartDateFilter(filterSelection.rentangStart); setEndDateFilter(filterSelection.rentangEnd); setShowFilterPopup(false);
+    }
+  };
+
   const getActiveFilterLabel = () => {
     let rangeLabel = (startDateFilter || endDateFilter) 
       ? `${startDateFilter ? formatIndoDate(startDateFilter) : 'Awal'} - ${endDateFilter ? formatIndoDate(endDateFilter) : 'Akhir'}`
@@ -209,7 +264,6 @@ export default function KurvaS({ selectedProject }) {
     return `Skala ${filterMode} | ${rangeLabel}`;
   };
 
-  // --- EFEK PEMBUATAN RAW CHART (HARIAN DASAR) ---
   useEffect(() => {
     if (!scheduleData) return;
 
@@ -298,16 +352,13 @@ export default function KurvaS({ selectedProject }) {
     setFullChartData(tempChartData);
   }, [scheduleData]);
 
-  // --- EFEK AGREGASI CHART (HARIAN / MINGGUAN / BULANAN) ---
   useEffect(() => {
     if (fullChartData.length === 0) return;
     
-    // 1. Lakukan Filter Rentang Tanggal Terlebih Dahulu
     let filtered = fullChartData;
     if (startDateFilter) filtered = filtered.filter(d => d.dateString >= startDateFilter);
     if (endDateFilter) filtered = filtered.filter(d => d.dateString <= endDateFilter);
 
-    // 2. Terapkan Agregasi berdasarkan Skala Waktu (FilterMode)
     let aggregated = [];
 
     if (filterMode === 'Bulanan') {
@@ -318,7 +369,6 @@ export default function KurvaS({ selectedProject }) {
         const shortMonth = dateObj.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
         const longMonth = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
         
-        // Data akan terus tertimpa dan otomatis menyisakan hari terakhir dari bulan tersebut (Titik Agregat yang tepat)
         monthMap[monthKey] = {
           ...d,
           xAxisLabel: shortMonth,
@@ -331,7 +381,7 @@ export default function KurvaS({ selectedProject }) {
       const weekMap = {};
       filtered.forEach(d => {
         const wKey = d.mingguKe || 0;
-        if (wKey === 0) return; // Abaikan jika hari tidak masuk minggu manapun
+        if (wKey === 0) return; 
         weekMap[wKey] = {
           ...d,
           xAxisLabel: `M-${wKey}`,
@@ -340,7 +390,7 @@ export default function KurvaS({ selectedProject }) {
       });
       aggregated = Object.values(weekMap);
     } 
-    else { // Mode 'Harian'
+    else { 
       aggregated = filtered.map(d => ({
         ...d,
         xAxisLabel: d.shortDate,
@@ -351,7 +401,6 @@ export default function KurvaS({ selectedProject }) {
     setChartData(aggregated);
   }, [fullChartData, startDateFilter, endDateFilter, filterMode]);
 
-  // --- TOOLTIP GRAFIK DINAMIS ---
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const dataInfo = payload[0].payload;
@@ -440,9 +489,7 @@ export default function KurvaS({ selectedProject }) {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* ========================================== */}
-      {/* 1. HEADER NAVIGASI                         */}
-      {/* ========================================== */}
+      {/* HEADER NAVIGASI */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
@@ -451,7 +498,7 @@ export default function KurvaS({ selectedProject }) {
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Schedule</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-500/20 text-blue-400 rounded-md animate-pulse border border-blue-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
@@ -566,7 +613,6 @@ export default function KurvaS({ selectedProject }) {
             )}
           </div>
 
-          {/* TAB NAVIGASI MODUL UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
             <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
               <Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span>
@@ -694,20 +740,20 @@ export default function KurvaS({ selectedProject }) {
             <div className="space-y-4 mb-6">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- (Opsional)</label>
-                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500" />
+                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs">Batal</button>
-              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md flex justify-center gap-2 text-xs transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
+              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
+              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
             </div>
           </div>
         </div>
