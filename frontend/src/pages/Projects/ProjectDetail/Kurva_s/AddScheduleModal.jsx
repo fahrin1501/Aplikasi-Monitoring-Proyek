@@ -8,6 +8,10 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
     { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
   ]);
 
+  // Ekstrak batas tanggal proyek untuk filter kalender
+  const projectStart = projectData?.tanggal_mulai ? projectData.tanggal_mulai.substring(0, 10) : '';
+  const projectEnd = projectData?.tanggal_selesai ? projectData.tanggal_selesai.substring(0, 10) : '';
+
   const handleAddWeek = () => {
     const lastWeek = weeksForm[weeksForm.length - 1];
     const nextMingguKe = lastWeek && lastWeek.minggu_ke ? parseInt(lastWeek.minggu_ke) + 1 : weeksForm.length + 1;
@@ -107,11 +111,27 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
-                        <input type="date" value={week.tanggal_mulai} onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
+                        <input 
+                          type="date" 
+                          min={projectStart}
+                          max={week.tanggal_selesai || projectEnd}
+                          value={week.tanggal_mulai} 
+                          onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
-                        <input type="date" value={week.tanggal_selesai} onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" />
+                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
+                        <input 
+                          type="date" 
+                          min={week.tanggal_mulai || projectStart}
+                          max={projectEnd}
+                          value={week.tanggal_selesai} 
+                          onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
+                        />
                       </div>
                    </div>
                  </div>
