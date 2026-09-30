@@ -19,7 +19,6 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { document.title = "Prisma Group - Kurva S & Time Schedule"; }, []);
 
-  // Variabel penyimpan info proyek bernama "project"
   const project = selectedProject || location.state || { id: id, nama_proyek: 'Memuat Data...'};
   const projectId = project.id || id;
 
@@ -93,7 +92,6 @@ export default function KurvaS({ selectedProject }) {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
 
-  // --- FETCH DATA ---
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
@@ -111,8 +109,8 @@ export default function KurvaS({ selectedProject }) {
 
       if (data?.project_info) {
         setProjectBounds({
-          start: data.project_info.tanggal_mulai || '',
-          end: data.project_info.tanggal_selesai || ''
+          start: data.project_info.tanggal_mulai ? data.project_info.tanggal_mulai.substring(0, 10) : '',
+          end: data.project_info.tanggal_selesai ? data.project_info.tanggal_selesai.substring(0, 10) : ''
         });
       }
 
@@ -719,19 +717,7 @@ export default function KurvaS({ selectedProject }) {
       {/* MODAL & POPUPS                             */}
       {/* ========================================== */}
       
-      {/* MODAL SETUP AWAL (JIKA JADWAL KOSONG) */}
-      {showAddScheduleModal && (
-        <AddScheduleModal 
-          projectId={projectId} 
-          projectData={project}  // PERBAIKAN: Harus "project", bukan "projectData"
-          onClose={() => setShowAddScheduleModal(false)} 
-          onSuccess={() => {
-            setShowAddScheduleModal(false);
-            fetchSchedule();
-          }} 
-        />
-      )}
-
+      {/* MODAL EDIT MINGGUAN (INTERNAL MATRIKS) */}
       {weekModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
@@ -745,11 +731,27 @@ export default function KurvaS({ selectedProject }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                {/* PERBAIKAN: Pembatas berdasarkan Project Bounds */}
+                <input 
+                  type="date" 
+                  min={projectBounds.start}
+                  max={weekModal.tanggal_akhir || projectBounds.end}
+                  value={weekModal.tanggal_awal} 
+                  onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} 
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" 
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                {/* PERBAIKAN: Pembatas berdasarkan Project Bounds */}
+                <input 
+                  type="date" 
+                  min={weekModal.tanggal_awal || projectBounds.start}
+                  max={projectBounds.end}
+                  value={weekModal.tanggal_akhir} 
+                  onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} 
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" 
+                />
               </div>
             </div>
             <div className="flex gap-3">
