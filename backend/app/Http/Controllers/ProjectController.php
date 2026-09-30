@@ -83,7 +83,6 @@ class ProjectController extends Controller
     public function index()
     {
         $projects = Project::orderBy('created_at', 'desc')->get();
-        // Inject massal super cepat
         $optimizedProjects = $this->injectProgressToCollection($projects);
 
         return response()->json($optimizedProjects);
@@ -92,7 +91,6 @@ class ProjectController extends Controller
     public function show($id)
     {
         $project = Project::with(['personnels', 'documents', 'gisDocuments'])->findOrFail($id);
-        // Bungkus dalam collection sementara agar bisa memakai engine yang sama
         $optimizedProject = $this->injectProgressToCollection(collect([$project]))->first();
 
         return response()->json($optimizedProject);
@@ -269,13 +267,21 @@ class ProjectController extends Controller
                 $dataProyek = [
                     'status'            => 'Persiapan',
                     'kategori'          => 'Belum Ditentukan',
-                    'deskripsi'         => 'Diimpor massal dari Excel',
+                    'deskripsi'         => null,
                     'nama_proyek'       => null,
                     'kode_kontrak'      => '-',
                     'nomor_kontrak_kontraktor'  => '-',
                     'nilai_kontrak'     => 0,
+                    'sumber_dana'       => null,
+                    'tahun_anggaran'    => null,
                     'tanggal_mulai'     => null,
                     'tanggal_selesai'   => null,
+                    'waktu_pelaksanaan' => null,
+                    'masa_pemeliharaan' => null,
+                    'lokasi_wilayah'    => null,
+                    'ppk'               => null,
+                    'kontraktor'        => null,
+                    'konsultan'         => null,
                 ];
 
                 foreach ($sheet as $row) {
@@ -284,20 +290,54 @@ class ProjectController extends Controller
 
                     if (empty($parameter) || is_null($nilai)) continue;
 
-                    if (str_contains($parameter, 'nama proyek')) $dataProyek['nama_proyek'] = $nilai;
-                    elseif (str_contains($parameter, 'kontrak konsultan') || $parameter === 'kode kontrak') $dataProyek['kode_kontrak'] = $nilai;
-                    elseif (str_contains($parameter, 'kontrak kontraktor')) $dataProyek['nomor_kontrak_kontraktor'] = $nilai;
-                    elseif (str_contains($parameter, 'nilai kontrak') || str_contains($parameter, 'pagu')) $dataProyek['nilai_kontrak'] = (float) preg_replace('/[^0-9]/', '', $nilai);
-                    elseif (str_contains($parameter, 'sumber dana')) $dataProyek['sumber_dana'] = $nilai;
-                    elseif (str_contains($parameter, 'tahun anggaran')) $dataProyek['tahun_anggaran'] = $nilai;
-                    elseif (str_contains($parameter, 'tanggal mulai')) $dataProyek['tanggal_mulai'] = $this->formatExcelDate($nilai);
-                    elseif (str_contains($parameter, 'tanggal selesai')) $dataProyek['tanggal_selesai'] = $this->formatExcelDate($nilai);
-                    elseif (str_contains($parameter, 'waktu pelaksanaan')) $dataProyek['waktu_pelaksanaan'] = $nilai;
-                    elseif (str_contains($parameter, 'masa pemeliharaan')) $dataProyek['masa_pemeliharaan'] = $nilai;
-                    elseif (str_contains($parameter, 'lokasi') || str_contains($parameter, 'wilayah')) $dataProyek['lokasi_wilayah'] = $nilai;
-                    elseif (str_contains($parameter, 'ppk') || str_contains($parameter, 'owner')) $dataProyek['ppk'] = $nilai;
-                    elseif (str_contains($parameter, 'kontraktor') || str_contains($parameter, 'pelaksana')) $dataProyek['kontraktor'] = $nilai;
-                    elseif (str_contains($parameter, 'konsultan') || str_contains($parameter, 'pengawas')) $dataProyek['konsultan'] = $nilai;
+                    if (str_contains($parameter, 'nama proyek')) {
+                        $dataProyek['nama_proyek'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'kategori') || str_contains($parameter, 'bidang')) {
+                        $dataProyek['kategori'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'kontrak konsultan') || $parameter === 'kode kontrak') {
+                        $dataProyek['kode_kontrak'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'kontrak kontraktor')) {
+                        $dataProyek['nomor_kontrak_kontraktor'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'nilai kontrak') || str_contains($parameter, 'pagu')) {
+                        $dataProyek['nilai_kontrak'] = (float) preg_replace('/[^0-9]/', '', $nilai);
+                    }
+                    elseif (str_contains($parameter, 'sumber dana')) {
+                        $dataProyek['sumber_dana'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'tahun anggaran')) {
+                        $dataProyek['tahun_anggaran'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'tanggal mulai')) {
+                        $dataProyek['tanggal_mulai'] = $this->formatExcelDate($nilai);
+                    }
+                    elseif (str_contains($parameter, 'tanggal selesai')) {
+                        $dataProyek['tanggal_selesai'] = $this->formatExcelDate($nilai);
+                    }
+                    elseif (str_contains($parameter, 'waktu pelaksanaan')) {
+                        $dataProyek['waktu_pelaksanaan'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'masa pemeliharaan')) {
+                        $dataProyek['masa_pemeliharaan'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'lokasi') || str_contains($parameter, 'wilayah')) {
+                        $dataProyek['lokasi_wilayah'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'deskripsi') || str_contains($parameter, 'lingkup')) {
+                        $dataProyek['deskripsi'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'ppk') || str_contains($parameter, 'owner')) {
+                        $dataProyek['ppk'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'kontraktor') || str_contains($parameter, 'pelaksana')) {
+                        $dataProyek['kontraktor'] = $nilai;
+                    }
+                    elseif (str_contains($parameter, 'konsultan') || str_contains($parameter, 'pengawas')) {
+                        $dataProyek['konsultan'] = $nilai;
+                    }
                 }
 
                 if (!empty($dataProyek['nama_proyek'])) {

@@ -7,8 +7,8 @@
         .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
         .title { font-size: 18px; font-weight: bold; text-transform: uppercase; }
         .subtitle { font-size: 12px; color: #666; margin-top: 5px; }
-        table { w-full; border-collapse: collapse; margin-bottom: 20px; width: 100%; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+        table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
         th { background-color: #f8fafc; font-weight: bold; width: 35%; }
         .section-title { background-color: #e2e8f0; font-weight: bold; padding: 8px; margin-top: 20px; margin-bottom: 10px;}
     </style>
@@ -22,7 +22,7 @@
     <div class="section-title">A. DATA KONTRAK & ADMINISTRASI</div>
     <table>
         <tr><th>Nama Proyek</th><td>{{ $project->nama_proyek }}</td></tr>
-        <tr><th>Kategori Proyek</th><td>{{ $project->kategori ?? 'Belum Ditentukan' }}</td></tr>
+        <tr><th>Kategori / Bidang</th><td>{{ $project->kategori ?? 'Belum Ditentukan' }}</td></tr>
         <tr><th>No. Kontrak Konsultan</th><td>{{ $project->kode_kontrak ?? '-' }}</td></tr>
         <tr><th>No. Kontrak Kontraktor</th><td>{{ $project->nomor_kontrak_kontraktor ?? '-' }}</td></tr>
         <tr><th>Nilai Kontrak</th><td>Rp {{ number_format($project->nilai_kontrak, 0, ',', '.') }}</td></tr>
@@ -32,11 +32,11 @@
 
     <div class="section-title">B. WAKTU & LOKASI</div>
     <table>
-        <tr><th>Periode Kontrak</th><td>{{ $project->tanggal_mulai }} s/d {{ $project->tanggal_selesai }}</td></tr>
+        <tr><th>Periode Kontrak</th><td>{{ $project->tanggal_mulai }} s/d {{ $project->tanggal_selesai ?? '-' }}</td></tr>
         <tr><th>Waktu Pelaksanaan</th><td>{{ $project->waktu_pelaksanaan ?? '-' }}</td></tr>
         <tr><th>Masa Pemeliharaan</th><td>{{ $project->masa_pemeliharaan ?? '-' }}</td></tr>
         <tr><th>Lokasi Wilayah</th><td>{{ $project->lokasi_wilayah ?? '-' }}</td></tr>
-        <tr><th>Koordinat</th><td>Lat: {{ $project->latitude ?? '-' }}, Long: {{ $project->longitude ?? '-' }}</td></tr>
+        <tr><th>Deskripsi / Lingkup</th><td>{{ $project->deskripsi ?? '-' }}</td></tr>
     </table>
 
     <div class="section-title">C. PARA PIHAK & PERSONEL</div>

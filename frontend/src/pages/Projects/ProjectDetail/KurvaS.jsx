@@ -450,7 +450,7 @@ export default function KurvaS({ selectedProject }) {
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
-              <span>Kurva S & Matriks Waktu</span>
+              <span>Kurva S & Schedule</span>
               {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-500/20 text-blue-400 rounded-md animate-pulse border border-blue-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">

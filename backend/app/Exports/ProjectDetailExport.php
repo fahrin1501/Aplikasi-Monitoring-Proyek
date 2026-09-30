@@ -29,19 +29,23 @@ class ProjectDetailExport implements FromCollection, WithHeadings, WithStyles
         // Menyusun baris data secara vertikal agar enak dibaca di Excel
         return collect([
             ['Nama Proyek', $project->nama_proyek],
-            ['Kode Kontrak', $project->kode_kontrak],
-            ['Nilai Kontrak', 'Rp ' . number_format($project->nilai_kontrak, 0, ',', '.')],
+            ['Kategori / Bidang', $project->kategori ?? 'Belum Ditentukan'],
+            ['No. Kontrak Konsultan', $project->kode_kontrak ?? '-'],
+            ['No. Kontrak Kontraktor', $project->nomor_kontrak_kontraktor ?? '-'],
+            ['Nilai Kontrak (Pagu)', 'Rp ' . number_format($project->nilai_kontrak, 0, ',', '.')],
             ['Sumber Dana', $project->sumber_dana ?? '-'],
             ['Tahun Anggaran', $project->tahun_anggaran ?? '-'],
             ['Tanggal Mulai', $project->tanggal_mulai],
-            ['Tanggal Selesai', $project->tanggal_selesai],
+            ['Tanggal Selesai', $project->tanggal_selesai ?? '-'],
             ['Waktu Pelaksanaan', $project->waktu_pelaksanaan ?? '-'],
-            ['Lokasi', $project->lokasi_wilayah ?? '-'],
+            ['Masa Pemeliharaan', $project->masa_pemeliharaan ?? '-'],
+            ['Lokasi Wilayah', $project->lokasi_wilayah ?? '-'],
+            ['Deskripsi / Lingkup Pekerjaan', $project->deskripsi ?? '-'],
             ['PPK / Owner', $project->ppk ?? '-'],
-            ['Kontraktor', $project->kontraktor ?? '-'],
-            ['Konsultan', $project->konsultan ?? '-'],
+            ['Kontraktor Pelaksana', $project->kontraktor ?? '-'],
+            ['Konsultan Pengawas', $project->konsultan ?? '-'],
             ['Personel Lapangan', $personelText ?: '-'],
-            ['Status', $project->status],
+            ['Status Proyek', $project->status],
         ]);
     }
 
@@ -53,7 +57,7 @@ class ProjectDetailExport implements FromCollection, WithHeadings, WithStyles
     public function styles(Worksheet $sheet)
     {
         $sheet->getColumnDimension('A')->setWidth(25);
-        $sheet->getColumnDimension('B')->setWidth(60);
+        $sheet->getColumnDimension('B')->setWidth(70);
         $sheet->getStyle('B')->getAlignment()->setWrapText(true);
 
         return [

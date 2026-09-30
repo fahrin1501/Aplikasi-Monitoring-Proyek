@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\RabExport;
 use App\Models\DailyReport;
 use App\Models\Project;
+use Illuminate\Support\Facades\DB; // WAJIB IMPORT DB
 
 class RabController extends Controller
 {
@@ -121,7 +122,6 @@ class RabController extends Controller
         $rabs = \App\Models\RabCategory::with('items')->where('project_id', $id)->get();
         $reports = DailyReport::with('activities')->where('project_id', $id)->where('status', 'approved')->get();
 
-        // FIX: Integrasi logika persentase di RAB Export
         $realisasiMap = [];
         foreach ($reports as $report) {
             foreach ($report->activities as $act) {
@@ -156,12 +156,10 @@ class RabController extends Controller
 
                     $hasPersen = $realisasiMap[$item->id]['has_persen'] ?? false;
 
-                    // Kalkulasi Aktual Berdasarkan Persentase (Bila ada)
                     if ($hasPersen) {
                         $persenData = $realisasiMap[$item->id]['persen_kumulatif'] ?? 0;
                         $item->actualTotal = ($persenData / 100) * $item->total_harga;
                     } else {
-                        // Fallback ke Volume x Harga Satuan
                         $item->actualTotal = $item->actualVol * $item->harga_satuan;
                     }
 
@@ -214,6 +212,9 @@ class RabController extends Controller
         return Excel::download(new RabExport($data), $fileName);
     }
 
+    // =========================================================================
+    // OPTIMASI: Transaksi Database & Bulk Insert untuk Kecepatan Ekstrem
+    // =========================================================================
     public function importRAB(Request $request, $projectId)
     {
         $request->validate(['file' => 'required|mimes:xlsx,xls']);
@@ -222,7 +223,11 @@ class RabController extends Controller
             $sheets = Excel::toArray(new \stdClass(), $request->file('file'));
             $rows = $sheets[0];
 
+            DB::beginTransaction(); // 1. BUKA PINTU TRANSAKSI (Mencegah Auto-Commit per baris)
+
             $currentCategory = null;
+            $itemsToInsert = [];    // 2. KUMPULKAN DATA KE ARRAY
+            $now = now();
 
             for ($i = 2; $i < count($rows); $i++) {
                 $row = $rows[$i];
@@ -247,7 +252,16 @@ class RabController extends Controller
                     continue;
                 }
 
+                // Ganti Kategori (Divisi)
                 if (str_starts_with(strtoupper($uraian), 'DIVISI') || str_starts_with(strtoupper($uraian), 'DEVISI')) {
+                    // Jika ada tumpukan item sebelumnya, simpan dulu (Bulk Insert)
+                    if (!empty($itemsToInsert)) {
+                        foreach (array_chunk($itemsToInsert, 500) as $chunk) {
+                            RabItem::insert($chunk);
+                        }
+                        $itemsToInsert = []; // Kosongkan keranjang
+                    }
+
                     $currentCategory = RabCategory::create([
                         'project_id' => $projectId,
                         'kode_divisi' => $kode,
@@ -264,18 +278,25 @@ class RabController extends Controller
                     ]);
                 }
 
+                // Masukkan ke Keranjang Array (Belum menyentuh Database)
                 if (empty($satuan)) {
-                    RabItem::create([
+                    $itemsToInsert[] = [
                         'rab_category_id' => $currentCategory->id,
                         'kode_pekerjaan' => $kode,
                         'uraian_pekerjaan' => $uraian,
-                        'is_subheader' => true
-                    ]);
+                        'satuan' => null,
+                        'volume' => null,
+                        'harga_satuan' => null,
+                        'total_harga' => 0,
+                        'is_subheader' => true,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
                 } else {
                     $hargaBersih = is_numeric($hargaSatuan) ? (float) $hargaSatuan : (float) preg_replace('/[^0-9]/', '', $hargaSatuan);
                     $volumeBersih = is_numeric($volume) ? (float) $volume : (float) str_replace(',', '.', $volume);
 
-                    RabItem::create([
+                    $itemsToInsert[] = [
                         'rab_category_id' => $currentCategory->id,
                         'kode_pekerjaan' => $kode,
                         'uraian_pekerjaan' => $uraian,
@@ -283,14 +304,26 @@ class RabController extends Controller
                         'volume' => $volumeBersih,
                         'harga_satuan' => $hargaBersih,
                         'total_harga' => $volumeBersih * $hargaBersih,
-                        'is_subheader' => false
-                    ]);
+                        'is_subheader' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
                 }
             }
 
-            return response()->json(['status' => 'success', 'message' => 'Data RAB berhasil diimpor.']);
+            // 3. Simpan Sisa Keranjang Terakhir (Bulk Insert)
+            if (!empty($itemsToInsert)) {
+                foreach (array_chunk($itemsToInsert, 500) as $chunk) {
+                    RabItem::insert($chunk);
+                }
+            }
+
+            DB::commit(); // 4. TUTUP DAN SIMPAN SELURUH DATA KE MYSQL SEKALI JALAN
+
+            return response()->json(['status' => 'success', 'message' => 'Data RAB berhasil diimpor dengan sangat cepat.']);
 
         } catch (\Exception $e) {
+            DB::rollBack(); // Batalkan semua jika ada error
             return response()->json(['status' => 'error', 'message' => 'Gagal mengimpor RAB: ' . $e->getMessage()], 500);
         }
     }
