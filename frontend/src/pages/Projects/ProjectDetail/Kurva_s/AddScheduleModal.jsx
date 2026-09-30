@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../../../api';
-import { Save, Loader2, Target, Calendar, Plus, Trash2, CalendarDays, X } from 'lucide-react';
+import { Save, Loader2, Target, Calendar, Plus, Trash2, CalendarDays } from 'lucide-react';
 
-export default function AddScheduleModal({ projectId, projectData, onClose, onSuccess }) {
+export default function AddScheduleModal({ projectId, projectData, projectBounds, onSuccess }) {
+  const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   const [weeksForm, setWeeksForm] = useState([
     { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
   ]);
 
-  // Ekstrak batas tanggal proyek untuk filter kalender
-  const projectStart = projectData?.tanggal_mulai ? projectData.tanggal_mulai.substring(0, 10) : '';
-  const projectEnd = projectData?.tanggal_selesai ? projectData.tanggal_selesai.substring(0, 10) : '';
+  // Mengambil batas absolut dari prop projectBounds (dari Database)
+  const projectStart = projectBounds?.start || '';
+  const projectEnd = projectBounds?.end || '';
 
   const handleAddWeek = () => {
     const lastWeek = weeksForm[weeksForm.length - 1];
@@ -74,6 +76,7 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-slate-800 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
         
+        {/* HEADER MODAL - Tanda X Dihapus sesuai permintaan */}
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
             <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2">
@@ -81,7 +84,6 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
             </h3>
             <p className="text-xs text-slate-500 mt-1">Proyek: <strong className="text-slate-700 dark:text-slate-300">{projectData?.nama_proyek}</strong></p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-6 h-6"/></button>
         </div>
 
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4 bg-slate-50 dark:bg-slate-900/20">
@@ -111,11 +113,10 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
-                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
                         <input 
                           type="date" 
-                          min={projectStart}
-                          max={week.tanggal_selesai || projectEnd}
+                          min={projectStart} 
+                          max={week.tanggal_selesai || projectEnd} 
                           value={week.tanggal_mulai} 
                           onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
@@ -123,11 +124,10 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
-                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
                         <input 
                           type="date" 
-                          min={week.tanggal_mulai || projectStart}
-                          max={projectEnd}
+                          min={week.tanggal_mulai || projectStart} 
+                          max={projectEnd} 
                           value={week.tanggal_selesai} 
                           onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
@@ -164,12 +164,14 @@ export default function AddScheduleModal({ projectId, projectData, onClose, onSu
           </button>
         </div>
 
+        {/* FOOTER MODAL - Fungsi tombol diubah ke navigasi back (-1) */}
         <div className="px-6 py-5 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 text-xs">Tutup</button>
+          <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Kembali</button>
           <button onClick={handleSaveSchedule} disabled={isSaving} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks
           </button>
         </div>
+
       </div>
     </div>
   );

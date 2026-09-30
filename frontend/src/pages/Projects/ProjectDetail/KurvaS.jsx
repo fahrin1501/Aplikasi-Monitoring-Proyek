@@ -92,6 +92,7 @@ export default function KurvaS({ selectedProject }) {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
 
+  // --- FETCH DATA ---
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
@@ -103,15 +104,15 @@ export default function KurvaS({ selectedProject }) {
       let rawSchedules = data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
 
-      if (fetchedSchedules.length === 0 && canCreateData) {
-        setShowAddScheduleModal(true);
-      }
-
       if (data?.project_info) {
         setProjectBounds({
           start: data.project_info.tanggal_mulai ? data.project_info.tanggal_mulai.substring(0, 10) : '',
           end: data.project_info.tanggal_selesai ? data.project_info.tanggal_selesai.substring(0, 10) : ''
         });
+      }
+
+      if (fetchedSchedules.length === 0 && canCreateData) {
+        setShowAddScheduleModal(true);
       }
 
       const wMap = {};
@@ -717,7 +718,19 @@ export default function KurvaS({ selectedProject }) {
       {/* MODAL & POPUPS                             */}
       {/* ========================================== */}
       
-      {/* MODAL EDIT MINGGUAN (INTERNAL MATRIKS) */}
+      {/* MODAL SETUP AWAL (JIKA JADWAL KOSONG) */}
+      {showAddScheduleModal && (
+        <AddScheduleModal 
+          projectId={projectId} 
+          projectData={project}
+          projectBounds={projectBounds} // Inject batas dari Backend
+          onSuccess={() => {
+            setShowAddScheduleModal(false);
+            fetchSchedule();
+          }} 
+        />
+      )}
+
       {weekModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
@@ -731,7 +744,6 @@ export default function KurvaS({ selectedProject }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                {/* PERBAIKAN: Pembatas berdasarkan Project Bounds */}
                 <input 
                   type="date" 
                   min={projectBounds.start}
@@ -743,7 +755,6 @@ export default function KurvaS({ selectedProject }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                {/* PERBAIKAN: Pembatas berdasarkan Project Bounds */}
                 <input 
                   type="date" 
                   min={weekModal.tanggal_awal || projectBounds.start}
