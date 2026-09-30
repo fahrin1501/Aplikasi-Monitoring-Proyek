@@ -497,7 +497,7 @@ export default function KurvaS({ selectedProject }) {
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Matriks Waktu</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-500/20 text-blue-400 rounded-md animate-pulse border border-blue-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
@@ -723,7 +723,7 @@ export default function KurvaS({ selectedProject }) {
         <AddScheduleModal 
           projectId={projectId} 
           projectData={project}
-          projectBounds={projectBounds} // Inject batas dari Backend
+          projectBounds={projectBounds}
           onSuccess={() => {
             setShowAddScheduleModal(false);
             fetchSchedule();

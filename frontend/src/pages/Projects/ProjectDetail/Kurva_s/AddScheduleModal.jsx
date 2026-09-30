@@ -6,11 +6,12 @@ import { Save, Loader2, Target, Calendar, Plus, Trash2, CalendarDays } from 'luc
 export default function AddScheduleModal({ projectId, projectData, projectBounds, onSuccess }) {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
+  
   const [weeksForm, setWeeksForm] = useState([
     { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
   ]);
 
-  // Mengambil batas absolut dari prop projectBounds (dari Database)
+  // Ekstrak batas absolut dari database untuk membatasi input kalender
   const projectStart = projectBounds?.start || '';
   const projectEnd = projectBounds?.end || '';
 
@@ -62,12 +63,12 @@ export default function AddScheduleModal({ projectId, projectData, projectBounds
         target_kumulatif: parseFloat(w.target_kumulatif) || 0,
       }));
 
-      await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
+      // Menggunakan full_sync: true agar menimpa sisa draft yang mungkin ada
+      await api.post(`/projects/${projectId}/schedules`, { full_sync: true, weeks: payloadWeeks });
       alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
       onSuccess(); 
     } catch (error) {
       alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
-    } finally {
       setIsSaving(false);
     }
   };
@@ -76,7 +77,7 @@ export default function AddScheduleModal({ projectId, projectData, projectBounds
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-slate-800 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
         
-        {/* HEADER MODAL - Tanda X Dihapus sesuai permintaan */}
+        {/* HEADER MODAL (Tombol X dihilangkan sesuai permintaan) */}
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
             <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2">
@@ -115,8 +116,8 @@ export default function AddScheduleModal({ projectId, projectData, projectBounds
                         <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
                         <input 
                           type="date" 
-                          min={projectStart} 
-                          max={week.tanggal_selesai || projectEnd} 
+                          min={projectStart}
+                          max={week.tanggal_selesai || projectEnd}
                           value={week.tanggal_mulai} 
                           onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
@@ -126,8 +127,8 @@ export default function AddScheduleModal({ projectId, projectData, projectBounds
                         <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
                         <input 
                           type="date" 
-                          min={week.tanggal_mulai || projectStart} 
-                          max={projectEnd} 
+                          min={week.tanggal_mulai || projectStart}
+                          max={projectEnd}
                           value={week.tanggal_selesai} 
                           onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
@@ -164,9 +165,11 @@ export default function AddScheduleModal({ projectId, projectData, projectBounds
           </button>
         </div>
 
-        {/* FOOTER MODAL - Fungsi tombol diubah ke navigasi back (-1) */}
+        {/* FOOTER MODAL - Mengarahkan kembali ke Tab Data Utama jika dibatalkan */}
         <div className="px-6 py-5 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex justify-end gap-3">
-          <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Kembali</button>
+          <button onClick={() => navigate(`/projects/${projectId}/data`, { state: projectData })} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-600 text-xs shadow-sm transition-colors">
+            Kembali
+          </button>
           <button onClick={handleSaveSchedule} disabled={isSaving} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks
           </button>
