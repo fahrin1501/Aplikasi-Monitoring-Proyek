@@ -40,7 +40,6 @@ class ProjectScheduleController extends Controller
             $rabData = [];
             foreach ($rabCategories as $cat) {
                 $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
-                // HANYA KIRIM DIVISI JIKA ADA ITEM TERLAPOR DI DALAMNYA
                 if ($items->count() > 0) {
                     $rabData[] = [
                         'id' => $cat->id,
@@ -53,10 +52,8 @@ class ProjectScheduleController extends Controller
 
             // 4. AMBIL TARGET JADWAL MINGGUAN (Macro)
             $schedules = DB::table('project_schedules')
-                ->join('rab_items', 'project_schedules.rab_item_id', '=', 'rab_items.id')
-                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                ->where('rab_categories.project_id', $projectId)
-                ->select('project_schedules.minggu_ke', 'project_schedules.bulan', 'project_schedules.tanggal_awal', 'project_schedules.tanggal_akhir', 'project_schedules.target_kumulatif')
+                ->where('project_id', $projectId)
+                ->select('minggu_ke', 'bulan', 'tanggal_awal', 'tanggal_akhir', 'target_kumulatif')
                 ->distinct()
                 ->get();
 
@@ -113,8 +110,8 @@ class ProjectScheduleController extends Controller
                 'status' => 'success',
                 'data' => [
                     'project_info' => $projectInfo,
-                    'grand_total_rab' => (float) $grandTotalRAB, // DISISIPKAN KE FRONTEND
-                    'rab_data' => $rabData, // SUDAH BERSIH DARI SAMPAH KOSONG
+                    'grand_total_rab' => (float) $grandTotalRAB,
+                    'rab_data' => $rabData,
                     'schedules' => $schedules,
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,
@@ -139,9 +136,11 @@ class ProjectScheduleController extends Controller
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
+            // OPTIMASI: Abaikan item yang is_subheader = true
             $allRabItemIds = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
+                ->where('rab_items.is_subheader', false)
                 ->pluck('rab_items.id')
                 ->toArray();
 
@@ -149,12 +148,13 @@ class ProjectScheduleController extends Controller
                 return response()->json(['status' => 'error', 'message' => 'Data RAB Kosong! Silakan input RAB terlebih dahulu.'], 400);
             }
 
+            // OPTIMASI SUPER CEPAT: Hapus pakai project_id
             if ($isFullSync) {
-                DB::table('project_schedules')->whereIn('rab_item_id', $allRabItemIds)->delete();
+                DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
                 foreach ($weeks as $week) {
                     DB::table('project_schedules')
-                        ->whereIn('rab_item_id', $allRabItemIds)
+                        ->where('project_id', $projectId)
                         ->where('minggu_ke', $week['minggu_ke'])
                         ->delete();
                 }
@@ -207,16 +207,8 @@ class ProjectScheduleController extends Controller
     {
         try {
             DB::beginTransaction();
-            $rabItemIds = DB::table('rab_items')
-                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                ->where('rab_categories.project_id', $projectId)
-                ->pluck('rab_items.id')
-                ->toArray();
-
-            if (!empty($rabItemIds)) {
-                DB::table('project_schedules')->whereIn('rab_item_id', $rabItemIds)->delete();
-            }
-
+            // OPTIMASI SUPER CEPAT: Hapus hanya menggunakan project_id
+            DB::table('project_schedules')->where('project_id', $projectId)->delete();
             DB::commit();
             return response()->json(['status' => 'success', 'message' => 'Seluruh Jadwal Matriks berhasil dikosongkan.']);
         } catch (Throwable $e) {

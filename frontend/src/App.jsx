@@ -20,10 +20,6 @@ import ProjectRAB from './pages/Projects/ProjectDetail/ProjectRAB';
 import KurvaS from './pages/Projects/ProjectDetail/KurvaS';
 import PetaGIS from './pages/Projects/ProjectDetail/PetaGIS';
 
-// IMPORT MODUL JADWAL
-import AddSchedule from './pages/Schedules/AddSchedule';
-import ScheduleData from './pages/Schedules/ScheduleData';
-
 // Import Modul Laporan
 import LaporanList from './pages/Laporan/LaporanList';
 import AddLaporan from './pages/Laporan/AddLaporan';
@@ -57,9 +53,9 @@ export default function App() {
         <Route path="/projects/:id/kurva-s" element={<KurvaS />} />
         <Route path="/projects/:id/peta-gis" element={<PetaGIS />} />
 
-        {/* MODUL JADWAL */}
-        <Route path="/schedules/:id/data/input" element={<AddSchedule />} />
-        <Route path="/schedules/:id/data" element={<ScheduleData />} />
+        {/* ALIAS RUTE JADWAL LAMA -> DIARAHKAN LANGSUNG KE KURVA S (All-in-One) */}
+        <Route path="/schedules/:id/data/input" element={<KurvaS />} />
+        <Route path="/schedules/:id/data" element={<KurvaS />} />
         
         {/* MODUL LAPORAN */}
         <Route path="/laporan" element={<LaporanList />} />
