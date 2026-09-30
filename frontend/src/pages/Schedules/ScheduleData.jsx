@@ -3,7 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../api';
 import { 
   ArrowLeft, Save, Loader2, Edit3, X, 
-  ListPlus, CheckCircle2, TrendingUp, CalendarDays
+  ListPlus, CheckCircle2, TrendingUp, CalendarDays,
+  Info, FileSpreadsheet, Compass
 } from 'lucide-react';
 import ScheduleWorkData from './ScheduleWorkData';
 
@@ -171,51 +172,72 @@ export default function ScheduleData() {
   return (
     <div className="w-full space-y-4 md:space-y-5 pb-20 relative animate-fade-in flex flex-col min-h-screen">
       
-      <div className="flex flex-col lg:flex-row justify-between gap-4 shrink-0">
-        <div className="flex items-start gap-3 shrink-0">
-          <button onClick={() => navigate('/projects')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm text-slate-600 dark:text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
-          <div>
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
-              Matriks Time Schedule
-              {isEditMode && <span className="px-2 py-0.5 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse font-extrabold tracking-wider border border-amber-200 dark:border-amber-500/30 shadow-sm">DRAFT MODE</span>}
+      {/* HEADER NAVIGASI */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
+        <div className="flex items-start lg:items-center gap-3 shrink-0">
+          <button onClick={() => navigate('/projects')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-start lg:items-center gap-1.5 flex-wrap">
+              <span>Matriks Time Schedule</span>
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
             </h1>
-            <p className="text-[10px] lg:text-xs text-slate-500 mt-1 font-medium">{projectData?.nama_proyek}</p>
+            <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              <span className="truncate font-medium">{projectData?.nama_proyek}</span>
+              <span className="text-slate-400 mx-0.5">•</span>
+              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
+                {projectData?.kategori || 'Belum Ditentukan'}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
-          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all">
-            
-            {!isEditMode && (
-              <button 
-                disabled={isLoading} 
-                onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} 
-                className="flex items-center justify-center flex-1 lg:flex-none gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-colors shadow-md disabled:opacity-50"
-              >
-                <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Lihat Kurva S</span>
-              </button>
-            )}
-            
-            {canCreateData && !isEditMode && <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1.5 shrink-0"></div>}
-            
-            {canCreateData && isEditMode ? (
-              <>
-                <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50">
-                  <ListPlus className="w-3.5 h-3.5" /> Tambah Minggu
-                </button>
-                <button onClick={handleBatalEdit} disabled={isSaving} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-colors border border-slate-300 dark:border-slate-600 shadow-sm">
-                  <X className="w-3.5 h-3.5" /> Batal
-                </button>
-                <button onClick={() => setSaveModal(true)} disabled={isSaving} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg transition-colors shadow-sm">
-                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Simpan
-                </button>
-              </>
-            ) : canCreateData ? (
-              <button onClick={() => setIsEditMode(true)} disabled={isLoading || (Array.isArray(localWeeks) && localWeeks.length === 0)} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 px-3 py-2 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50">
-                <Edit3 className="w-3.5 h-3.5" /> Mode Edit Target
-              </button>
-            ) : null}
+        <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+          
+          {/* ACTION BUTTONS */}
+          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
+             {canCreateData && isEditMode && (
+               <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                 <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal
+               </button>
+             )}
+             {canCreateData && (
+               <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-200'}`}>
+                 {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
+                 <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Target')}</span>
+               </button>
+             )}
+             {canCreateData && isEditMode && (
+                <>
+                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+                   <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                     <ListPlus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Tambah Minggu</span>
+                   </button>
+                </>
+             )}
           </div>
+
+          {/* TAB NAVIGASI MODUL UTAMA */}
+          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
+            <button onClick={() => navigate(`/projects/${id}/data`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+              <Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span>
+            </button>
+            <button onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+              <FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span>
+            </button>
+            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap">
+              <CalendarDays className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Jadwal</span>
+            </button>
+            <button onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+              <TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S</span>
+            </button>
+            <button onClick={() => navigate(`/projects/${id}/peta-gis`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
+              <Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -240,27 +262,34 @@ export default function ScheduleData() {
       {/* MODAL PENGATURAN TANGGAL MINGGUAN */}
       {weekModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 mb-5">
-              <CalendarDays className="w-5 h-5" /> Atur Info Minggu Ke-{weekModal.minggu_ke}
-            </h3>
-            <div className="space-y-4 mb-6">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-emerald-500"/> Atur Minggu Ke-{weekModal.minggu_ke}
+              </h3>
+              <button onClick={() => setWeekModal({ show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="p-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- (Opsional)</label>
-                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
+                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:light_dark]" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" />
+                <input type="date" value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:light_dark]" />
               </div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex justify-center items-center gap-2 text-xs transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <button onClick={() => setWeekModal({ show: false })} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
+              <button onClick={saveWeekModal} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-colors">
+                <Save className="w-3.5 h-3.5"/> Simpan Tanggal
+              </button>
             </div>
           </div>
         </div>
@@ -270,12 +299,16 @@ export default function ScheduleData() {
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-amber-50 dark:bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-500/20"><Save className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div>
+            <div className="w-14 h-14 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200 dark:border-blue-500/30">
+              <Save className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Target rencana mingguan akan diperbarui dan diterapkan langsung ke database S-Curve.</p>
             <div className="flex gap-3">
               <button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button>
+              <button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors">
+                <CheckCircle2 className="w-4 h-4" /> Ya, Simpan
+              </button>
             </div>
           </div>
         </div>
