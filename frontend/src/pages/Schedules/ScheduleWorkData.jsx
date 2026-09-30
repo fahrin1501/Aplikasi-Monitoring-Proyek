@@ -50,21 +50,21 @@ export default function ScheduleWorkData({
           <table className="w-full text-left border-collapse min-w-max text-xs">
             
             <thead className="sticky top-0 z-30 shadow-sm">
-              <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
-                <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan (Realisasi Aktual)</th>
+              <tr className="bg-slate-100 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Kode</th>
+                <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-40 bg-slate-100 dark:bg-slate-900/95 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Uraian Pekerjaan (Realisasi Aktual)</th>
                 <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
                 
                 {weeksArray.map(w => (
-                  <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
+                  <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px]">
                     <div className="flex flex-col items-center justify-center h-full gap-1.5">
                       <span>M-{w}</span>
                       {isEditMode && canCreateData && (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openWeekModal(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-blue-500 rounded hover:bg-blue-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Atur Tanggal">
+                          <button onClick={() => openWeekModal(w)} className="p-1 bg-amber-100 hover:bg-amber-200 text-amber-600 dark:bg-amber-500/20 dark:hover:bg-amber-500/40 dark:text-amber-400 rounded transition-colors shadow-sm" title="Atur Tanggal">
                             <CalendarDays className="w-3 h-3" />
                           </button>
-                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Hapus Minggu Ini">
+                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-rose-100 hover:bg-rose-200 text-rose-600 dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:text-rose-400 rounded transition-colors shadow-sm" title="Hapus Minggu Ini">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
@@ -73,27 +73,28 @@ export default function ScheduleWorkData({
                   </th>
                 ))}
 
+                {/* KOLOM BARU KHUSUS TAMBAH MINGGU */}
                 {isEditMode && canCreateData && (
-                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
-                     <button onClick={() => openWeekModal()} className="w-full py-1.5 flex flex-col items-center justify-center gap-1 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-500/50 shadow-sm">
+                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 min-w-[80px] bg-emerald-50/50 dark:bg-emerald-900/10 align-middle">
+                     <button onClick={() => openWeekModal()} className="w-full py-2 flex flex-col items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-600/50 shadow-sm">
                        <Plus className="w-4 h-4" />
                        <span className="text-[9px] font-bold">Baru</span>
                      </button>
                   </th>
                 )}
 
-                <th className="p-3 w-[100px] text-right">Kumulatif Aktual</th>
+                <th className="p-3 w-[100px] text-right font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">Kumulatif Aktual</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
               {safeRabData.length === 0 ? (
                 <tr>
-                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 5 : 4)} className="p-8 text-center bg-white dark:bg-slate-800/40">
-                    <div className="flex flex-col items-center justify-center max-w-md mx-auto border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8">
-                      <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
-                      <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
+                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 5 : 4)} className="p-12 text-center bg-slate-50/50 dark:bg-slate-800/40">
+                    <div className="flex flex-col items-center justify-center">
+                      <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+                      <h4 className="font-bold text-slate-600 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs max-w-md mx-auto leading-relaxed">
                         Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui.
                       </p>
                     </div>
@@ -104,9 +105,9 @@ export default function ScheduleWorkData({
                   const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
                   return (
                     <React.Fragment key={cat.id || Math.random()}>
-                      <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700/50">
-                        <td className="p-2.5 font-bold text-[10px] text-slate-700 dark:text-slate-300 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-slate-50 dark:bg-slate-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
-                        <td colSpan={weeksArray.length + extraCols} className="p-2.5 font-extrabold text-[11px] text-slate-800 dark:text-white uppercase sticky left-[80px] z-20 bg-slate-50 dark:bg-slate-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
+                      <tr className="bg-amber-50/50 dark:bg-amber-900/10">
+                        <td className="p-2.5 font-bold text-[10px] text-amber-700 dark:text-amber-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
+                        <td colSpan={weeksArray.length + extraCols} className="p-2.5 font-extrabold text-[11px] text-amber-700 dark:text-amber-500 uppercase sticky left-[80px] z-20 bg-amber-50 dark:bg-[#2c2415] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
                       </tr>
                       
                       {safeItems.map(item => {
@@ -142,6 +143,7 @@ export default function ScheduleWorkData({
                               );
                             })}
 
+                            {/* PLACEHOLDER KOSONG UNTUK KOLOM TAMBAH SAAT EDIT MODE */}
                             {isEditMode && canCreateData && (
                               <td className="p-2 border-r border-slate-200 dark:border-slate-700/60 bg-emerald-50/5 dark:bg-emerald-900/5"></td>
                             )}
@@ -159,49 +161,49 @@ export default function ScheduleWorkData({
             </tbody>
 
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-              <tr className="bg-emerald-50 dark:bg-emerald-500/5 border-t-2 border-emerald-200 dark:border-emerald-500/20">
-                <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] border-r border-emerald-200 dark:border-emerald-500/20 sticky left-0 z-40 bg-emerald-50 dark:bg-emerald-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                  Total Aktual / Realisasi
+              <tr className="bg-emerald-50/80 dark:bg-emerald-900/20 border-t-2 border-emerald-200 dark:border-emerald-800/50">
+                <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-700 dark:text-emerald-400 uppercase text-[10px] sticky left-0 z-40 bg-emerald-50/90 dark:bg-[#064e3b] border-r border-emerald-200 dark:border-emerald-800/50">
+                  Total Aktual / Realisasi (Mingguan)
                 </td>
                 {weeksArray.map(w => {
                   const weekActualSum = getSafeFloat(scheduleData?.weekly_actual?.[w]);
                   return (
-                    <td key={w} className="p-3 text-center border-r border-emerald-200 dark:border-emerald-500/20 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <td key={w} className="p-3 text-center border-r border-emerald-200 dark:border-emerald-800/50 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                       {weekActualSum > 0 ? weekActualSum.toFixed(2) : '-'}
                     </td>
                   );
                 })}
 
                 {isEditMode && canCreateData && (
-                  <td className="border-r border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
+                  <td className="border-r border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
                 )}
 
-                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/40">
                   {getSafeFloat(Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + getSafeFloat(val), 0)).toFixed(2)}%
                 </td>
               </tr>
 
-              <tr className="bg-blue-50 dark:bg-blue-500/5 border-t border-blue-200 dark:border-blue-500/20">
-                <td colSpan="3" className="p-3 text-right font-extrabold text-blue-600 dark:text-blue-400 uppercase text-[10px] border-r border-blue-200 dark:border-blue-500/20 sticky left-0 z-40 bg-blue-50 dark:bg-blue-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                  Target Kumulatif Mingguan
+              <tr className="bg-blue-50 dark:bg-blue-950/20 border-t border-blue-200 dark:border-blue-800/50">
+                <td colSpan="3" className="p-3 text-right font-extrabold text-blue-700 dark:text-blue-400 uppercase text-[10px] sticky left-0 z-40 bg-blue-50 dark:bg-[#172554] border-r border-blue-200 dark:border-blue-800/50">
+                  Target Kumulatif Mingguan (Plan)
                 </td>
                 {weeksArray.map(w => {
                   const existingTarget = getSafeFloat(safeLocalWeeks.find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
                   const displayCumulative = isEditMode ? existingTarget : existingTarget.toFixed(2);
 
                   return (
-                    <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-500/20">
+                    <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-[#172554]">
                       {isEditMode ? (
                         <div className="flex items-center justify-center">
                           <input 
                             type="text" 
                             value={displayCumulative}
                             onChange={(e) => handleWeekCumulativeChange(w, e.target.value)}
-                            className="w-14 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-md px-1.5 py-1 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-colors text-[10px]"
+                            className="w-14 bg-white dark:bg-slate-900 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg border border-blue-300 dark:border-blue-600 py-1 text-[10px] shadow-inner transition-colors"
                           />
                         </div>
                       ) : (
-                        <span className="font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400">
+                        <span className="font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400">
                           {existingTarget > 0 ? existingTarget.toFixed(2) : '-'}
                         </span>
                       )}
@@ -210,10 +212,10 @@ export default function ScheduleWorkData({
                 })}
 
                 {isEditMode && canCreateData && (
-                  <td className="border-r border-blue-200 dark:border-blue-500/20 bg-blue-50/20 dark:bg-blue-900/10"></td>
+                  <td className="border-r border-blue-200 dark:border-blue-800/50 bg-blue-50/20 dark:bg-blue-900/10"></td>
                 )}
 
-                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400">-</td>
+                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/40">-</td>
               </tr>
             </tfoot>
           </table>
@@ -228,23 +230,22 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
-      {/* MODAL RINCIAN HARIAN */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white uppercase flex gap-2"><Activity className="w-4 h-4 text-emerald-500" /> BUKTI REALISASI HARIAN (M-{detailModal.weekNum})</h3>
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-emerald-50/50 dark:bg-emerald-900/10 flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 uppercase flex gap-2"><Activity className="w-4 h-4" /> BUKTI REALISASI HARIAN (Minggu Ke-{detailModal.weekNum})</h3>
               <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5"/></button>
             </div>
             
-            <div className="overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-slate-800/80 p-5">
+            <div className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50 dark:bg-slate-900/20 p-5">
                {(detailModal.realizations || []).length === 0 ? (
                  <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/60 rounded-xl">
                    <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
                    <p className="text-slate-500 dark:text-slate-400 text-xs text-center">Belum ada progres harian yang diinput oleh pengawas untuk pekerjaan ini.</p>
                  </div>
                ) : (
-                 <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/50 shadow-sm">
+                 <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden bg-white dark:bg-slate-800/80 shadow-sm">
                    <table className="w-full text-left border-collapse">
                      <thead className="bg-slate-100 dark:bg-slate-900/80 text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700/60">
                        <tr>
@@ -272,8 +273,8 @@ export default function ScheduleWorkData({
                  </div>
                )}
             </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end shrink-0">
-              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="px-6 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-xs shadow-sm transition-colors">Tutup Rincian</button>
+            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end shrink-0">
+              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-xs shadow-sm transition-colors">Tutup Rincian</button>
             </div>
           </div>
         </div>
