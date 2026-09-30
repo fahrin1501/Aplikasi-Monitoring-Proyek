@@ -5,12 +5,11 @@ import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
   Download, CheckCircle2, AlertTriangle, Loader2, Filter, X,
-  CalendarDays, Edit3, Save, ListPlus
+  CalendarDays, Edit3, Save, ListPlus, Plus, Calendar, Target, Trash2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import ScheduleWorkData from './Kurva_s/ScheduleWorkData';
-import AddScheduleModal from './Kurva_s/AddScheduleModal';
 
 export default function KurvaS({ selectedProject }) {
   const navigate = useNavigate();
@@ -32,20 +31,23 @@ export default function KurvaS({ selectedProject }) {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- STATE DATA ---
+  // --- STATE DATA UTAMA ---
   const [isLoading, setIsLoading] = useState(true);
   const [scheduleData, setScheduleData] = useState(null);
   const [grandTotalRAB, setGrandTotalRAB] = useState(0);
 
-  // --- STATE EDIT SCHEDULE (MACRO) ---
+  // --- STATE SETUP JADWAL AWAL (INLINE FORM) ---
+  const [isSavingInitial, setIsSavingInitial] = useState(false);
+  const [weeksForm, setWeeksForm] = useState([
+    { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
+  ]);
+
+  // --- STATE EDIT SCHEDULE MATRIKS (MACRO) ---
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [localWeeks, setLocalWeeks] = useState([]); 
   const [weekModal, setWeekModal] = useState({ show: false, minggu_ke: '', bulan: '', tanggal_awal: '', tanggal_akhir: '' });
-  
-  // STATE MODAL SETUP AWAL
-  const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
 
   // --- STATE CHART & FILTER ---
   const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
@@ -111,10 +113,6 @@ export default function KurvaS({ selectedProject }) {
         });
       }
 
-      if (fetchedSchedules.length === 0 && canCreateData) {
-        setShowAddScheduleModal(true);
-      }
-
       const wMap = {};
       fetchedSchedules.forEach(s => {
         const wNum = parseInt(s.minggu_ke);
@@ -139,6 +137,70 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { if (projectId) fetchSchedule(); }, [projectId]);
 
+  // =======================================================================
+  // FUNGSI INLINE FORM (SETUP JADWAL AWAL KETIKA KOSONG)
+  // =======================================================================
+  const handleAddInitialWeek = () => {
+    const lastWeek = weeksForm[weeksForm.length - 1];
+    const nextMingguKe = lastWeek && lastWeek.minggu_ke ? parseInt(lastWeek.minggu_ke) + 1 : weeksForm.length + 1;
+    setWeeksForm([
+      ...weeksForm, 
+      { id: Date.now(), bulan: lastWeek ? lastWeek.bulan : '1', minggu_ke: nextMingguKe.toString(), tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
+    ]);
+  };
+
+  const handleRemoveInitialWeek = (idToRemove) => {
+    if (weeksForm.length === 1) return alert("Minimal harus ada 1 minggu target!");
+    setWeeksForm(weeksForm.filter(w => w.id !== idToRemove));
+  };
+
+  const handleInitialWeekChange = (id, field, value) => {
+    setWeeksForm(weeksForm.map(w => {
+      if (w.id === id) {
+        if (field === 'target_kumulatif') {
+          const val = value.replace(',', '.');
+          if (isNaN(val) && val !== '.') return w;
+          return { ...w, [field]: val };
+        }
+        return { ...w, [field]: value };
+      }
+      return w;
+    }));
+  };
+
+  const handleSaveInitialSchedule = async () => {
+    for (let i = 0; i < weeksForm.length; i++) {
+      const w = weeksForm[i];
+      if (!w.minggu_ke || !w.tanggal_mulai || !w.tanggal_selesai) {
+        return alert(`Mohon lengkapi data Minggu Ke, Tanggal Mulai, dan Tanggal Selesai pada baris ke-${i + 1}!`);
+      }
+      const targetVal = parseFloat(w.target_kumulatif) || 0;
+      if (targetVal <= 0) return alert(`Target Kumulatif pada baris ke-${i + 1} harus diisi dan lebih dari 0!`);
+    }
+
+    setIsSavingInitial(true);
+    try {
+      const payloadWeeks = weeksForm.map(w => ({
+        minggu_ke: parseInt(w.minggu_ke),
+        bulan: parseInt(w.bulan) || null,
+        tanggal_awal: w.tanggal_mulai,
+        tanggal_akhir: w.tanggal_selesai,
+        target_kumulatif: parseFloat(w.target_kumulatif) || 0,
+      }));
+
+      await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
+      alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
+      fetchSchedule(); // Render ulang tampilan ke mode Matriks & Grafik
+    } catch (error) {
+      alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
+    } finally {
+      setIsSavingInitial(false);
+    }
+  };
+
+  // =======================================================================
+  // FUNGSI EDIT MATRIKS (JIKA JADWAL SUDAH ADA)
+  // =======================================================================
   const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(); };
 
   const handleWeekCumulativeChange = (weekNum, value) => {
@@ -201,6 +263,7 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
+  // --- LOGIKA FILTER GRAFIK DINAMIS ---
   const getAvailableMonths = () => {
     if (!projectBounds.start || !projectBounds.end) return [];
     const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
@@ -583,14 +646,14 @@ export default function KurvaS({ selectedProject }) {
               </button>
             )}
 
-            {canCreateData && (
+            {canCreateData && !isScheduleEmpty && (
                <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
                  {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
                  <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Target')}</span>
                </button>
             )}
 
-            {canCreateData && isEditMode && (
+            {canCreateData && isEditMode && !isScheduleEmpty && (
                <>
                   <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                   <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
@@ -599,7 +662,7 @@ export default function KurvaS({ selectedProject }) {
                </>
             )}
 
-            {!isGuest && !isEditMode && (
+            {!isGuest && !isEditMode && !isScheduleEmpty && (
               <>
                 <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                 <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
@@ -631,7 +694,7 @@ export default function KurvaS({ selectedProject }) {
       </div>
 
       {/* TAMPILAN LABEL FILTER AKTIF DI BAWAH HEADER */}
-      {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && (
+      {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && !isScheduleEmpty && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
             Tampilan Grafik: {getActiveFilterLabel()}
@@ -650,22 +713,122 @@ export default function KurvaS({ selectedProject }) {
             Memproses Dashboard S-Curve...
           </p>
         </div>
-      ) : (
-        <div className="animate-fade-in space-y-5">
-          {isScheduleEmpty && (
-            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
-              <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0">
-                <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3>
-                <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                  Anda sudah memiliki data RAB, namun <strong>Time Schedule</strong> belum didistribusikan. Grafik Kurva S dan Parameter Rencana akan tetap terlihat kosong. Silakan atur jadwal terlebih dahulu.
-                </p>
-              </div>
+      ) : isScheduleEmpty ? (
+        
+        /* ========================================== */
+        /* INLINE FORM: SETUP JADWAL AWAL             */
+        /* ========================================== */
+        <div className="animate-fade-in space-y-4">
+          <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
+            <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0">
+              <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-500" />
             </div>
-          )}
+            <div>
+              <h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3>
+              <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                Grafik Kurva S dan Matriks belum bisa ditampilkan. Silakan atur <strong>Jadwal Minggu Pertama</strong> di bawah ini untuk memulai.
+              </p>
+            </div>
+          </div>
 
+          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-5 md:p-6 shadow-sm">
+            <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2 mb-6">
+              <CalendarDays className="w-5 h-5"/> Setup Jadwal Pertama
+            </h3>
+
+            <div className="space-y-4">
+              {weeksForm.map((week, index) => (
+                <div key={week.id} className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative transition-all">
+                  
+                  <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4 gap-2">
+                    <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
+                      Minggu Ke-{week.minggu_ke || (index+1)}
+                    </h2>
+                    {weeksForm.length > 1 && (
+                      <button onClick={() => handleRemoveInitialWeek(week.id)} className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-600 text-[10px] font-medium rounded-lg transition-all border border-rose-200 dark:border-rose-500/20"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-4">
+                       <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> Rentang Waktu</label>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-medium text-slate-500">Bulan Ke-</label>
+                            <input type="number" min="1" value={week.bulan} onChange={(e) => handleInitialWeekChange(week.id, 'bulan', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-medium text-slate-500">Minggu Ke-</label>
+                            <input type="number" min="1" value={week.minggu_ke} onChange={(e) => handleInitialWeekChange(week.id, 'minggu_ke', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
+                            <input 
+                              type="date" 
+                              min={projectBounds.start}
+                              max={week.tanggal_selesai || projectBounds.end}
+                              value={week.tanggal_mulai} 
+                              onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
+                            <input 
+                              type="date" 
+                              min={week.tanggal_mulai || projectBounds.start}
+                              max={projectBounds.end}
+                              value={week.tanggal_selesai} 
+                              onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
+                            />
+                          </div>
+                       </div>
+                     </div>
+
+                     <div className="space-y-4 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2"><Target className="w-3.5 h-3.5" /> Target S-Curve</label>
+                        <div className="space-y-3 pt-1">
+                          <label className="text-[10px] font-medium text-slate-500">Target Kumulatif (Plan) <span className="text-rose-500">*</span></label>
+                          <div className="flex items-center gap-3">
+                             <input 
+                               type="text" 
+                               placeholder="0.00"
+                               value={week.target_kumulatif}
+                               onChange={(e) => handleInitialWeekChange(week.id, 'target_kumulatif', e.target.value)}
+                               className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/50 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-600 dark:text-emerald-400 py-3 shadow-inner"
+                             />
+                             <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
+                          </div>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+              ))}
+              
+              <button 
+                onClick={handleAddInitialWeek}
+                className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-500 rounded-2xl bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-blue-500 font-bold text-xs flex justify-center items-center gap-2 transition-all shadow-sm"
+              >
+                <Plus className="w-5 h-5" /> Tambah Minggu Berikutnya
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 pt-5 border-t border-slate-200 dark:border-slate-700">
+              <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal & Kembali</button>
+              <button onClick={handleSaveInitialSchedule} disabled={isSavingInitial} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">
+                {isSavingInitial ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks
+              </button>
+            </div>
+          </div>
+        </div>
+
+      ) : (
+
+        /* ========================================== */
+        /* MODE NORMAL: TAMPILKAN GRAFIK & MATRIKS    */
+        /* ========================================== */
+        <div className="animate-fade-in space-y-5">
           {/* BAGIAN ATAS: GRAFIK S-CURVE FULL WIDTH */}
           <div id="chart-area" className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
@@ -686,7 +849,6 @@ export default function KurvaS({ selectedProject }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
-                      {/* XAxis Menggunakan Label Agregasi Dinamis (Bulan, Minggu, Hari) */}
                       <XAxis dataKey="xAxisLabel" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <Tooltip content={<CustomTooltip />} />
@@ -715,22 +877,8 @@ export default function KurvaS({ selectedProject }) {
       )}
 
       {/* ========================================== */}
-      {/* MODAL & POPUPS                             */}
+      {/* MODAL EDIT MINGGUAN (JIKA MODE EDIT)       */}
       {/* ========================================== */}
-      
-      {/* MODAL SETUP AWAL (JIKA JADWAL KOSONG) */}
-      {showAddScheduleModal && (
-        <AddScheduleModal 
-          projectId={projectId} 
-          projectData={project}
-          projectBounds={projectBounds}
-          onSuccess={() => {
-            setShowAddScheduleModal(false);
-            fetchSchedule();
-          }} 
-        />
-      )}
-
       {weekModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
