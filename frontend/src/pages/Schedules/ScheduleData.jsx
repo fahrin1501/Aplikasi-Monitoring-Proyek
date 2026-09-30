@@ -182,8 +182,7 @@ export default function ScheduleData() {
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-start lg:items-center gap-1.5 flex-wrap">
               <span>Matriks Time Schedule</span>
-              {/* PERBAIKAN: DRAFT MODE MATCHING PROJECTDATA.JSX */}
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 dark:border-blue-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{projectData?.nama_proyek}</span>
@@ -197,15 +196,15 @@ export default function ScheduleData() {
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
-          {/* ACTION BUTTONS (GAYA KONSISTEN) */}
+          {/* ACTION BUTTONS */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
              {canCreateData && isEditMode && (
-               <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                 <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Batal</span>
+               <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                 <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal
                </button>
              )}
              {canCreateData && (
-               <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
+               <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-200'}`}>
                  {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
                  <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Target')}</span>
                </button>
@@ -213,7 +212,7 @@ export default function ScheduleData() {
              {canCreateData && isEditMode && (
                 <>
                    <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                   <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                   <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                      <ListPlus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Tambah Minggu</span>
                    </button>
                 </>
@@ -266,7 +265,7 @@ export default function ScheduleData() {
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-amber-500"/> Atur Minggu Ke-{weekModal.minggu_ke}
+                <CalendarDays className="w-4 h-4 text-emerald-500"/> Atur Minggu Ke-{weekModal.minggu_ke}
               </h3>
               <button onClick={() => setWeekModal({ show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
             </div>
@@ -288,7 +287,7 @@ export default function ScheduleData() {
 
             <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
               <button onClick={() => setWeekModal({ show: false })} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl shadow-sm transition-colors">Batal</button>
-              <button onClick={saveWeekModal} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-colors">
+              <button onClick={saveWeekModal} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-colors">
                 <Save className="w-3.5 h-3.5"/> Simpan Tanggal
               </button>
             </div>
@@ -300,7 +299,7 @@ export default function ScheduleData() {
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-blue-50 dark:bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200 dark:border-blue-500/30">
+            <div className="w-14 h-14 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200 dark:border-blue-500/30">
               <Save className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3>
