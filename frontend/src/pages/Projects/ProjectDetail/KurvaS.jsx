@@ -47,13 +47,11 @@ export default function KurvaS({ selectedProject }) {
   // STATE MODAL SETUP AWAL
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
 
-  // --- STATE CHART & FILTER ---
-  const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
+  // --- STATE CHART & FILTER (REMASTERED SCALING) ---
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [showFilterPopup, setShowFilterPopup] = useState(false);
-  const [filterMode, setFilterMode] = useState('Semua'); 
-  const [filterSelection, setFilterSelection] = useState({ bulanLabel: '', mingguNum: '', rentangStart: '', rentangEnd: '' });
+  const [filterMode, setFilterMode] = useState('Mingguan'); // Default Skala Sumbu X Mingguan
   const filterRef = useRef(null);
   
   const [fullChartData, setFullChartData] = useState([]);
@@ -92,6 +90,7 @@ export default function KurvaS({ selectedProject }) {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
 
+  // --- FETCH DATA (GABUNGAN KURVA & SCHEDULE) ---
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
@@ -103,15 +102,9 @@ export default function KurvaS({ selectedProject }) {
       let rawSchedules = data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
 
+      // ROUTING PINTAR: Munculkan Modal Setup Awal jika jadwal kosong
       if (fetchedSchedules.length === 0 && canCreateData) {
         setShowAddScheduleModal(true);
-      }
-
-      if (data?.project_info) {
-        setProjectBounds({
-          start: data.project_info.tanggal_mulai || '',
-          end: data.project_info.tanggal_selesai || ''
-        });
       }
 
       const wMap = {};
@@ -138,6 +131,7 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { if (projectId) fetchSchedule(); }, [projectId]);
 
+  // --- FUNGSI EDIT MATRIKS SCHEDULE ---
   const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(); };
 
   const handleWeekCumulativeChange = (weekNum, value) => {
@@ -200,69 +194,15 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  const getAvailableMonths = () => {
-    if (!projectBounds.start || !projectBounds.end) return [];
-    const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
-    const months = [];
-    let current = new Date(start.getFullYear(), start.getMonth(), 1);
-    const limit = new Date(end.getFullYear(), end.getMonth(), 1);
-
-    while (current <= limit) {
-      const mStart = current.getTime() < start.getTime() ? start : current;
-      const nextMonthFirstDay = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-      const lastDayOfMonth = new Date(nextMonthFirstDay.getTime() - 1);
-      const mEnd = lastDayOfMonth.getTime() > end.getTime() ? end : lastDayOfMonth;
-
-      months.push({ label: mStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
-      current = nextMonthFirstDay;
-    }
-    return months;
-  };
-
-  const availableMonths = getAvailableMonths();
-
-  const applyFilter = (mode, data) => {
-    setFilterMode(mode);
-    if (mode === 'Semua') {
-      setStartDateFilter(projectBounds.start); setEndDateFilter(projectBounds.end);
-      setFilterSelection({ ...filterSelection, bulanLabel: '', mingguNum: '', rentangStart: '', rentangEnd: '' });
-      setShowFilterPopup(false);
-    } 
-    else if (mode === 'Bulanan') {
-      setStartDateFilter(data.start); setEndDateFilter(data.end);
-      setFilterSelection({ ...filterSelection, bulanLabel: data.label }); setShowFilterPopup(false);
-    } 
-    else if (mode === 'Mingguan') {
-      const weekNum = data;
-      setFilterSelection({ ...filterSelection, mingguNum: weekNum });
-      const targetSchedule = (scheduleData?.schedules || []).find(s => parseInt(s.minggu_ke) === parseInt(weekNum));
-      if (targetSchedule && targetSchedule.tanggal_awal && targetSchedule.tanggal_akhir) {
-        setStartDateFilter(targetSchedule.tanggal_awal); setEndDateFilter(targetSchedule.tanggal_akhir);
-      } else if (projectBounds.start) {
-        const startDate = new Date(projectBounds.start); startDate.setHours(0, 0, 0, 0);
-        const weekStart = new Date(startDate.getTime() + (weekNum - 1) * 7 * 24 * 3600 * 1000);
-        const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 3600 * 1000);
-        setStartDateFilter(weekStart.toISOString().split('T')[0]); setEndDateFilter(weekEnd.toISOString().split('T')[0]);
-      }
-      setShowFilterPopup(false);
-    }
-  };
-
-  const applyManualFilter = () => {
-    if (filterMode === 'Rentang') {
-      if(!filterSelection.rentangStart || !filterSelection.rentangEnd) return alert("Lengkapi tanggal mulai dan akhir!");
-      setStartDateFilter(filterSelection.rentangStart); setEndDateFilter(filterSelection.rentangEnd); setShowFilterPopup(false);
-    }
-  };
-
+  // --- LABEL FILTER GRAFIK DINAMIS ---
   const getActiveFilterLabel = () => {
-    if (filterMode === 'Semua') return 'Semua Waktu';
-    if (filterMode === 'Bulanan') return `Bulan: ${filterSelection.bulanLabel}`;
-    if (filterMode === 'Mingguan') return `Minggu Ke-${filterSelection.mingguNum}`;
-    if (filterMode === 'Rentang') return `Rentang: ${formatIndoDate(filterSelection.rentangStart)} - ${formatIndoDate(filterSelection.rentangEnd)}`;
-    return 'Filter Aktif';
+    let rangeLabel = (startDateFilter || endDateFilter) 
+      ? `${startDateFilter ? formatIndoDate(startDateFilter) : 'Awal'} - ${endDateFilter ? formatIndoDate(endDateFilter) : 'Akhir'}`
+      : 'Seluruh Waktu';
+    return `Skala ${filterMode} | ${rangeLabel}`;
   };
 
+  // --- EFEK PEMBUATAN RAW CHART (HARIAN DASAR) ---
   useEffect(() => {
     if (!scheduleData) return;
 
@@ -349,29 +289,70 @@ export default function KurvaS({ selectedProject }) {
     }
 
     setFullChartData(tempChartData);
-    if (!startDateFilter && !endDateFilter && tempChartData.length > 0) {
-      setStartDateFilter(tempChartData[0].dateString); setEndDateFilter(tempChartData[tempChartData.length - 1].dateString);
-    }
   }, [scheduleData]);
 
+  // --- EFEK AGREGASI CHART (HARIAN / MINGGUAN / BULANAN) ---
   useEffect(() => {
     if (fullChartData.length === 0) return;
+    
+    // 1. Lakukan Filter Rentang Tanggal Terlebih Dahulu
     let filtered = fullChartData;
     if (startDateFilter) filtered = filtered.filter(d => d.dateString >= startDateFilter);
     if (endDateFilter) filtered = filtered.filter(d => d.dateString <= endDateFilter);
-    setChartData(filtered);
-  }, [fullChartData, startDateFilter, endDateFilter]);
 
+    // 2. Terapkan Agregasi berdasarkan Skala Waktu (FilterMode)
+    let aggregated = [];
+
+    if (filterMode === 'Bulanan') {
+      const monthMap = {};
+      filtered.forEach(d => {
+        const dateObj = new Date(d.dateString);
+        const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        const shortMonth = dateObj.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+        const longMonth = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        
+        // Data akan terus tertimpa dan otomatis menyisakan hari terakhir dari bulan tersebut (Titik Agregat yang tepat)
+        monthMap[monthKey] = {
+          ...d,
+          xAxisLabel: shortMonth,
+          tooltipLabel: `Bulan: ${longMonth}`
+        };
+      });
+      aggregated = Object.values(monthMap);
+    } 
+    else if (filterMode === 'Mingguan') {
+      const weekMap = {};
+      filtered.forEach(d => {
+        const wKey = d.mingguKe || 0;
+        if (wKey === 0) return; // Abaikan jika hari tidak masuk minggu manapun
+        weekMap[wKey] = {
+          ...d,
+          xAxisLabel: `M-${wKey}`,
+          tooltipLabel: `Minggu Ke-${wKey}`
+        };
+      });
+      aggregated = Object.values(weekMap);
+    } 
+    else { // Mode 'Harian'
+      aggregated = filtered.map(d => ({
+        ...d,
+        xAxisLabel: d.shortDate,
+        tooltipLabel: d.displayDate
+      }));
+    }
+
+    setChartData(aggregated);
+  }, [fullChartData, startDateFilter, endDateFilter, filterMode]);
+
+  // --- TOOLTIP GRAFIK DINAMIS ---
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const dataInfo = payload[0].payload;
       return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl shadow-xl text-xs z-50">
-          <p className="font-extrabold text-slate-800 dark:text-white mb-0.5">{dataInfo.displayDate}</p>
-          <div className="flex items-center gap-2 text-[10px] text-amber-500 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700 font-bold uppercase tracking-wider">
-            <span>{dataInfo.label}</span>
-            {dataInfo.mingguKe && <span>• Minggu Ke-{dataInfo.mingguKe}</span>}
-          </div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl shadow-xl text-xs z-50 min-w-[150px]">
+          <p className="font-extrabold text-slate-800 dark:text-white mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+            {dataInfo.tooltipLabel}
+          </p>
           {payload.map((entry, index) => {
             if (entry.value === undefined || entry.value === null) return null; 
             return (
@@ -401,6 +382,45 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
+  const executeExport = async () => {
+    const type = exportModal.type;
+    setExportModal({ show: false, type: '' }); 
+
+    const chartElement = document.getElementById('chart-area'); 
+    if (!chartElement) return alert("Area grafik tidak ditemukan!");
+
+    if(type === 'excel') setIsExportingExcel(true);
+    else setIsExportingPdf(true);
+
+    try {
+      const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
+      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+      const response = await api.post(`/projects/${projectId}/export-kurva/${type}`, {
+        chart_image: base64Image,
+        // Optional: Anda bisa menambahkan payload itemProgressData jika export backend membutuhkannya
+        start_date: startDateFilter,
+        end_date: endDateFilter,
+        view_mode: filterMode.toLowerCase()
+      }, { responseType: 'blob' });
+
+      const safeLabel = getActiveFilterLabel().replace(/[^a-zA-Z0-9]/g, '_');
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Kurva_S_${safeLabel}_${type === 'excel' ? 'Lengkap.xlsx' : 'Lengkap.pdf'}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert(`Gagal mengunduh ${type}. Internal Server Error.`);
+    } finally {
+      setIsExportingExcel(false);
+      setIsExportingPdf(false);
+    }
+  };
+
   const isScheduleEmpty = !scheduleData?.schedules || scheduleData.schedules.length === 0;
 
   return (
@@ -425,7 +445,7 @@ export default function KurvaS({ selectedProject }) {
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Matriks Waktu</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse font-extrabold tracking-wider border border-amber-200 dark:border-amber-500/30 shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
@@ -439,70 +459,58 @@ export default function KurvaS({ selectedProject }) {
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
           
-          {/* ACTION BUTTONS: FILTER & EDIT & EXPORT */}
+          {/* ACTION BUTTONS: FILTER GRAFIK */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all duration-300">
             
-            {/* FILTER POPUP (Hanya saat tidak edit) */}
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
                 <button 
                   disabled={isLoading || isScheduleEmpty}
                   onClick={() => setShowFilterPopup(!showFilterPopup)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                    showFilterPopup || filterMode !== 'Semua'
+                    showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter
                       ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' 
                       : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Filter Grafik</span>
+                  <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pengaturan Grafik</span>
                 </button>
 
                 {showFilterPopup && (
-                  <div className="absolute right-0 md:left-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
-                    <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-4 shadow-inner border border-slate-200 dark:border-slate-700/50">
-                      {['Semua', 'Bulanan', 'Mingguan', 'Rentang'].map(mode => (
+                  <div className="absolute right-0 md:left-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
+                    
+                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Skala Tampilan Sumbu X</h4>
+                    <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-5 shadow-inner border border-slate-200 dark:border-slate-700/50">
+                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => (
                         <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                           {mode}
                         </button>
                       ))}
                     </div>
 
-                    <div className="min-h-[120px] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 flex flex-col justify-center">
-                      {filterMode === 'Semua' && (
-                        <div className="text-center py-4">
-                          <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tampilkan seluruh rentang proyek.</p>
-                          <button onClick={() => applyFilter('Semua')} className="mt-4 px-6 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Terapkan</button>
-                        </div>
-                      )}
-                      {filterMode === 'Bulanan' && (
-                        <div className="flex flex-wrap gap-2">
-                          {availableMonths.length === 0 ? <p className="text-xs text-slate-400 w-full text-center py-4">Rentang belum diatur.</p> : availableMonths.map((m, idx) => (
-                            <button key={idx} onClick={() => applyFilter('Bulanan', m)} className={`flex-1 min-w-[100px] px-3 py-2 rounded-xl text-[10px] font-bold transition-all border shadow-sm ${filterSelection.bulanLabel === m.label ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{m.label}</button>
-                          ))}
-                        </div>
-                      )}
-                      {filterMode === 'Mingguan' && (
-                        <div className="flex flex-wrap gap-2">
-                          {Array.from({ length: scheduleData?.project_info?.total_minggu || 0 }).map((_, i) => (
-                            <button key={i+1} onClick={() => applyFilter('Mingguan', i+1)} className={`flex-1 min-w-[80px] px-3 py-2 rounded-xl text-[10px] font-bold transition-all border shadow-sm ${filterSelection.mingguNum === i+1 ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>Minggu {i+1}</button>
-                          ))}
-                        </div>
-                      )}
-                      {filterMode === 'Rentang' && (
-                        <div className="flex flex-col gap-3 py-2">
-                          <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label><input type="date" min={projectBounds.start} max={filterSelection.rentangEnd || projectBounds.end} value={filterSelection.rentangStart} onChange={(e) => setFilterSelection({...filterSelection, rentangStart: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]"/></div>
-                          <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label><input type="date" min={filterSelection.rentangStart || projectBounds.start} max={projectBounds.end} value={filterSelection.rentangEnd} onChange={(e) => setFilterSelection({...filterSelection, rentangEnd: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]"/></div>
-                          <button onClick={applyManualFilter} className="mt-2 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Terapkan Rentang</button>
-                        </div>
-                      )}
+                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Filter Rentang Waktu (Opsional)</h4>
+                    <div className="flex flex-col gap-3">
+                      <div className="space-y-1.5">
+                         <label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label>
+                         <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" />
+                      </div>
+                      <div className="space-y-1.5">
+                         <label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label>
+                         <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" />
+                      </div>
+                      
+                      <div className="flex gap-2 mt-2">
+                        {(startDateFilter || endDateFilter) && (
+                          <button onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs shadow-sm transition-colors">Reset</button>
+                        )}
+                        <button onClick={() => setShowFilterPopup(false)} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Tutup</button>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* EDIT MODE BUTTONS */}
             {canCreateData && isEditMode && (
               <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Batal</span>
@@ -556,12 +564,12 @@ export default function KurvaS({ selectedProject }) {
         </div>
       </div>
 
-      {/* TAMPILAN LABEL FILTER AKTIF DI BAWAH HEADER */}
-      {(filterMode !== 'Semua') && (
+      {/* TAMPILAN LABEL FILTER AKTIF */}
+      {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
-            Tampilan Grafik: {getActiveFilterLabel()}
-            <button onClick={() => applyFilter('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
+            {getActiveFilterLabel()}
+            <button onClick={() => {setFilterMode('Mingguan'); setStartDateFilter(''); setEndDateFilter('');}} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
           </span>
         </div>
       )}
@@ -599,8 +607,8 @@ export default function KurvaS({ selectedProject }) {
                 <TrendingUp className="w-4 h-4 text-amber-500" /> Grafik Kurva S (S-Curve)
               </h3>
               <div className="flex items-center gap-3 text-[10px] bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 px-2.5 py-2 rounded-lg shadow-inner">
-                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span> Target Mingguan</span>
-                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span> Realisasi Kumulatif</span>
+                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span> Target Plan</span>
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span> Aktual Kumulatif</span>
               </div>
             </div>
             
@@ -612,11 +620,12 @@ export default function KurvaS({ selectedProject }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
-                      <XAxis dataKey="shortDate" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
+                      {/* XAxis Menggunakan Label Agregasi Dinamis (Bulan, Minggu, Hari) */}
+                      <XAxis dataKey="xAxisLabel" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <Tooltip content={<CustomTooltip />} />
-                      <Line type="monotone" dataKey="rencanaKumulatif" name="Target Mingguan" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={true} />
-                      <Line type="monotone" dataKey="realisasiKumulatif" name="Kumulatif Realisasi" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
+                      <Line type="monotone" dataKey="rencanaKumulatif" name="Target Rencana" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={true} />
+                      <Line type="monotone" dataKey="realisasiKumulatif" name="Aktual Kumulatif" stroke="#10b981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -624,7 +633,7 @@ export default function KurvaS({ selectedProject }) {
             </div>
           </div>
 
-          {/* BAGIAN BAWAH: MATRIKS SCHEDULE (MEMANGGIL KOMPONEN ANAK) */}
+          {/* BAGIAN BAWAH: MATRIKS SCHEDULE (KOMPONEN ANAK) */}
           <ScheduleWorkData 
             scheduleData={scheduleData}
             localWeeks={localWeeks}
@@ -692,7 +701,7 @@ export default function KurvaS({ selectedProject }) {
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Target rencana mingguan akan diperbarui dan diterapkan langsung ke database S-Curve.</p>
             <div className="flex gap-3">
               <button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button>
+              <button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button>
             </div>
           </div>
         </div>
