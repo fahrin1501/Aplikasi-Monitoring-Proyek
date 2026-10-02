@@ -14,25 +14,22 @@ class ProjectScheduleController extends Controller
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-            // 1. HITUNG GRAND TOTAL RAB
+            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL DI BACKEND
             $grandTotalRAB = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
                 ->where('rab_items.is_subheader', false)
                 ->sum('rab_items.total_harga');
 
-            $reportedItemIds = DB::table('daily_report_activities')
-                ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                ->where('daily_reports.project_id', $projectId)
-                ->where('daily_reports.status', 'approved')
-                ->pluck('daily_report_activities.rab_item_id')
-                ->unique()
-                ->toArray();
-
+            // 2. PERBAIKAN FATAL: AMBIL SEMUA DATA RAB!
+            // Jangan memfilter data RAB berdasarkan Laporan yang sudah ada.
             $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
+            $categoryIds = $rabCategories->pluck('id')->toArray();
+
             $rabItems = collect([]);
-            if (!empty($reportedItemIds)) {
-                $rabItems = DB::table('rab_items')->whereIn('id', $reportedItemIds)->get();
+            if (!empty($categoryIds)) {
+                // Tarik SELURUH item pekerjaan yang ada di proyek ini
+                $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
             }
 
             $rabData = [];
@@ -48,13 +45,13 @@ class ProjectScheduleController extends Controller
                 }
             }
 
-            // 2. TARIK DATA SCHEDULE (SEKARANG SANGAT CEPAT DAN KECIL)
+            // 3. AMBIL TARGET JADWAL MINGGUAN (Macro)
             $schedules = DB::table('project_schedules')
                 ->where('project_id', $projectId)
                 ->orderBy('minggu_ke', 'asc')
                 ->get();
 
-            // 3. AMBIL DATA AKTUAL (Realisasi)
+            // 4. AMBIL DATA AKTUAL (REALISASI HARIAN) UNTUK MATRIKS
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
