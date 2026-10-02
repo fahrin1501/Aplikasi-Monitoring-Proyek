@@ -103,16 +103,15 @@ export default function KurvaS({ selectedProject }) {
       setScheduleData(data);
       setGrandTotalRAB(data?.grand_total_rab || 0);
 
-      let rawSchedules = data?.schedules;
-      let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
-
-      // Ambil Batas Tanggal Proyek Secara Absolut
       if (data?.project_info) {
         setProjectBounds({
           start: data.project_info.tanggal_mulai ? data.project_info.tanggal_mulai.substring(0, 10) : '',
           end: data.project_info.tanggal_selesai ? data.project_info.tanggal_selesai.substring(0, 10) : ''
         });
       }
+
+      let rawSchedules = data?.schedules;
+      let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
 
       const wMap = {};
       fetchedSchedules.forEach(s => {
@@ -264,6 +263,7 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
+  // --- LOGIKA FILTER GRAFIK DINAMIS ---
   const getAvailableMonths = () => {
     if (!projectBounds.start || !projectBounds.end) return [];
     const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
@@ -370,11 +370,12 @@ export default function KurvaS({ selectedProject }) {
 
     minDate.setHours(0,0,0,0); maxDate.setHours(0,0,0,0);
     const totalDays = Math.max(1, Math.floor((maxDate - minDate) / (1000 * 3600 * 24)) + 1);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const todayStr = today.toISOString().split('T')[0];
 
     const tempChartData = [];
     let cumRealisasi = 0;
+    
+    // VARIABEL PENANDA: Apakah setidaknya sudah ada satu laporan di seluruh proyek?
+    let hasAnyReportEver = safeRealizations.length > 0;
 
     for (let i = 0; i < totalDays; i++) {
       const currDate = new Date(minDate.getTime() + i * 24 * 3600 * 1000);
@@ -402,12 +403,25 @@ export default function KurvaS({ selectedProject }) {
       const hasReportToday = dailyRealisasi[yyyymmdd] !== undefined;
 
       if (hasReportToday) cumRealisasi += actVal;
-      const isFuture = yyyymmdd > todayStr && (!maxReportedDayStr || yyyymmdd > maxReportedDayStr);
+      
+      // LOGIKA BARU:
+      // Jika sama sekali belum ada laporan sejak awal proyek DIBUAT (hasAnyReportEver === false),
+      // MAKA realisasi kumulatif WAJIB `null` (Agar garis hijau tersembunyi / tidak digambar).
+      // Jika sudah ada laporan (hasAnyReportEver === true), ikuti logika lama (batas hari ini).
+      
+      let finalRealisasiKumulatif = null;
+      if (hasAnyReportEver) {
+          // Hanya sembunyikan nilai jika melebihi hari ini atau melebihi hari laporan terakhir
+          const today = new Date(); today.setHours(0,0,0,0);
+          const todayStr = today.toISOString().split('T')[0];
+          const isFuture = yyyymmdd > todayStr && (!maxReportedDayStr || yyyymmdd > maxReportedDayStr);
+          finalRealisasiKumulatif = (isFuture && !hasReportToday) ? null : getSafeFloat(cumRealisasi);
+      }
 
       tempChartData.push({
         hariKe: i + 1, label: `H-${(i + 1).toString().padStart(2, '0')}`, dateString: yyyymmdd, dateSlash, displayDate, shortDate, mingguKe: currentWeekNum,
-        isFuture, targetKumulatifMingguan, rencanaKumulatif: targetKumulatifMingguan, bobotRealisasi: actVal,
-        realisasiKumulatif: isFuture && !hasReportToday ? null : getSafeFloat(cumRealisasi), hasReportToday
+        targetKumulatifMingguan, rencanaKumulatif: targetKumulatifMingguan, bobotRealisasi: actVal,
+        realisasiKumulatif: finalRealisasiKumulatif, hasReportToday
       });
     }
 
@@ -849,7 +863,6 @@ export default function KurvaS({ selectedProject }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
-                      {/* XAxis Menggunakan Label Agregasi Dinamis (Bulan, Minggu, Hari) */}
                       <XAxis dataKey="xAxisLabel" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <Tooltip content={<CustomTooltip />} />
