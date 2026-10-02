@@ -201,6 +201,11 @@ export default function LaporanData() {
 
   const currentMingguKe = isEditMode ? editForm.minggu_ke : reportData?.minggu_ke;
 
+  // PERBAIKAN: EKSTRAKSI MINGGU YANG TERSEDIA DARI KURVA S
+  const availableWeeks = scheduleData?.schedules
+    ? [...new Set(scheduleData.schedules.map(s => parseInt(s.minggu_ke)))].sort((a, b) => a - b)
+    : [];
+
   let optionsMingguIni = [];
   let optionsMingguLain = [];
   let scheduledItemsMap = new Map();
@@ -433,7 +438,13 @@ export default function LaporanData() {
       {/* ============================================================== */}
       {/* 1. INFORMASI PENGAWASAN (FULL WIDTH)                            */}
       {/* ============================================================== */}
-      <InfoPengawasan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
+      <InfoPengawasan 
+        isEditMode={isEditMode} 
+        reportData={reportData} 
+        editForm={editForm} 
+        setEditForm={setEditForm} 
+        availableWeeks={availableWeeks} 
+      />
 
       {/* ============================================================== */}
       {/* 2. ROW 1: CUACA (KIRI) & CATATAN (KANAN)                       */}
