@@ -32,18 +32,17 @@ export default function AddLaporan() {
   const [scheduleData, setScheduleData] = useState(null);
   const [isLoadingRab, setIsLoadingRab] = useState(false);
 
-  // STATE FORM UTAMA
-  const [formData, setFormData] = useState({
-    tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0],
-    minggu_ke: editData?.minggu_ke || '',
-    namaPengawas: editData?.namaPengawas || '',
-    lokasi: editData?.lokasi || '',
+  // STATE FORM TERPISAH
+  const [formData, setFormData] = useState({ 
+    tanggalPengawasan: editData?.tanggalPengawasan || new Date().toISOString().split('T')[0], 
+    minggu_ke: editData?.minggu_ke || '', 
+    namaPengawas: editData?.namaPengawas || '', 
+    lokasi: editData?.lokasi || '', 
     catatan: editData?.catatan || '' 
   });
-
+  
   const [cuacaItems, setCuacaItems] = useState([{ id: Date.now(), kondisi: 'Cerah', keterangan: '' }]);
   const [kegiatanItems, setKegiatanItems] = useState([{ id: Date.now(), rab_item_id: null, uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', persentase: '' }]);
-  
   const [personilItems, setPersonilItems] = useState([]);
   const [peralatanItems, setPeralatanItems] = useState([]);
   const [fotoLampiran, setFotoLampiran] = useState([]);
@@ -140,7 +139,7 @@ export default function AddLaporan() {
       setSubmittedSuccess(true);
       setTimeout(() => navigate('/laporan'), 1500); 
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || "Gagal menyimpan laporan. Cek koneksi server.");
+      setErrorMsg("Gagal menyimpan laporan. Silakan periksa kembali data Anda.");
       setSubmitting(false);
     }
   };
@@ -152,6 +151,11 @@ export default function AddLaporan() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        /* Matikan auto-fill background browser jika mengganggu dark mode */
+        input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active {
+            -webkit-transition: "color 9999s ease-out, background-color 9999s ease-out";
+            -webkit-transition-delay: 9999s;
+        }
       `}</style>
 
       <datalist id="peran-options">{defaultPersonilList.map(p => <option key={p} value={p} />)}</datalist>
@@ -226,7 +230,8 @@ export default function AddLaporan() {
               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nama Pengawas <span className="text-rose-500">*</span></label>
               <div className="relative">
                 <UserCheck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" name="namaPengawas" required value={formData.namaPengawas} onChange={handleInputChange} placeholder="Ketik nama" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                {/* BUG FIXED: Dipastikan memiliki dark:bg-slate-900 dark:text-white */}
+                <input type="text" name="namaPengawas" required value={formData.namaPengawas} onChange={handleInputChange} placeholder="Ketik nama pengawas" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
               </div>
             </div>
             
@@ -234,7 +239,8 @@ export default function AddLaporan() {
               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Lokasi Proyek <span className="text-rose-500">*</span></label>
               <div className="relative">
                 <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" name="lokasi" required value={formData.lokasi} onChange={handleInputChange} placeholder="Lokasi" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                {/* BUG FIXED: Dipastikan memiliki dark:bg-slate-900 dark:text-white */}
+                <input type="text" name="lokasi" required value={formData.lokasi} onChange={handleInputChange} placeholder="Contoh: Banjarmasin" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
               </div>
             </div>
           </div>
@@ -279,7 +285,7 @@ export default function AddLaporan() {
               </div>
             </div>
 
-            {/* KOMPONEN KEGIATAN GEOGRAFIS (EXTERNAL REACT SELECT) */}
+            {/* KEGIATAN GEOGRAFIS (DENGAN REACT SELECT) */}
             <KegiatanGeografisAdd 
               kegiatanItems={kegiatanItems} setKegiatanItems={setKegiatanItems} rabOptions={rabOptions} isLoadingRab={isLoadingRab}
               optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
