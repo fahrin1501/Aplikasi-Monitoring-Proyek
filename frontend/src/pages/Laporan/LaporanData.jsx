@@ -135,8 +135,12 @@ export default function LaporanData() {
         lokasi: reportData.lokasi,
         catatan: reportData.catatan || '',
         cuacaItems: parsedCuaca,
+        // Konversi key agar sesuai dengan properti form: sta_awal & sta_akhir
         activities: JSON.parse(JSON.stringify(reportData.activities || [])).map(act => ({
-          ...act, persentase: act.persentase || ''
+          ...act, 
+          sta_awal: act.sta_awal || '',
+          sta_akhir: act.sta_akhir || '',
+          persentase: act.persentase || ''
         })),
         personnels: JSON.parse(JSON.stringify(reportData.personnels || [])),
         equipments: JSON.parse(JSON.stringify(reportData.equipments || [])),
@@ -151,6 +155,17 @@ export default function LaporanData() {
     setIsSaving(true);
     try {
       const cuacaGabungan = editForm.cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
+      
+      const payloadKegiatan = editForm.activities.map(k => ({
+        rab_item_id: k.rab_item_id,
+        uraian: k.uraian,
+        sta_awal: k.sta_awal,   
+        sta_akhir: k.sta_akhir, 
+        volume: k.volume,
+        satuan: k.satuan,
+        persentase: k.persentase 
+      }));
+
       const payload = {
         tanggal: editForm.tanggal,
         minggu_ke: editForm.minggu_ke,
@@ -159,7 +174,7 @@ export default function LaporanData() {
         catatan: editForm.catatan, 
         cuaca: cuacaGabungan, 
         kondisi_cuaca: JSON.stringify(editForm.cuacaItems), 
-        kegiatan: JSON.stringify(editForm.activities),
+        kegiatan: JSON.stringify(payloadKegiatan),
         personil: JSON.stringify(editForm.personnels),
         peralatan: JSON.stringify(editForm.equipments),
       };
