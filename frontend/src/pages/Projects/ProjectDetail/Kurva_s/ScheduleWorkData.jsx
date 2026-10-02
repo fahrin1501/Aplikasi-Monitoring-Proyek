@@ -23,8 +23,27 @@ export default function ScheduleWorkData({
   const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
   const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
 
+  // =========================================================================================
+  // PERBAIKAN FILTER LOGIC: HANYA TAMPILKAN ITEM YANG PUNYA REALISASI
+  // =========================================================================================
   const rawRabData = scheduleData?.rab_data;
-  const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
+  let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
+
+  const cumulativeActualMap = scheduleData?.cumulative_actual || {};
+
+  safeRabData = safeRabData.map(cat => {
+    const items = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
+    
+    // Saring item: Hanya sisakan yang nilai kumulatif aktualnya lebih dari 0
+    const filteredItems = items.filter(item => {
+      const itemRealisasi = getSafeFloat(cumulativeActualMap[item.id]);
+      return itemRealisasi > 0;
+    });
+
+    return { ...cat, items: filteredItems };
+  }).filter(cat => cat.items.length > 0); // Buang kategori divisi jika semua itemnya 0%
+
+  // =========================================================================================
 
   const handleOpenCellDetail = (item, weekNum) => {
     const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
@@ -94,7 +113,7 @@ export default function ScheduleWorkData({
                       <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
                       <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
-                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui.
+                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui (Approved).
                       </p>
                     </div>
                   </td>
@@ -228,7 +247,6 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
-      {/* MODAL RINCIAN HARIAN */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
