@@ -47,7 +47,6 @@ export default function AddLaporan() {
     { id: Date.now(), kondisi: 'Cerah', keterangan: '' }
   ]);
 
-  // PERBAIKAN: Menggunakan sta_awal dan sta_akhir
   const [kegiatanItems, setKegiatanItems] = useState(
     editData?.kegiatan?.length > 0 
       ? editData.kegiatan.map((k, i) => {
@@ -92,18 +91,25 @@ export default function AddLaporan() {
     const fetchScheduleAndRAB = async () => {
       setIsLoadingRab(true);
       try {
-        const res = await api.get(`/projects/${selectedProjectId}/schedules`);
-        const data = res.data.data;
-        setScheduleData(data);
-        
-        // Reset minggu_ke jika ganti proyek
+        // 1. Ambil Schedule (Hanya untuk opsi Minggu Ke-)
+        const schedRes = await api.get(`/projects/${selectedProjectId}/schedules`);
+        setScheduleData(schedRes.data.data);
         setFormData(prev => ({ ...prev, minggu_ke: '' }));
 
+        // 2. Ambil Master RAB Keseluruhan (Agar semua item tampil)
+        const rabRes = await api.get(`/projects/${selectedProjectId}/rab`);
+        const fullRabData = rabRes.data.data;
+
         const flattenedItems = [];
-        data.rab_data.forEach(kategori => {
+        fullRabData.forEach(kategori => {
           kategori.items.forEach(item => {
             if (!item.is_subheader) {
-              flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
+              flattenedItems.push({ 
+                id: item.id, 
+                uraian: item.uraian_pekerjaan, 
+                satuan: item.satuan, 
+                kategori_nama: kategori.nama_kategori 
+              });
             }
           });
         });
@@ -118,63 +124,11 @@ export default function AddLaporan() {
     fetchScheduleAndRAB();
   }, [selectedProjectId]);
 
-  // =========================================================================
-  // PERBAIKAN: EKSTRAK MINGGU YANG TERSEDIA DARI KURVA S & SCHEDULE
-  // =========================================================================
   const availableWeeks = scheduleData?.schedules
     ? [...new Set(scheduleData.schedules.map(s => parseInt(s.minggu_ke)))].sort((a, b) => a - b)
     : [];
 
-  let optionsMingguIni = [];
-  let optionsMingguLain = [];
-  let scheduledItemsMap = new Map();
-
-  if (scheduleData && scheduleData.schedules) {
-    scheduleData.schedules.forEach(sched => {
-      let detailItem = null;
-      let namaKategori = '';
-      
-      scheduleData.rab_data.forEach(cat => {
-        const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
-        if (itemMatch) { detailItem = itemMatch; namaKategori = cat.nama_kategori; }
-      });
-
-      if (detailItem) {
-        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(formData.minggu_ke);
-        if (!scheduledItemsMap.has(sched.rab_item_id)) {
-          scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
-        } else if (isThisWeek) {
-          scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
-        }
-      }
-    });
-
-    scheduledItemsMap.forEach(value => {
-      if (value.is_this_week) optionsMingguIni.push(value);
-      else optionsMingguLain.push(value);
-    });
-  }
-
-  const unscheduledRabOptions = rabOptions.filter(opt => !scheduledItemsMap.has(opt.id));
-
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-
-  const handleKegiatanSelect = (index, selectedRabId) => {
-    const newK = [...kegiatanItems];
-    if (selectedRabId === "manual") {
-      newK[index].rab_item_id = null;
-      newK[index].uraian = '';
-      newK[index].satuan = '';
-    } else {
-      const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId);
-      if (selectedRab) {
-        newK[index].rab_item_id = selectedRab.id;
-        newK[index].uraian = selectedRab.uraian;
-        newK[index].satuan = selectedRab.satuan || '';
-      }
-    }
-    setKegiatanItems(newK);
-  };
 
   const openPersonilModal = (item = null) => {
     if (item) setPersonilForm(item);
@@ -255,7 +209,6 @@ export default function AddLaporan() {
       payload.append('cuaca', cuacaGabungan);
       payload.append('kondisi_cuaca', JSON.stringify(cuacaItems));
 
-      // PERBAIKAN: Payload menyimpan data sta_awal dan sta_akhir dengan konsisten
       const payloadKegiatan = kegiatanItems.map(k => ({
         rab_item_id: k.rab_item_id,
         uraian: k.uraian,
@@ -294,7 +247,6 @@ export default function AddLaporan() {
   return (
     <div className="w-full space-y-5 md:space-y-6 relative pb-20 animate-fade-in">
       
-      {/* Kustomisasi Scrollbar */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -306,7 +258,6 @@ export default function AddLaporan() {
       <datalist id="peran-options">{defaultPersonilList.map(p => <option key={p} value={p} />)}</datalist>
       <datalist id="alat-options">{defaultPeralatanList.map(a => <option key={a} value={a} />)}</datalist>
 
-      {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm transition-colors">
@@ -337,7 +288,6 @@ export default function AddLaporan() {
 
       <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
         
-        {/* SECTION 1: Info Proyek & Pengawas (FULL WIDTH) */}
         <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
           <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-2">
             <Building2 className="w-4 h-4" /> Informasi Pengawasan
@@ -372,7 +322,6 @@ export default function AddLaporan() {
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Minggu Ke- <span className="text-rose-500">*</span></label>
               <div className="relative">
-                {/* PERBAIKAN: Hanya munculkan minggu yang terdaftar di Kurva S / Schedule */}
                 <select name="minggu_ke" required value={formData.minggu_ke} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none shadow-inner cursor-pointer transition-colors">
                   <option value="" disabled>-- Pilih Minggu --</option>
                   {availableWeeks.length > 0 ? (
@@ -405,12 +354,7 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* ROW 1: SPLIT CUACA (KIRI) & CATATAN (KANAN)                   */}
-        {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
-          
-          {/* KOLOM KIRI: Cuaca */}
           <div className="flex flex-col space-y-5 lg:space-y-6">
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
@@ -447,7 +391,6 @@ export default function AddLaporan() {
             </div>
           </div>
 
-          {/* KOLOM KANAN: Catatan Laporan */}
           <div className="flex flex-col space-y-5 lg:space-y-6 h-full">
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
@@ -464,108 +407,26 @@ export default function AddLaporan() {
               />
             </div>
           </div>
-
         </div>
 
         {/* ============================================================== */}
         {/* ROW 2: FULL WIDTH UNTUK KEGIATAN & GEOGRAFIS                  */}
         {/* ============================================================== */}
         <div className="w-full">
-          <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
-              <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
-                <ListTodo className="w-4 h-4" /> Uraian Kegiatan Lapangan
-              </label>
-              <button type="button" onClick={() => { if (kegiatanItems.length < 6) setKegiatanItems([...kegiatanItems, { id: Date.now(), rab_item_id: '', uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', persentase: '' }]); else alert("Maksimal 6 Kegiatan."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
-            </div>
-            
-            <div className="space-y-4">
-              {kegiatanItems.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm transition-all">
-                  
-                  <div className="col-span-12 flex justify-between items-center mb-1">
-                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Pekerjaan {index + 1}
-                    </span>
-                    {kegiatanItems.length > 1 && (
-                      <button type="button" onClick={() => setKegiatanItems(kegiatanItems.filter(k => k.id !== item.id))} className="text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md border border-rose-200 dark:border-rose-500/30 transition-colors hover:bg-rose-500 hover:text-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
-                    )}
-                  </div>
-                  
-                  <div className="col-span-12">
-                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                      <span>Pilih RAB <span className="text-rose-500">*</span></span>
-                      {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat...</span>}
-                    </label>
-                    
-                    {rabOptions.length > 0 ? (
-                      <div className="relative mb-2">
-                        <select
-                          value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
-                          onChange={(e) => handleKegiatanSelect(index, e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner truncate pr-10 transition-colors"
-                        >
-                          <option value="" disabled>-- Pilih Pekerjaan --</option>
-                          {optionsMingguIni.length > 0 && <optgroup label={`>>> TARGET MINGGU INI`}>{optionsMingguIni.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                          {optionsMingguLain.length > 0 && <optgroup label=">>> TARGET MINGGU LAINNYA">{optionsMingguLain.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                          {unscheduledRabOptions.length > 0 && <optgroup label=">>> PEKERJAAN DI LUAR JADWAL">{unscheduledRabOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>)}</optgroup>}
-                          <option value="manual">+ Pekerjaan Baru (Manual)</option>
-                        </select>
-                        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                    ) : (
-                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Pilih proyek terlebih dahulu.</div>
-                    )}
-
-                    {(item.rab_item_id === null || rabOptions.length === 0) && (
-                      <textarea rows="2" placeholder="Ketik uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors" />
-                    )}
-                  </div>
-                  
-                  {/* PERBAIKAN: Label dirubah menjadi STA */}
-                  <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
-                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
-                    <input type="text" placeholder="STA 0+000" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
-                  </div>
-                  
-                  {/* PERBAIKAN: Label dirubah menjadi STA */}
-                  <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
-                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
-                    <input type="text" placeholder="STA 1+200" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
-                  </div>
-                  
-                  <div className="col-span-12 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
-                    <div className="grid grid-cols-12 gap-2 w-full">
-                      <div className="col-span-5">
-                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                        <input type="number" step="any" required placeholder="0" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
-                        <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
-                      </div>
-                      <div className="col-span-4">
-                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
-                        <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs text-blue-700 dark:text-blue-400 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center transition-colors" />
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Komponen dipanggil secara lokal agar state rabOptions bisa dioper */}
+          <KegiatanGeografis 
+            kegiatanItems={kegiatanItems}
+            setKegiatanItems={setKegiatanItems}
+            rabOptions={rabOptions}
+            isLoadingRab={isLoadingRab}
+          />
         </div>
 
         {/* ============================================================== */}
         {/* ROW 3: SPLIT PERSONIL & FOTO (KIRI) | ALAT & LAMPIRAN (KANAN)  */}
         {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
-          
-          {/* KOLOM KIRI (Personil & Foto) */}
           <div className="flex flex-col space-y-5 lg:space-y-6">
-            
-            {/* Personil */}
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> Personil Lapangan</h2>
@@ -588,7 +449,6 @@ export default function AddLaporan() {
               </div>
             </div>
 
-            {/* Foto Lapangan */}
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Dokumentasi (Foto)</h2>
@@ -608,13 +468,9 @@ export default function AddLaporan() {
                 )}
               </div>
             </div>
-
           </div>
 
-          {/* KOLOM KANAN (Alat & Lampiran) */}
           <div className="flex flex-col space-y-5 lg:space-y-6">
-            
-            {/* Peralatan */}
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" /> Pemakaian Peralatan</h2>
@@ -637,7 +493,6 @@ export default function AddLaporan() {
               </div>
             </div>
 
-            {/* File Lampiran */}
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Paperclip className="w-4 h-4" /> File Dokumen (Ops)</h2>
@@ -657,12 +512,9 @@ export default function AddLaporan() {
                 )}
               </div>
             </div>
-
           </div>
-
         </div>
 
-        {/* Action Submit */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
           <button type="button" onClick={() => navigate('/laporan')} className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-6 py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs border border-slate-200 dark:border-slate-600 shadow-sm transition-colors"><X className="w-4 h-4" /> Batal</button>
           <button type="submit" disabled={submitting} className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3.5 rounded-xl shadow-md flex items-center justify-center gap-2 text-xs disabled:opacity-50 transition-colors">
@@ -672,7 +524,6 @@ export default function AddLaporan() {
         </div>
       </form>
 
-      {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -726,6 +577,180 @@ export default function AddLaporan() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===================================================================================
+// KOMPONEN LOKAL: KEGIATAN & GEOGRAFIS DENGAN CUSTOM SEARCHABLE DROPDOWN
+// ===================================================================================
+function KegiatanGeografis({ kegiatanItems, setKegiatanItems, rabOptions, isLoadingRab }) {
+  
+  // Custom Hook / Component untuk Combobox
+  const SearchableSelect = ({ item, index }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const dropdownRef = useRef(null);
+
+    // Filter data berdasarkan text pencarian di memori frontend (Sangat Cepat)
+    const filteredOptions = rabOptions.filter(opt => 
+      opt.uraian.toLowerCase().includes(search.toLowerCase()) || 
+      opt.kategori_nama.toLowerCase().includes(search.toLowerCase())
+    );
+
+    // Ambil data yang sedang terpilih untuk ditampilkan
+    const selectedRab = item.rab_item_id ? rabOptions.find(r => r.id === item.rab_item_id) : null;
+    let displayValue = "Pilih Pekerjaan dari RAB...";
+    if (item.rab_item_id === null && item.uraian) displayValue = "Pekerjaan Baru (Manual)";
+    else if (selectedRab) displayValue = `${selectedRab.kategori_nama} - ${selectedRab.uraian}`;
+
+    // Menutup dropdown jika klik di luar elemen
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleSelect = (id) => {
+      const newK = [...kegiatanItems];
+      if (id === "manual") {
+        newK[index].rab_item_id = null;
+        newK[index].uraian = '';
+        newK[index].satuan = '';
+      } else {
+        const rab = rabOptions.find(r => r.id === id);
+        if (rab) {
+          newK[index].rab_item_id = rab.id;
+          newK[index].uraian = rab.uraian;
+          newK[index].satuan = rab.satuan || '';
+        }
+      }
+      setKegiatanItems(newK);
+      setIsOpen(false);
+      setSearch('');
+    };
+
+    return (
+      <div className="relative mb-2" ref={dropdownRef}>
+        <div 
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white cursor-pointer flex justify-between items-center shadow-inner"
+        >
+          <span className="truncate pr-4">{displayValue}</span>
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl overflow-hidden">
+            <div className="p-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+              <input 
+                type="text" 
+                autoFocus 
+                placeholder="Cari uraian atau divisi RAB..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+              />
+            </div>
+            <ul className="max-h-60 overflow-y-auto custom-scrollbar">
+              <li 
+                onClick={() => handleSelect("manual")}
+                className="px-3.5 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer border-b border-slate-100 dark:border-slate-700 transition-colors"
+              >
+                + Input Uraian Pekerjaan Manual
+              </li>
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map(opt => (
+                  <li 
+                    key={opt.id} 
+                    onClick={() => handleSelect(opt.id)}
+                    className="px-3.5 py-2.5 text-xs border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                  >
+                    <span className="block font-bold text-slate-800 dark:text-slate-200">{opt.uraian}</span>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{opt.kategori_nama}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="px-3.5 py-4 text-center text-xs text-slate-500 italic">Pekerjaan tidak ditemukan.</li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
+        <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2">
+          <ListTodo className="w-4 h-4" /> Uraian Kegiatan Lapangan
+        </label>
+        <button type="button" onClick={() => { if (kegiatanItems.length < 6) setKegiatanItems([...kegiatanItems, { id: Date.now(), rab_item_id: '', uraian: '', sta_awal: '', sta_akhir: '', volume: '', satuan: '', persentase: '' }]); else alert("Maksimal 6 Kegiatan."); }} className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-amber-200 dark:border-amber-500/30 transition-colors shadow-sm"><Plus className="w-3.5 h-3.5" /> Tambah</button>
+      </div>
+      
+      <div className="space-y-4">
+        {kegiatanItems.map((item, index) => (
+          <div key={item.id} className="grid grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm transition-all">
+            
+            <div className="col-span-12 flex justify-between items-center mb-1">
+              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Pekerjaan {index + 1}
+              </span>
+              {kegiatanItems.length > 1 && (
+                <button type="button" onClick={() => setKegiatanItems(kegiatanItems.filter(k => k.id !== item.id))} className="text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-1.5 rounded-md border border-rose-200 dark:border-rose-500/30 transition-colors hover:bg-rose-500 hover:text-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
+              )}
+            </div>
+            
+            <div className="col-span-12">
+              <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Pilih Master RAB <span className="text-rose-500">*</span></span>
+                {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat RAB...</span>}
+              </label>
+              
+              {rabOptions.length > 0 ? (
+                <SearchableSelect item={item} index={index} />
+              ) : (
+                <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Pilih proyek terlebih dahulu.</div>
+              )}
+
+              {(item.rab_item_id === null || rabOptions.length === 0) && (
+                <textarea rows="2" placeholder="Ketik uraian pekerjaan manual..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors" />
+              )}
+            </div>
+            
+            <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+              <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
+              <input type="text" placeholder="-3.3191, 114.59" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+            </div>
+            
+            <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+              <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
+              <input type="text" placeholder="-3.3215, 114.61" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+            </div>
+            
+            <div className="col-span-12 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
+              <div className="grid grid-cols-12 gap-2 w-full">
+                <div className="col-span-5">
+                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
+                  <input type="number" step="any" required placeholder="0" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
+                  <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
+                </div>
+                <div className="col-span-4">
+                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
+                  <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs text-blue-700 dark:text-blue-400 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center transition-colors" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

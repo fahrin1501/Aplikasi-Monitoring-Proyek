@@ -102,7 +102,6 @@ export default function KegiatanGeografis({
                   )}
                 </div>
                 
-                {/* PERBAIKAN LABEL: STA Awal & STA Akhir */}
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
                   <input type="text" placeholder="-3.3191, 114.5911" value={item.sta_awal} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_awal = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
@@ -154,7 +153,6 @@ export default function KegiatanGeografis({
                       {keg.sta_awal && (
                         <div className="flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> 
-                          {/* PERBAIKAN: Label dirubah menjadi STA Awal */}
                           <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">STA Awal:</span> 
                           <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_awal)}</span>
                         </div>
@@ -163,7 +161,6 @@ export default function KegiatanGeografis({
                       {keg.sta_akhir && (
                         <div className="flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> 
-                          {/* PERBAIKAN: Label dirubah menjadi STA Akhir */}
                           <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">STA Akhir:</span> 
                           <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{formatKoordTampil(keg.sta_akhir)}</span>
                         </div>
