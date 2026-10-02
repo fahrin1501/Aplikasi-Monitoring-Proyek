@@ -1,11 +1,134 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api'; 
 import { 
   ArrowLeft, Building2, MapPin, Calendar, UserCheck, 
   Sun, Users, Wrench, ListTodo, Plus, Trash2, CheckCircle2, FileSpreadsheet,
-  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, X, FileText
+  UploadCloud, Image as ImageIcon, Paperclip, Loader2, AlertCircle, ChevronDown, X, FileText, Search
 } from 'lucide-react';
+
+// =========================================================================================
+// KOMPONEN CUSTOM DROPDOWN DENGAN FITUR PENCARIAN (Searchable Select)
+// =========================================================================================
+const SearchableSelect = ({ value, onChange, optionsMingguIni, optionsMingguLain, unscheduledRabOptions }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  let selectedLabel = "-- Pilih Pekerjaan --";
+  if (value === "manual") {
+    selectedLabel = "+ Pekerjaan Tambah/Kurang (Manual)";
+  } else if (value) {
+    const allOpts = [...optionsMingguIni, ...optionsMingguLain, ...unscheduledRabOptions];
+    const found = allOpts.find(o => o.id.toString() === value.toString());
+    if (found) selectedLabel = `${found.uraian_pekerjaan || found.uraian} (${found.kategori || found.kategori_nama})`;
+  }
+
+  const filterList = (list) => list.filter(item => {
+    const text1 = (item.uraian_pekerjaan || item.uraian || '').toLowerCase();
+    const text2 = (item.kategori || item.kategori_nama || '').toLowerCase();
+    const s = search.toLowerCase();
+    return text1.includes(s) || text2.includes(s);
+  });
+
+  const filteredMingguIni = filterList(optionsMingguIni);
+  const filteredMingguLain = filterList(optionsMingguLain);
+  const filteredUnscheduled = filterList(unscheduledRabOptions);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white cursor-pointer shadow-inner flex justify-between items-center transition-colors"
+      >
+        <span className="truncate pr-4">{selectedLabel}</span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl max-h-[300px] flex flex-col overflow-hidden">
+          <div className="p-2 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Cari nama pekerjaan atau divisi..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-1 flex-1">
+            <div 
+              onClick={() => { onChange("manual"); setIsOpen(false); setSearch(''); }}
+              className="px-3 py-2 text-[11px] font-bold text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 cursor-pointer rounded-lg transition-colors border border-dashed border-amber-200 dark:border-amber-500/30 mb-2"
+            >
+              + Pekerjaan Tambah/Kurang (Input Manual)
+            </div>
+
+            {filteredMingguIni.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 py-1 text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 rounded mb-1">
+                  >>> TARGET MINGGU INI
+                </div>
+                {filteredMingguIni.map(opt => (
+                  <div key={opt.id} onClick={() => { onChange(opt.id.toString()); setIsOpen(false); setSearch(''); }} className="px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer rounded-lg transition-colors">
+                    <span className="font-semibold">{opt.uraian_pekerjaan || opt.uraian}</span> <span className="text-[10px] text-slate-400">({opt.kategori || opt.kategori_nama})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {filteredMingguLain.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 py-1 text-[9px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-500/10 rounded mb-1">
+                  >>> TARGET MINGGU LAINNYA
+                </div>
+                {filteredMingguLain.map(opt => (
+                  <div key={opt.id} onClick={() => { onChange(opt.id.toString()); setIsOpen(false); setSearch(''); }} className="px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer rounded-lg transition-colors">
+                    <span className="font-semibold">{opt.uraian_pekerjaan || opt.uraian}</span> <span className="text-[10px] text-slate-400">({opt.kategori || opt.kategori_nama})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {filteredUnscheduled.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 py-1 text-[9px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 rounded mb-1">
+                  >>> PEKERJAAN DI LUAR JADWAL (RAB TERDAFTAR)
+                </div>
+                {filteredUnscheduled.map(opt => (
+                  <div key={opt.id} onClick={() => { onChange(opt.id.toString()); setIsOpen(false); setSearch(''); }} className="px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer rounded-lg transition-colors">
+                    <span className="font-semibold">{opt.uraian_pekerjaan || opt.uraian}</span> <span className="text-[10px] text-slate-400">({opt.kategori || opt.kategori_nama})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {filteredMingguIni.length === 0 && filteredMingguLain.length === 0 && filteredUnscheduled.length === 0 && (
+               <div className="text-center py-4 text-xs text-slate-400 italic">Pekerjaan tidak ditemukan.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+// =========================================================================================
+
 
 const defaultPersonilList = [
   'Dinas PUPR', 'Konsultan', 'Kontraktor', 'Kepala Kerja/Mandor', 
@@ -88,7 +211,6 @@ export default function AddLaporan() {
       return;
     }
 
-    // FUNGSI BARU: TIDAK ADA LAGI PROMISE.ALL()
     const fetchScheduleAndRAB = async () => {
       setIsLoadingRab(true);
       try {
@@ -300,6 +422,7 @@ export default function AddLaporan() {
       <datalist id="peran-options">{defaultPersonilList.map(p => <option key={p} value={p} />)}</datalist>
       <datalist id="alat-options">{defaultPeralatanList.map(a => <option key={a} value={a} />)}</datalist>
 
+      {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm transition-colors">
@@ -330,6 +453,7 @@ export default function AddLaporan() {
 
       <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
         
+        {/* SECTION 1: Info Proyek & Pengawas (FULL WIDTH) */}
         <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
           <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-2">
             <Building2 className="w-4 h-4" /> Informasi Pengawasan
@@ -396,7 +520,11 @@ export default function AddLaporan() {
           </div>
         </div>
 
+        {/* ============================================================== */}
+        {/* ROW 1: SPLIT CUACA (KIRI) & CATATAN (KANAN)                   */}
+        {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+          
           <div className="flex flex-col space-y-5 lg:space-y-6">
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
@@ -452,6 +580,9 @@ export default function AddLaporan() {
 
         </div>
 
+        {/* ============================================================== */}
+        {/* ROW 2: FULL WIDTH UNTUK KEGIATAN & GEOGRAFIS                  */}
+        {/* ============================================================== */}
         <div className="w-full">
           <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
@@ -481,37 +612,33 @@ export default function AddLaporan() {
                     </label>
                     
                     {rabOptions.length > 0 ? (
-                      <div className="relative mb-2">
-                        <select
+                      <div className="mb-2">
+                        {/* PENGGUNAAN CUSTOM SEARCHABLE SELECT */}
+                        <SearchableSelect 
                           value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
-                          onChange={(e) => handleKegiatanSelect(index, e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer shadow-inner truncate pr-10 transition-colors"
-                        >
-                          <option value="" disabled>-- Pilih Pekerjaan --</option>
-                          {optionsMingguIni.length > 0 && <optgroup label={`>>> TARGET MINGGU INI`}>{optionsMingguIni.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                          {optionsMingguLain.length > 0 && <optgroup label=">>> TARGET MINGGU LAINNYA">{optionsMingguLain.map(opt => <option key={opt.id} value={opt.id}>{opt.uraian_pekerjaan} ({opt.kategori})</option>)}</optgroup>}
-                          {unscheduledRabOptions.length > 0 && <optgroup label=">>> PEKERJAAN DI LUAR JADWAL">{unscheduledRabOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.kategori_nama} - {opt.uraian}</option>)}</optgroup>}
-                          <option value="manual">+ Pekerjaan Baru (Manual)</option>
-                        </select>
-                        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          onChange={(val) => handleKegiatanSelect(index, val)}
+                          optionsMingguIni={optionsMingguIni}
+                          optionsMingguLain={optionsMingguLain}
+                          unscheduledRabOptions={unscheduledRabOptions}
+                        />
                       </div>
                     ) : (
-                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Pilih proyek terlebih dahulu.</div>
+                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20 shadow-sm">Pilih proyek terlebih dahulu.</div>
                     )}
 
                     {(item.rab_item_id === null || rabOptions.length === 0) && (
-                      <textarea rows="2" placeholder="Ketik uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors" />
+                      <textarea rows="2" placeholder="Ketik uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors mt-2" />
                     )}
                   </div>
                   
                   <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
-                    <input type="text" placeholder="STA 0+000" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                    <input type="text" placeholder="-3.3191, 114.5911" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                   </div>
                   
                   <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
-                    <input type="text" placeholder="STA 1+200" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                    <input type="text" placeholder="-3.3215, 114.6102" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                   </div>
                   
                   <div className="col-span-12 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
@@ -537,9 +664,12 @@ export default function AddLaporan() {
           </div>
         </div>
 
+        {/* ============================================================== */}
+        {/* ROW 3: SPLIT PERSONIL & FOTO (KIRI) | ALAT & LAMPIRAN (KANAN)  */}
+        {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+          
           <div className="flex flex-col space-y-5 lg:space-y-6">
-            
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> Personil Lapangan</h2>
@@ -581,11 +711,9 @@ export default function AddLaporan() {
                 )}
               </div>
             </div>
-
           </div>
 
           <div className="flex flex-col space-y-5 lg:space-y-6">
-            
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" /> Pemakaian Peralatan</h2>
