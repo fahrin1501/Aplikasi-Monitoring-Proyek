@@ -1,176 +1,283 @@
 import React, { useState } from 'react';
-import api from '../../../../api';
-import { Save, Loader2, Target, Calendar, Plus, Trash2, CalendarDays, X } from 'lucide-react';
+import { Target, Info, Activity, BarChart, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2 } from 'lucide-react';
 
-export default function AddScheduleModal({ projectId, projectData, onClose, onSuccess }) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [weeksForm, setWeeksForm] = useState([
-    { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
-  ]);
+export default function ScheduleWorkData({
+  scheduleData,
+  localWeeks,
+  isEditMode,
+  canCreateData,
+  grandTotalRAB,
+  handleWeekCumulativeChange,
+  openWeekModal,
+  handleRemoveWeek
+}) {
+  
+  const [detailModal, setDetailModal] = useState({ show: false, item: null, weekNum: null, targetPlan: 0, realizations: [] });
 
-  // Ekstrak batas tanggal proyek untuk filter kalender
-  const projectStart = projectData?.tanggal_mulai ? projectData.tanggal_mulai.substring(0, 10) : '';
-  const projectEnd = projectData?.tanggal_selesai ? projectData.tanggal_selesai.substring(0, 10) : '';
-
-  const handleAddWeek = () => {
-    const lastWeek = weeksForm[weeksForm.length - 1];
-    const nextMingguKe = lastWeek && lastWeek.minggu_ke ? parseInt(lastWeek.minggu_ke) + 1 : weeksForm.length + 1;
-    setWeeksForm([
-      ...weeksForm, 
-      { id: Date.now(), bulan: lastWeek ? lastWeek.bulan : '1', minggu_ke: nextMingguKe.toString(), tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
-    ]);
+  const getSafeFloat = (val) => {
+    if (val === null || val === undefined) return 0;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? 0 : parsed;
   };
 
-  const handleRemoveWeek = (idToRemove) => {
-    if (weeksForm.length === 1) return alert("Minimal harus ada 1 minggu target!");
-    setWeeksForm(weeksForm.filter(w => w.id !== idToRemove));
+  const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
+  const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
+
+  const rawRabData = scheduleData?.rab_data;
+  const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
+
+  const handleOpenCellDetail = (item, weekNum) => {
+    const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
+    const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
+    const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
   };
 
-  const handleWeekChange = (id, field, value) => {
-    setWeeksForm(weeksForm.map(w => {
-      if (w.id === id) {
-        if (field === 'target_kumulatif') {
-          const val = value.replace(',', '.');
-          if (isNaN(val) && val !== '.') return w;
-          return { ...w, [field]: val };
-        }
-        return { ...w, [field]: value };
-      }
-      return w;
-    }));
-  };
-
-  const handleSaveSchedule = async () => {
-    for (let i = 0; i < weeksForm.length; i++) {
-      const w = weeksForm[i];
-      if (!w.minggu_ke || !w.tanggal_mulai || !w.tanggal_selesai) {
-        return alert(`Mohon lengkapi data Minggu Ke, Tanggal Mulai, dan Tanggal Selesai pada baris ke-${i + 1}!`);
-      }
-      const targetVal = parseFloat(w.target_kumulatif) || 0;
-      if (targetVal <= 0) return alert(`Target Kumulatif pada baris ke-${i + 1} harus diisi dan lebih dari 0!`);
-    }
-
-    setIsSaving(true);
-    try {
-      const payloadWeeks = weeksForm.map(w => ({
-        minggu_ke: parseInt(w.minggu_ke),
-        bulan: parseInt(w.bulan) || null,
-        tanggal_awal: w.tanggal_mulai,
-        tanggal_akhir: w.tanggal_selesai,
-        target_kumulatif: parseFloat(w.target_kumulatif) || 0,
-      }));
-
-      await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
-      alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
-      onSuccess(); 
-    } catch (error) {
-      alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const extraCols = isEditMode && canCreateData ? 3 : 2; 
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
-        
-        <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
-          <div>
-            <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2">
-              <CalendarDays className="w-5 h-5"/> Setup Jadwal Pertama
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">Proyek: <strong className="text-slate-700 dark:text-slate-300">{projectData?.nama_proyek}</strong></p>
-          </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-6 h-6"/></button>
-        </div>
-
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4 bg-slate-50 dark:bg-slate-900/20">
-          {weeksForm.map((week, index) => (
-            <div key={week.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative transition-all">
-              
-              <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4 gap-2">
-                <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
-                  Minggu Ke-{week.minggu_ke || (index+1)}
-                </h2>
-                {weeksForm.length > 1 && (
-                  <button onClick={() => handleRemoveWeek(week.id)} className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-600 text-[10px] font-medium rounded-lg transition-all"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-4">
-                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> Rentang Waktu</label>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-500">Bulan Ke-</label>
-                        <input type="number" min="1" value={week.bulan} onChange={(e) => handleWeekChange(week.id, 'bulan', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-500">Minggu Ke-</label>
-                        <input type="number" min="1" value={week.minggu_ke} onChange={(e) => handleWeekChange(week.id, 'minggu_ke', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
-                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
-                        <input 
-                          type="date" 
-                          min={projectStart}
-                          max={week.tanggal_selesai || projectEnd}
-                          value={week.tanggal_mulai} 
-                          onChange={(e) => handleWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
-                        {/* PERBAIKAN: MIN & MAX BERDASARKAN RENTANG KONTRAK */}
-                        <input 
-                          type="date" 
-                          min={week.tanggal_mulai || projectStart}
-                          max={projectEnd}
-                          value={week.tanggal_selesai} 
-                          onChange={(e) => handleWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
-                        />
-                      </div>
-                   </div>
-                 </div>
-
-                 <div className="space-y-4 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><Target className="w-3.5 h-3.5" /> Target S-Curve</label>
-                    <div className="space-y-3 pt-1">
-                      <label className="text-[10px] font-medium text-slate-500">Target Kumulatif (Plan) <span className="text-rose-500">*</span></label>
-                      <div className="flex items-center gap-3">
-                         <input 
-                           type="text" 
-                           placeholder="0.00"
-                           value={week.target_kumulatif}
-                           onChange={(e) => handleWeekChange(week.id, 'target_kumulatif', e.target.value)}
-                           className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/50 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-600 dark:text-emerald-400 py-3 shadow-inner"
-                         />
-                         <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
-                      </div>
+    <>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+      
+      <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full max-h-[calc(100vh-190px)] overflow-hidden">
+        <div className="overflow-auto custom-scrollbar flex-1 w-full relative">
+          <table className="w-full text-left border-collapse min-w-max text-xs">
+            
+            <thead className="sticky top-0 z-30 shadow-sm">
+              <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
+                <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan (Realisasi Aktual)</th>
+                <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
+                
+                {weeksArray.map(w => (
+                  <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
+                    <div className="flex flex-col items-center justify-center h-full gap-1.5">
+                      <span>M-{w}</span>
+                      {isEditMode && canCreateData && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openWeekModal(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-blue-500 dark:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Atur Tanggal">
+                            <CalendarDays className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 dark:text-rose-400 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Hapus Minggu Ini">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                 </div>
-              </div>
-            </div>
-          ))}
-          
-          <button 
-            onClick={handleAddWeek}
-            className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-500 rounded-2xl bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-500 font-bold text-xs flex justify-center items-center gap-2 transition-all shadow-sm"
-          >
-            <Plus className="w-5 h-5" /> Tambah Minggu Berikutnya
-          </button>
-        </div>
+                  </th>
+                ))}
 
-        <div className="px-6 py-5 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 text-xs">Tutup</button>
-          <button onClick={handleSaveSchedule} disabled={isSaving} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks
-          </button>
+                {isEditMode && canCreateData && (
+                  <th className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
+                     <button onClick={() => openWeekModal()} className="w-full py-1.5 flex flex-col items-center justify-center gap-1 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-500/50 shadow-sm">
+                       <Plus className="w-4 h-4" />
+                       <span className="text-[9px] font-bold">Baru</span>
+                     </button>
+                  </th>
+                )}
+
+                <th className="p-3 w-[100px] text-right">Kumulatif Aktual</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
+              {safeRabData.length === 0 ? (
+                <tr>
+                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 5 : 4)} className="p-12 text-center bg-white dark:bg-slate-800/40">
+                    <div className="flex flex-col items-center justify-center max-w-md mx-auto border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8">
+                      <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
+                      <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
+                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                safeRabData.map(cat => {
+                  const safeItems = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
+                  return (
+                    <React.Fragment key={cat.id || Math.random()}>
+                      <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700/50">
+                        <td className="p-2.5 font-bold text-[10px] text-slate-700 dark:text-slate-300 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-slate-50 dark:bg-slate-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{cat.kode_divisi || '-'}</td>
+                        <td colSpan={weeksArray.length + extraCols} className="p-2.5 font-extrabold text-[11px] text-slate-800 dark:text-white uppercase sticky left-[80px] z-20 bg-slate-50 dark:bg-slate-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-700/60">{cat.nama_kategori || 'Kategori'}</td>
+                      </tr>
+                      
+                      {safeItems.map(item => {
+                        const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
+                        const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                            <td className="p-2.5 font-mono text-[10px] text-slate-500 text-center border-r border-slate-200 dark:border-slate-700/60 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{item.kode_pekerjaan || '-'}</td>
+                            <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
+                              <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
+                            </td>
+                            <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
+                              {bobotStandar.toFixed(2)}%
+                            </td>
+
+                            {weeksArray.map(w => {
+                              const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
+                              return (
+                                <td key={w} className="p-2 text-center border-r border-slate-200 dark:border-slate-700/60 relative">
+                                  {totalActual > 0 ? (
+                                    <button 
+                                      onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
+                                      title="Klik untuk lihat rincian laporan"
+                                      className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-sm active:scale-95 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border-emerald-200 dark:border-emerald-800/30"
+                                    >
+                                      {totalActual.toFixed(2)}
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-300 dark:text-slate-600 text-[10px]">-</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+
+                            {isEditMode && canCreateData && (
+                              <td className="p-2 border-r border-slate-200 dark:border-slate-700/60 bg-emerald-50/5 dark:bg-emerald-900/5"></td>
+                            )}
+
+                            <td className="p-2.5 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
+                              {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+
+            <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+              <tr className="bg-emerald-50 dark:bg-emerald-500/5 border-t-2 border-emerald-200 dark:border-emerald-500/20">
+                <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] border-r border-emerald-200 dark:border-emerald-500/20 sticky left-0 z-40 bg-emerald-50 dark:bg-emerald-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  Total Aktual / Realisasi
+                </td>
+                {weeksArray.map(w => {
+                  const weekActualSum = getSafeFloat(scheduleData?.weekly_actual?.[w]);
+                  return (
+                    <td key={w} className="p-3 text-center border-r border-emerald-200 dark:border-emerald-500/20 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      {weekActualSum > 0 ? weekActualSum.toFixed(2) : '-'}
+                    </td>
+                  );
+                })}
+
+                {isEditMode && canCreateData && (
+                  <td className="border-r border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
+                )}
+
+                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {getSafeFloat(Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + getSafeFloat(val), 0)).toFixed(2)}%
+                </td>
+              </tr>
+
+              <tr className="bg-blue-50 dark:bg-blue-500/5 border-t border-blue-200 dark:border-blue-500/20">
+                <td colSpan="3" className="p-3 text-right font-extrabold text-blue-600 dark:text-blue-400 uppercase text-[10px] border-r border-blue-200 dark:border-blue-500/20 sticky left-0 z-40 bg-blue-50 dark:bg-blue-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  Target Kumulatif Mingguan
+                </td>
+                {weeksArray.map(w => {
+                  const existingTarget = getSafeFloat(safeLocalWeeks.find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
+                  const displayCumulative = isEditMode ? existingTarget : existingTarget.toFixed(2);
+
+                  return (
+                    <td key={w} className="p-2 text-center border-r border-blue-200 dark:border-blue-500/20">
+                      {isEditMode ? (
+                        <div className="flex items-center justify-center">
+                          <input 
+                            type="text" 
+                            value={displayCumulative}
+                            onChange={(e) => handleWeekCumulativeChange(w, e.target.value)}
+                            className="w-14 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-md px-1.5 py-1 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-colors text-[10px]"
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400">
+                          {existingTarget > 0 ? existingTarget.toFixed(2) : '-'}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+
+                {isEditMode && canCreateData && (
+                  <td className="border-r border-blue-200 dark:border-blue-500/20 bg-blue-50/20 dark:bg-blue-900/10"></td>
+                )}
+
+                <td className="p-3 text-right font-mono text-[11px] font-extrabold text-blue-700 dark:text-blue-400">-</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
-    </div>
+
+      <div className="mt-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs flex gap-4 shadow-sm shrink-0">
+        <span className="font-semibold text-slate-700 dark:text-slate-300 flex gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
+        <div className="flex gap-x-5 flex-wrap text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 cursor-pointer font-bold">0.00</span> Aktual Laporan Harian</span>
+          <span className="flex items-center gap-1.5"><span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/30 font-bold">0.00</span> Target Kumulatif Rencana</span>
+        </div>
+      </div>
+
+      {/* MODAL RINCIAN HARIAN */}
+      {detailModal.show && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white uppercase flex gap-2"><Activity className="w-4 h-4 text-emerald-500" /> BUKTI REALISASI HARIAN (M-{detailModal.weekNum})</h3>
+              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-slate-800/80 p-5">
+               {(detailModal.realizations || []).length === 0 ? (
+                 <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/60 rounded-xl">
+                   <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                   <p className="text-slate-500 dark:text-slate-400 text-xs text-center">Belum ada progres harian yang diinput oleh pengawas untuk pekerjaan ini.</p>
+                 </div>
+               ) : (
+                 <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/50 shadow-sm">
+                   <table className="w-full text-left border-collapse">
+                     <thead className="bg-slate-100 dark:bg-slate-900/80 text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700/60">
+                       <tr>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-12">Hari</th>
+                         <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Tanggal Laporan</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Volume Harian</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Aktual Harian</th>
+                         <th className="p-3 text-center">Status Verifikasi</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
+                       {(detailModal.realizations || []).map((r, index) => (
+                         <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                           <td className="p-3 text-center font-mono font-bold text-slate-500">H{index + 1}</td>
+                           <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</td>
+                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</td>
+                           <td className="p-3 text-center">
+                             {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               )}
+            </div>
+            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end shrink-0">
+              <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="px-6 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-xs shadow-sm transition-colors">Tutup Rincian</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
