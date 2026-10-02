@@ -5,7 +5,7 @@ import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
   Download, CheckCircle2, AlertTriangle, Loader2, Filter, X,
-  CalendarDays, Edit3, Save, ListPlus, Plus, Calendar, Target, Trash2
+  CalendarDays, Edit3, Save, ListPlus
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -31,25 +31,16 @@ export default function KurvaS({ selectedProject }) {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- STATE DATA UTAMA ---
   const [isLoading, setIsLoading] = useState(true);
   const [scheduleData, setScheduleData] = useState(null);
   const [grandTotalRAB, setGrandTotalRAB] = useState(0);
 
-  // --- STATE SETUP JADWAL AWAL (INLINE FORM) ---
-  const [isSavingInitial, setIsSavingInitial] = useState(false);
-  const [weeksForm, setWeeksForm] = useState([
-    { id: Date.now(), bulan: '1', minggu_ke: '1', tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
-  ]);
-
-  // --- STATE EDIT SCHEDULE MATRIKS (MACRO) ---
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveModal, setSaveModal] = useState(false);
   const [localWeeks, setLocalWeeks] = useState([]); 
   const [weekModal, setWeekModal] = useState({ show: false, minggu_ke: '', bulan: '', tanggal_awal: '', tanggal_akhir: '' });
 
-  // --- STATE CHART & FILTER ---
   const [projectBounds, setProjectBounds] = useState({ start: '', end: '' }); 
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
@@ -61,7 +52,6 @@ export default function KurvaS({ selectedProject }) {
   const [fullChartData, setFullChartData] = useState([]);
   const [chartData, setChartData] = useState([]);
 
-  // --- EXPORT STATE ---
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportModal, setExportModal] = useState({ show: false, type: '' });
@@ -89,12 +79,9 @@ export default function KurvaS({ selectedProject }) {
     if (!dateStr) return '-';
     const parts = dateStr.split('-');
     if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '-';
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    return dateStr;
   };
 
-  // --- FETCH DATA ---
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
@@ -118,16 +105,12 @@ export default function KurvaS({ selectedProject }) {
         const wNum = parseInt(s.minggu_ke);
         if (!wMap[wNum]) {
           wMap[wNum] = { 
-            minggu_ke: wNum, 
-            bulan: s.bulan || '', 
-            tanggal_awal: s.tanggal_awal || '', 
-            tanggal_akhir: s.tanggal_akhir || '', 
-            target_kumulatif: parseFloat(s.target_kumulatif || 0)
+            minggu_ke: wNum, bulan: s.bulan || '', tanggal_awal: s.tanggal_awal || '', 
+            tanggal_akhir: s.tanggal_akhir || '', target_kumulatif: parseFloat(s.target_kumulatif || 0)
           };
         }
       });
       setLocalWeeks(Object.values(wMap).sort((a,b) => a.minggu_ke - b.minggu_ke));
-
     } catch (error) {
       console.error("Gagal menarik data Kurva S:", error);
     } finally {
@@ -137,70 +120,6 @@ export default function KurvaS({ selectedProject }) {
 
   useEffect(() => { if (projectId) fetchSchedule(); }, [projectId]);
 
-  // =======================================================================
-  // FUNGSI INLINE FORM (SETUP JADWAL AWAL KETIKA KOSONG)
-  // =======================================================================
-  const handleAddInitialWeek = () => {
-    const lastWeek = weeksForm[weeksForm.length - 1];
-    const nextMingguKe = lastWeek && lastWeek.minggu_ke ? parseInt(lastWeek.minggu_ke) + 1 : weeksForm.length + 1;
-    setWeeksForm([
-      ...weeksForm, 
-      { id: Date.now(), bulan: lastWeek ? lastWeek.bulan : '1', minggu_ke: nextMingguKe.toString(), tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' }
-    ]);
-  };
-
-  const handleRemoveInitialWeek = (idToRemove) => {
-    if (weeksForm.length === 1) return alert("Minimal harus ada 1 minggu target!");
-    setWeeksForm(weeksForm.filter(w => w.id !== idToRemove));
-  };
-
-  const handleInitialWeekChange = (id, field, value) => {
-    setWeeksForm(weeksForm.map(w => {
-      if (w.id === id) {
-        if (field === 'target_kumulatif') {
-          const val = value.replace(',', '.');
-          if (isNaN(val) && val !== '.') return w;
-          return { ...w, [field]: val };
-        }
-        return { ...w, [field]: value };
-      }
-      return w;
-    }));
-  };
-
-  const handleSaveInitialSchedule = async () => {
-    for (let i = 0; i < weeksForm.length; i++) {
-      const w = weeksForm[i];
-      if (!w.minggu_ke || !w.tanggal_mulai || !w.tanggal_selesai) {
-        return alert(`Mohon lengkapi data Minggu Ke, Tanggal Mulai, dan Tanggal Selesai pada baris ke-${i + 1}!`);
-      }
-      const targetVal = parseFloat(w.target_kumulatif) || 0;
-      if (targetVal <= 0) return alert(`Target Kumulatif pada baris ke-${i + 1} harus diisi dan lebih dari 0!`);
-    }
-
-    setIsSavingInitial(true);
-    try {
-      const payloadWeeks = weeksForm.map(w => ({
-        minggu_ke: parseInt(w.minggu_ke),
-        bulan: parseInt(w.bulan) || null,
-        tanggal_awal: w.tanggal_mulai,
-        tanggal_akhir: w.tanggal_selesai,
-        target_kumulatif: parseFloat(w.target_kumulatif) || 0,
-      }));
-
-      await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
-      alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
-      fetchSchedule(); 
-    } catch (error) {
-      alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
-    } finally {
-      setIsSavingInitial(false);
-    }
-  };
-
-  // =======================================================================
-  // FUNGSI EDIT MATRIKS (JIKA JADWAL SUDAH ADA)
-  // =======================================================================
   const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(); };
 
   const handleWeekCumulativeChange = (weekNum, value) => {
@@ -228,9 +147,7 @@ export default function KurvaS({ selectedProject }) {
     setLocalWeeks(prev => {
       const safePrev = Array.isArray(prev) ? prev : [];
       const exists = safePrev.find(w => parseInt(w.minggu_ke) === parseInt(weekModal.minggu_ke));
-      if (exists) {
-        return safePrev.map(w => parseInt(w.minggu_ke) === parseInt(weekModal.minggu_ke) ? { ...w, ...weekModal } : w);
-      }
+      if (exists) return safePrev.map(w => parseInt(w.minggu_ke) === parseInt(weekModal.minggu_ke) ? { ...w, ...weekModal } : w);
       return [...safePrev, { ...weekModal }].sort((a,b) => parseInt(a.minggu_ke) - parseInt(b.minggu_ke));
     });
     setWeekModal({ show: false, minggu_ke: '', bulan: '', tanggal_awal: '', tanggal_akhir: '' });
@@ -263,9 +180,6 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  // =======================================================================
-  // LOGIKA FILTER GRAFIK DINAMIS (S-CURVE)
-  // =======================================================================
   const applyFilter = (mode, data) => {
     setFilterMode(mode);
     if (mode === 'Semua') {
@@ -294,24 +208,30 @@ export default function KurvaS({ selectedProject }) {
   };
 
   const getActiveFilterLabel = () => {
-    let rangeLabel = (startDateFilter || endDateFilter) 
-      ? `${startDateFilter ? formatIndoDate(startDateFilter) : 'Awal'} - ${endDateFilter ? formatIndoDate(endDateFilter) : 'Akhir'}`
-      : 'Seluruh Waktu';
+    let rangeLabel = (startDateFilter || endDateFilter) ? `${startDateFilter ? formatIndoDate(startDateFilter) : 'Awal'} - ${endDateFilter ? formatIndoDate(endDateFilter) : 'Akhir'}` : 'Seluruh Waktu';
     return `Skala ${filterMode} | ${rangeLabel}`;
   };
 
-  // --- PERHITUNGAN TITIK GRAFIK S-CURVE ---
+  // ====================================================================================
+  // PERBAIKAN FATAL: MENGGUNAKAN LOCAL DATE PARSER AGAR TIDAK KENA BUG UTC TIMEZONE SHIFT
+  // ====================================================================================
   useEffect(() => {
     if (!scheduleData) return;
+
+    const parseLocalDate = (dateStr) => {
+      if (!dateStr) return new Date();
+      // Pastikan format YYYY-MM-DD diekstrak dengan aman tanpa zona waktu tambahan
+      const cleanStr = dateStr.split(' ')[0].split('T')[0];
+      const [y, m, d] = cleanStr.split('-');
+      return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    };
 
     const weekMap = {};
     const safeSchedules = Array.isArray(scheduleData.schedules) ? scheduleData.schedules : (scheduleData.schedules ? Object.values(scheduleData.schedules) : []);
     
     safeSchedules.forEach(s => {
       const w = parseInt(s.minggu_ke);
-      if (!weekMap[w]) {
-        weekMap[w] = { minggu_ke: w, bulan: s.bulan || null, tanggal_awal: s.tanggal_awal || null, tanggal_akhir: s.tanggal_akhir || null, target_kumulatif: 0 };
-      }
+      if (!weekMap[w]) weekMap[w] = { minggu_ke: w, bulan: s.bulan || null, tanggal_awal: s.tanggal_awal || null, tanggal_akhir: s.tanggal_akhir || null, target_kumulatif: 0 };
       weekMap[w].target_kumulatif += getSafeFloat(s.target_kumulatif);
       if (!weekMap[w].tanggal_awal && s.tanggal_awal) weekMap[w].tanggal_awal = s.tanggal_awal;
       if (!weekMap[w].tanggal_akhir && s.tanggal_akhir) weekMap[w].tanggal_akhir = s.tanggal_akhir;
@@ -325,37 +245,42 @@ export default function KurvaS({ selectedProject }) {
 
     const safeRealizations = Array.isArray(scheduleData.realizations) ? scheduleData.realizations : (scheduleData.realizations ? Object.values(scheduleData.realizations) : []);
 
-    // EKSTRAK DATA REALISASI
     safeRealizations.forEach(r => {
       if (!r.tgl_input) return;
-      const ymd = r.tgl_input.split('T')[0];
+      const ymd = r.tgl_input.split('T')[0].split(' ')[0]; // Ambil YYYY-MM-DD murni
       dailyRealisasi[ymd] = getSafeFloat(dailyRealisasi[ymd]) + getSafeFloat(r.bobot_realisasi);
       if (r.minggu_ke) dailyRealisasiWeeks[ymd] = r.minggu_ke;
-      if (!maxReportedDayStr || ymd > maxReportedDayStr) maxReportedDayStr = ymd; // CARI TANGGAL LAPORAN TERAKHIR
+      if (!maxReportedDayStr || ymd > maxReportedDayStr) maxReportedDayStr = ymd;
     });
 
-    const pStart = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date(); pStart.setHours(0,0,0,0);
-    const pEnd = scheduleData.project_info?.tanggal_selesai ? new Date(scheduleData.project_info.tanggal_selesai) : new Date(pStart.getTime() + (30 * 24 * 3600 * 1000)); pEnd.setHours(0,0,0,0);
+    const pStart = scheduleData.project_info?.tanggal_mulai ? parseLocalDate(scheduleData.project_info.tanggal_mulai) : new Date(); pStart.setHours(0,0,0,0);
+    const pEnd = scheduleData.project_info?.tanggal_selesai ? parseLocalDate(scheduleData.project_info.tanggal_selesai) : new Date(pStart.getTime() + (30 * 24 * 3600 * 1000)); pEnd.setHours(0,0,0,0);
 
     let minDate = new Date(pStart); let maxDate = new Date(pEnd);
     sortedWeeks.forEach(w => {
-      if (w.tanggal_awal) { const d = new Date(w.tanggal_awal); if (!isNaN(d.getTime()) && d < minDate) minDate = d; }
-      if (w.tanggal_akhir) { const d = new Date(w.tanggal_akhir); if (!isNaN(d.getTime()) && d > maxDate) maxDate = d; }
+      if (w.tanggal_awal) { const d = parseLocalDate(w.tanggal_awal); if (d < minDate) minDate = d; }
+      if (w.tanggal_akhir) { const d = parseLocalDate(w.tanggal_akhir); if (d > maxDate) maxDate = d; }
     });
-    if (maxReportedDayStr) { const d = new Date(maxReportedDayStr); if (!isNaN(d.getTime()) && d > maxDate) maxDate = d; }
+    if (maxReportedDayStr) { const d = parseLocalDate(maxReportedDayStr); if (d > maxDate) maxDate = d; }
 
     minDate.setHours(0,0,0,0); maxDate.setHours(0,0,0,0);
+    
+    // Hitung total hari yang perlu di render
     const totalDays = Math.max(1, Math.floor((maxDate - minDate) / (1000 * 3600 * 24)) + 1);
 
     const tempChartData = [];
     let cumRealisasi = 0;
-    
-    // VARIABEL PENANDA: Apakah setidaknya sudah ada satu laporan di seluruh proyek?
     let hasAnyReportEver = safeRealizations.length > 0;
 
     for (let i = 0; i < totalDays; i++) {
-      const currDate = new Date(minDate.getTime() + i * 24 * 3600 * 1000);
-      const yyyymmdd = currDate.toISOString().split('T')[0];
+      // Loop berdasar penambahan hari lokal murni (bebas dari timezone jump)
+      const currDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate() + i);
+      
+      const yyyy = currDate.getFullYear();
+      const mm = String(currDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(currDate.getDate()).padStart(2, '0');
+      const yyyymmdd = `${yyyy}-${mm}-${dd}`; // Tanggal String Murni
+
       const shortDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       const displayDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
       const dateSlash = formatDateSlash(yyyymmdd);
@@ -371,7 +296,6 @@ export default function KurvaS({ selectedProject }) {
       } else {
         const diffFromStart = Math.floor((currDate - pStart) / (1000 * 3600 * 24));
         currentWeekNum = diffFromStart >= 0 ? Math.floor(diffFromStart / 7) + 1 : 0;
-        if (weekMap[currentWeekNum]) matchedWeek = weekMap[currentWeekNum];
       }
 
       const targetKumulatifMingguan = matchedWeek ? getSafeFloat(matchedWeek.target_kumulatif) : null;
@@ -380,12 +304,10 @@ export default function KurvaS({ selectedProject }) {
 
       if (hasReportToday) cumRealisasi += actVal;
       
-      // LOGIKA PEMOTONGAN GARIS HIJAU:
-      // Memastikan garis Realisasi berhenti persis pada hari di mana laporan terakhir dibuat
       let finalRealisasiKumulatif = null;
       if (hasAnyReportEver) {
           if (maxReportedDayStr && yyyymmdd > maxReportedDayStr) {
-              finalRealisasiKumulatif = null; // Terputus (Tidak Digambar)
+              finalRealisasiKumulatif = null; 
           } else {
               finalRealisasiKumulatif = getSafeFloat(cumRealisasi);
           }
@@ -401,13 +323,13 @@ export default function KurvaS({ selectedProject }) {
     setFullChartData(tempChartData);
   }, [scheduleData]);
 
+  // ====================================================================================
+
   useEffect(() => {
     if (fullChartData.length === 0) return;
-    
     let filtered = fullChartData;
     if (startDateFilter) filtered = filtered.filter(d => d.dateString >= startDateFilter);
     if (endDateFilter) filtered = filtered.filter(d => d.dateString <= endDateFilter);
-
     let aggregated = [];
 
     if (filterMode === 'Bulanan') {
@@ -433,7 +355,6 @@ export default function KurvaS({ selectedProject }) {
     else { 
       aggregated = filtered.map(d => ({ ...d, xAxisLabel: d.shortDate, tooltipLabel: d.displayDate }));
     }
-
     setChartData(aggregated);
   }, [fullChartData, startDateFilter, endDateFilter, filterMode]);
 
@@ -442,9 +363,7 @@ export default function KurvaS({ selectedProject }) {
       const dataInfo = payload[0].payload;
       return (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl shadow-xl text-xs z-50 min-w-[150px]">
-          <p className="font-extrabold text-slate-800 dark:text-white mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
-            {dataInfo.tooltipLabel}
-          </p>
+          <p className="font-extrabold text-slate-800 dark:text-white mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">{dataInfo.tooltipLabel}</p>
           {payload.map((entry, index) => {
             if (entry.value === undefined || entry.value === null) return null; 
             return (
@@ -477,17 +396,13 @@ export default function KurvaS({ selectedProject }) {
   const executeExport = async () => {
     const type = exportModal.type;
     setExportModal({ show: false, type: '' }); 
-
     const chartElement = document.getElementById('chart-area'); 
     if (!chartElement) return alert("Area grafik tidak ditemukan!");
-
-    if(type === 'excel') setIsExportingExcel(true);
-    else setIsExportingPdf(true);
+    if(type === 'excel') setIsExportingExcel(true); else setIsExportingPdf(true);
 
     try {
       const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-
       const response = await api.post(`/projects/${projectId}/export-kurva/${type}`, {
         chart_image: base64Image, start_date: startDateFilter, end_date: endDateFilter, view_mode: filterMode.toLowerCase()
       }, { responseType: 'blob' });
@@ -572,6 +487,15 @@ export default function KurvaS({ selectedProject }) {
           </div>
         </div>
       </div>
+
+      {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && !isScheduleEmpty && (
+        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
+            Tampilan Grafik: {getActiveFilterLabel()}
+            <button onClick={() => applyFilter('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
+          </span>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in"><Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" /><p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memproses Dashboard S-Curve...</p></div>
