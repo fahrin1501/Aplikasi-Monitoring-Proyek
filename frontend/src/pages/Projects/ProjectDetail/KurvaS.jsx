@@ -106,6 +106,7 @@ export default function KurvaS({ selectedProject }) {
       let rawSchedules = data?.schedules;
       let fetchedSchedules = Array.isArray(rawSchedules) ? rawSchedules : (rawSchedules ? Object.values(rawSchedules) : []);
 
+      // Ambil Batas Tanggal Proyek Secara Absolut
       if (data?.project_info) {
         setProjectBounds({
           start: data.project_info.tanggal_mulai ? data.project_info.tanggal_mulai.substring(0, 10) : '',
@@ -190,7 +191,7 @@ export default function KurvaS({ selectedProject }) {
 
       await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
       alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
-      fetchSchedule(); // Render ulang tampilan ke mode Matriks & Grafik
+      fetchSchedule(); // Otomatis refresh ke mode Chart
     } catch (error) {
       alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
     } finally {
@@ -263,7 +264,6 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  // --- LOGIKA FILTER GRAFIK DINAMIS ---
   const getAvailableMonths = () => {
     if (!projectBounds.start || !projectBounds.end) return [];
     const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
@@ -849,6 +849,7 @@ export default function KurvaS({ selectedProject }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} className="dark:stroke-slate-700" />
+                      {/* XAxis Menggunakan Label Agregasi Dinamis (Bulan, Minggu, Hari) */}
                       <XAxis dataKey="xAxisLabel" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} unit="%" tickLine={false} axisLine={false} className="dark:stroke-slate-400" />
                       <Tooltip content={<CustomTooltip />} />
