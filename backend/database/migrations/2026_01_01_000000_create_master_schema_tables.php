@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         // ==========================================
-        // 1. TABEL SISTEM & AUTENTIKASI (DIPERBAIKI)
+        // 1. TABEL SISTEM & AUTENTIKASI
         // ==========================================
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -41,7 +41,6 @@ return new class extends Migration
             $table->integer('last_activity')->index();
         });
 
-        // INI TABEL YANG SEBELUMNYA TERLEWAT
         Schema::create('personal_access_tokens', function (Blueprint $table) {
             $table->id();
             $table->morphs('tokenable');
@@ -87,8 +86,8 @@ return new class extends Migration
             $table->string('tahun_anggaran')->nullable();
             $table->date('tanggal_mulai')->nullable();
             $table->date('tanggal_selesai')->nullable();
-            $table->integer('waktu_pelaksanaan')->nullable();
-            $table->integer('masa_pemeliharaan')->nullable();
+            $table->string('waktu_pelaksanaan')->nullable(); // FIXED: String
+            $table->string('masa_pemeliharaan')->nullable(); // FIXED: String
             $table->string('lokasi_wilayah')->nullable();
             $table->string('ppk')->nullable();
             $table->string('kontraktor')->nullable();
@@ -136,7 +135,7 @@ return new class extends Migration
         });
 
         // ==========================================
-        // 3. TABEL RAB & TIME SCHEDULE
+        // 3. TABEL RAB & TIME SCHEDULE (MAKRO)
         // ==========================================
         Schema::create('rab_categories', function (Blueprint $table) {
             $table->id();
@@ -162,12 +161,12 @@ return new class extends Migration
         Schema::create('project_schedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('projects')->cascadeOnDelete();
-            $table->foreignId('rab_item_id')->constrained('rab_items')->cascadeOnDelete();
+            // FITUR MAKRO SCHEDULE: Bebas dari ikatan rab_item_id
             $table->integer('minggu_ke');
             $table->integer('bulan')->nullable();
             $table->date('tanggal_awal')->nullable();
             $table->date('tanggal_akhir')->nullable();
-            $table->decimal('bobot_rencana', 10, 4)->default(0);
+            $table->decimal('target_kumulatif', 10, 4)->default(0);
             $table->timestamps();
         });
 
@@ -183,6 +182,7 @@ return new class extends Migration
             $table->string('lokasi');
             $table->text('cuaca')->nullable();
             $table->json('kondisi_cuaca')->nullable();
+            $table->text('catatan')->nullable(); // FIXED: Catatan Harian ditambahkan
             $table->string('status')->default('pending');
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();

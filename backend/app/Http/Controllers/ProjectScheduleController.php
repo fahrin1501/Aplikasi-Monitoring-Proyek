@@ -14,14 +14,13 @@ class ProjectScheduleController extends Controller
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL DI BACKEND
+            // 1. HITUNG GRAND TOTAL RAB
             $grandTotalRAB = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
                 ->where('rab_items.is_subheader', false)
                 ->sum('rab_items.total_harga');
 
-            // 2. CARI ID PEKERJAAN YANG SUDAH ADA LAPORAN HARIANNYA (APPROVED)
             $reportedItemIds = DB::table('daily_report_activities')
                 ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                 ->where('daily_reports.project_id', $projectId)
@@ -30,7 +29,6 @@ class ProjectScheduleController extends Controller
                 ->unique()
                 ->toArray();
 
-            // 3. FILTER RAB CATEGORIES & ITEMS (Hanya kirim yang ada laporannya)
             $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
             $rabItems = collect([]);
             if (!empty($reportedItemIds)) {
@@ -50,14 +48,13 @@ class ProjectScheduleController extends Controller
                 }
             }
 
-            // 4. AMBIL TARGET JADWAL MINGGUAN (Macro)
+            // 2. TARIK DATA SCHEDULE (SEKARANG SANGAT CEPAT DAN KECIL)
             $schedules = DB::table('project_schedules')
                 ->where('project_id', $projectId)
-                ->select('minggu_ke', 'bulan', 'tanggal_awal', 'tanggal_akhir', 'target_kumulatif')
-                ->distinct()
+                ->orderBy('minggu_ke', 'asc')
                 ->get();
 
-            // 5. AMBIL DATA AKTUAL UNTUK MATRIKS
+            // 3. AMBIL DATA AKTUAL (Realisasi)
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
@@ -136,19 +133,7 @@ class ProjectScheduleController extends Controller
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
-            // OPTIMASI: Abaikan item yang is_subheader = true
-            $allRabItemIds = DB::table('rab_items')
-                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                ->where('rab_categories.project_id', $projectId)
-                ->where('rab_items.is_subheader', false)
-                ->pluck('rab_items.id')
-                ->toArray();
-
-            if (empty($allRabItemIds)) {
-                return response()->json(['status' => 'error', 'message' => 'Data RAB Kosong! Silakan input RAB terlebih dahulu.'], 400);
-            }
-
-            // OPTIMASI SUPER CEPAT: Hapus pakai project_id
+            // 1. CLEAR DATABASE (Lebih cepat karena tidak terikat RAB)
             if ($isFullSync) {
                 DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
@@ -163,30 +148,22 @@ class ProjectScheduleController extends Controller
             $insertData = [];
             $now = now();
 
+            // 2. SIMPAN SECARA MAKRO (Super Kilat: Hanya 1 baris per minggu!)
             foreach ($weeks as $week) {
-                $targetKumulatif = (float) ($week['target_kumulatif'] ?? 0);
-                $bobotPerItem = count($allRabItemIds) > 0 ? ($targetKumulatif / count($allRabItemIds)) : 0;
-
-                foreach ($allRabItemIds as $itemId) {
-                    $insertData[] = [
-                        'project_id' => $projectId,
-                        'rab_item_id' => $itemId,
-                        'minggu_ke' => $week['minggu_ke'],
-                        'bulan' => $week['bulan'] ?? null,
-                        'tanggal_awal' => $week['tanggal_awal'] ?? null,
-                        'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
-                        'target_kumulatif' => $targetKumulatif,
-                        'bobot_rencana' => $bobotPerItem,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
+                $insertData[] = [
+                    'project_id' => $projectId,
+                    'minggu_ke' => $week['minggu_ke'],
+                    'bulan' => $week['bulan'] ?? null,
+                    'tanggal_awal' => $week['tanggal_awal'] ?? null,
+                    'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
+                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
 
             if (!empty($insertData)) {
-                foreach (array_chunk($insertData, 500) as $chunk) {
-                    DB::table('project_schedules')->insert($chunk);
-                }
+                DB::table('project_schedules')->insert($insertData);
             }
 
             $project = Project::find($projectId);
@@ -195,7 +172,7 @@ class ProjectScheduleController extends Controller
             }
 
             DB::commit();
-            return response()->json(['status' => 'success', 'message' => 'Target Jadwal Matriks berhasil disimpan!']);
+            return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan (Plan) berhasil disimpan!']);
 
         } catch (Throwable $e) {
             DB::rollBack();
@@ -207,7 +184,6 @@ class ProjectScheduleController extends Controller
     {
         try {
             DB::beginTransaction();
-            // OPTIMASI SUPER CEPAT: Hapus hanya menggunakan project_id
             DB::table('project_schedules')->where('project_id', $projectId)->delete();
             DB::commit();
             return response()->json(['status' => 'success', 'message' => 'Seluruh Jadwal Matriks berhasil dikosongkan.']);

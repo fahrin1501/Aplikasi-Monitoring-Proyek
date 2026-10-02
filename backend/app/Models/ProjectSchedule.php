@@ -11,27 +11,18 @@ class ProjectSchedule extends Model
 
     protected $table = 'project_schedules';
 
-    // WAJIB: Tambahkan kolom baru agar tidak di-block oleh MassAssignmentException Laravel
+    // Kolom bersih tanpa beban RAB Item
     protected $fillable = [
         'project_id',
-        'rab_item_id',
         'minggu_ke',
         'bulan',
         'tanggal_awal',
         'tanggal_akhir',
-        'bobot_rencana',
         'target_kumulatif'
     ];
 
-    // Relasi ke Proyek
     public function project()
     {
         return $this->belongsTo(Project::class);
-    }
-
-    // Relasi ke Item RAB
-    public function rabItem()
-    {
-        return $this->belongsTo(RabItem::class);
     }
 }
