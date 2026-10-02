@@ -14,48 +14,28 @@ class ProjectScheduleController extends Controller
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL DI BACKEND
+            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL
             $grandTotalRAB = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
                 ->where('rab_items.is_subheader', false)
                 ->sum('rab_items.total_harga');
 
-            // 2. PERBAIKAN FATAL: AMBIL SEMUA DATA RAB!
-            // Jangan memfilter data RAB berdasarkan Laporan yang sudah ada.
-            $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
-            $categoryIds = $rabCategories->pluck('id')->toArray();
-
-            $rabItems = collect([]);
-            if (!empty($categoryIds)) {
-                // Tarik SELURUH item pekerjaan yang ada di proyek ini
-                $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
-            }
-
-            $rabData = [];
-            foreach ($rabCategories as $cat) {
-                $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
-                if ($items->count() > 0) {
-                    $rabData[] = [
-                        'id' => $cat->id,
-                        'nama_kategori' => $cat->nama_kategori,
-                        'kode_divisi' => $cat->kode_divisi ?? null,
-                        'items' => $items
-                    ];
-                }
-            }
-
-            // 3. AMBIL TARGET JADWAL MINGGUAN (Macro)
+            // 2. AMBIL TARGET JADWAL MINGGUAN (Macro)
             $schedules = DB::table('project_schedules')
                 ->where('project_id', $projectId)
                 ->orderBy('minggu_ke', 'asc')
                 ->get();
 
-            // 4. AMBIL DATA AKTUAL (REALISASI HARIAN) UNTUK MATRIKS
+            // 3. AMBIL DATA AKTUAL (REALISASI HARIAN) TERLEBIH DAHULU
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
             $cumulative_actual = [];
+
+            // Array untuk menampung ID RAB yang benar-benar ada progresnya
+            $reportedItemIds = [];
+            $hasManual = false;
 
             try {
                 $rawRealizations = DB::table('daily_report_activities')
@@ -72,6 +52,7 @@ class ProjectScheduleController extends Controller
                     )
                     ->get();
 
+                // Hitung total persentase per pekerjaan, HANYA AMBIL YANG > 0
                 $aggregatedActuals = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
@@ -82,12 +63,20 @@ class ProjectScheduleController extends Controller
                         DB::raw('SUM(daily_report_activities.persentase) as total_persen')
                     )
                     ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
+                    ->having('total_persen', '>', 0) // FILTER UTAMA
                     ->get();
 
                 foreach($aggregatedActuals as $r) {
                     $itemId = $r->rab_item_id ?? 'manual';
                     $minggu = $r->minggu_ke ?? 0;
                     $persen = (float) $r->total_persen;
+
+                    // Tampung ID yang aktif
+                    if ($r->rab_item_id) {
+                        $reportedItemIds[] = $r->rab_item_id;
+                    } else {
+                        $hasManual = true;
+                    }
 
                     if(!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                     $matrix_actual[$itemId][$minggu] = $persen;
@@ -98,14 +87,57 @@ class ProjectScheduleController extends Controller
                     if(!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
                     $cumulative_actual[$itemId] += $persen;
                 }
+
+                $reportedItemIds = array_unique($reportedItemIds);
+
             } catch (Throwable $th) {}
+
+            // 4. SUSUN DATA RAB YANG HANYA MEMILIKI REALISASI SAJA
+            $rabData = [];
+            if (!empty($reportedItemIds)) {
+                $rabCategories = DB::table('rab_categories')
+                    ->where('project_id', $projectId)
+                    ->whereIn('id', function($query) use ($reportedItemIds) {
+                        $query->select('rab_category_id')->from('rab_items')->whereIn('id', $reportedItemIds);
+                    })->get();
+
+                $rabItems = DB::table('rab_items')->whereIn('id', $reportedItemIds)->get();
+
+                foreach ($rabCategories as $cat) {
+                    $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
+                    if ($items->count() > 0) {
+                        $rabData[] = [
+                            'id' => $cat->id,
+                            'nama_kategori' => $cat->nama_kategori,
+                            'kode_divisi' => $cat->kode_divisi ?? null,
+                            'items' => $items
+                        ];
+                    }
+                }
+            }
+
+            // INJEKSI PEKERJAAN MANUAL DARI BACKEND JIKA ADA
+            if ($hasManual) {
+                $rabData[] = [
+                    'id' => 'cat-manual',
+                    'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)',
+                    'kode_divisi' => 'EXT',
+                    'items' => [[
+                        'id' => 'manual',
+                        'kode_pekerjaan' => '-',
+                        'uraian_pekerjaan' => 'Pekerjaan Input Manual',
+                        'is_manual' => true,
+                        'total_harga' => 0
+                    ]]
+                ];
+            }
 
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'project_info' => $projectInfo,
                     'grand_total_rab' => (float) $grandTotalRAB,
-                    'rab_data' => $rabData,
+                    'rab_data' => $rabData, // SEKARANG DATA RAB SUDAH SANGAT BERSIH!
                     'schedules' => $schedules,
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,
@@ -130,7 +162,6 @@ class ProjectScheduleController extends Controller
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
-            // 1. CLEAR DATABASE (Lebih cepat karena tidak terikat RAB)
             if ($isFullSync) {
                 DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
@@ -145,7 +176,6 @@ class ProjectScheduleController extends Controller
             $insertData = [];
             $now = now();
 
-            // 2. SIMPAN SECARA MAKRO (Super Kilat: Hanya 1 baris per minggu!)
             foreach ($weeks as $week) {
                 $insertData[] = [
                     'project_id' => $projectId,

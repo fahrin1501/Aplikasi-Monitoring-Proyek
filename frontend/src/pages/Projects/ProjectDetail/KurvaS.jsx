@@ -190,7 +190,7 @@ export default function KurvaS({ selectedProject }) {
 
       await api.post(`/projects/${projectId}/schedules`, { full_sync: false, weeks: payloadWeeks });
       alert(`Jadwal Awal Proyek Berhasil Disimpan!`);
-      fetchSchedule(); // Otomatis refresh ke mode Chart
+      fetchSchedule(); 
     } catch (error) {
       alert("Gagal menyimpan Time Schedule. Pastikan koneksi server aman.");
     } finally {
@@ -263,28 +263,9 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  // --- LOGIKA FILTER GRAFIK DINAMIS ---
-  const getAvailableMonths = () => {
-    if (!projectBounds.start || !projectBounds.end) return [];
-    const start = new Date(projectBounds.start); const end = new Date(projectBounds.end);
-    const months = [];
-    let current = new Date(start.getFullYear(), start.getMonth(), 1);
-    const limit = new Date(end.getFullYear(), end.getMonth(), 1);
-
-    while (current <= limit) {
-      const mStart = current.getTime() < start.getTime() ? start : current;
-      const nextMonthFirstDay = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-      const lastDayOfMonth = new Date(nextMonthFirstDay.getTime() - 1);
-      const mEnd = lastDayOfMonth.getTime() > end.getTime() ? end : lastDayOfMonth;
-
-      months.push({ label: mStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
-      current = nextMonthFirstDay;
-    }
-    return months;
-  };
-
-  const availableMonths = getAvailableMonths();
-
+  // =======================================================================
+  // LOGIKA FILTER GRAFIK DINAMIS (S-CURVE)
+  // =======================================================================
   const applyFilter = (mode, data) => {
     setFilterMode(mode);
     if (mode === 'Semua') {
@@ -312,13 +293,6 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  const applyManualFilter = () => {
-    if (filterMode === 'Rentang') {
-      if(!filterSelection.rentangStart || !filterSelection.rentangEnd) return alert("Lengkapi tanggal mulai dan akhir!");
-      setStartDateFilter(filterSelection.rentangStart); setEndDateFilter(filterSelection.rentangEnd); setShowFilterPopup(false);
-    }
-  };
-
   const getActiveFilterLabel = () => {
     let rangeLabel = (startDateFilter || endDateFilter) 
       ? `${startDateFilter ? formatIndoDate(startDateFilter) : 'Awal'} - ${endDateFilter ? formatIndoDate(endDateFilter) : 'Akhir'}`
@@ -326,6 +300,7 @@ export default function KurvaS({ selectedProject }) {
     return `Skala ${filterMode} | ${rangeLabel}`;
   };
 
+  // --- PERHITUNGAN TITIK GRAFIK S-CURVE ---
   useEffect(() => {
     if (!scheduleData) return;
 
@@ -350,12 +325,13 @@ export default function KurvaS({ selectedProject }) {
 
     const safeRealizations = Array.isArray(scheduleData.realizations) ? scheduleData.realizations : (scheduleData.realizations ? Object.values(scheduleData.realizations) : []);
 
+    // EKSTRAK DATA REALISASI
     safeRealizations.forEach(r => {
       if (!r.tgl_input) return;
       const ymd = r.tgl_input.split('T')[0];
       dailyRealisasi[ymd] = getSafeFloat(dailyRealisasi[ymd]) + getSafeFloat(r.bobot_realisasi);
       if (r.minggu_ke) dailyRealisasiWeeks[ymd] = r.minggu_ke;
-      if (!maxReportedDayStr || ymd > maxReportedDayStr) maxReportedDayStr = ymd;
+      if (!maxReportedDayStr || ymd > maxReportedDayStr) maxReportedDayStr = ymd; // CARI TANGGAL LAPORAN TERAKHIR
     });
 
     const pStart = scheduleData.project_info?.tanggal_mulai ? new Date(scheduleData.project_info.tanggal_mulai) : new Date(); pStart.setHours(0,0,0,0);
@@ -404,18 +380,15 @@ export default function KurvaS({ selectedProject }) {
 
       if (hasReportToday) cumRealisasi += actVal;
       
-      // LOGIKA BARU:
-      // Jika sama sekali belum ada laporan sejak awal proyek DIBUAT (hasAnyReportEver === false),
-      // MAKA realisasi kumulatif WAJIB `null` (Agar garis hijau tersembunyi / tidak digambar).
-      // Jika sudah ada laporan (hasAnyReportEver === true), ikuti logika lama (batas hari ini).
-      
+      // LOGIKA PEMOTONGAN GARIS HIJAU:
+      // Memastikan garis Realisasi berhenti persis pada hari di mana laporan terakhir dibuat
       let finalRealisasiKumulatif = null;
       if (hasAnyReportEver) {
-          // Hanya sembunyikan nilai jika melebihi hari ini atau melebihi hari laporan terakhir
-          const today = new Date(); today.setHours(0,0,0,0);
-          const todayStr = today.toISOString().split('T')[0];
-          const isFuture = yyyymmdd > todayStr && (!maxReportedDayStr || yyyymmdd > maxReportedDayStr);
-          finalRealisasiKumulatif = (isFuture && !hasReportToday) ? null : getSafeFloat(cumRealisasi);
+          if (maxReportedDayStr && yyyymmdd > maxReportedDayStr) {
+              finalRealisasiKumulatif = null; // Terputus (Tidak Digambar)
+          } else {
+              finalRealisasiKumulatif = getSafeFloat(cumRealisasi);
+          }
       }
 
       tempChartData.push({
@@ -444,12 +417,7 @@ export default function KurvaS({ selectedProject }) {
         const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
         const shortMonth = dateObj.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
         const longMonth = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-        
-        monthMap[monthKey] = {
-          ...d,
-          xAxisLabel: shortMonth,
-          tooltipLabel: `Bulan: ${longMonth}`
-        };
+        monthMap[monthKey] = { ...d, xAxisLabel: shortMonth, tooltipLabel: `Bulan: ${longMonth}` };
       });
       aggregated = Object.values(monthMap);
     } 
@@ -458,20 +426,12 @@ export default function KurvaS({ selectedProject }) {
       filtered.forEach(d => {
         const wKey = d.mingguKe || 0;
         if (wKey === 0) return; 
-        weekMap[wKey] = {
-          ...d,
-          xAxisLabel: `M-${wKey}`,
-          tooltipLabel: `Minggu Ke-${wKey}`
-        };
+        weekMap[wKey] = { ...d, xAxisLabel: `M-${wKey}`, tooltipLabel: `Minggu Ke-${wKey}` };
       });
       aggregated = Object.values(weekMap);
     } 
     else { 
-      aggregated = filtered.map(d => ({
-        ...d,
-        xAxisLabel: d.shortDate,
-        tooltipLabel: d.displayDate
-      }));
+      aggregated = filtered.map(d => ({ ...d, xAxisLabel: d.shortDate, tooltipLabel: d.displayDate }));
     }
 
     setChartData(aggregated);
@@ -529,26 +489,18 @@ export default function KurvaS({ selectedProject }) {
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
       const response = await api.post(`/projects/${projectId}/export-kurva/${type}`, {
-        chart_image: base64Image,
-        start_date: startDateFilter,
-        end_date: endDateFilter,
-        view_mode: filterMode.toLowerCase()
+        chart_image: base64Image, start_date: startDateFilter, end_date: endDateFilter, view_mode: filterMode.toLowerCase()
       }, { responseType: 'blob' });
 
       const safeLabel = getActiveFilterLabel().replace(/[^a-zA-Z0-9]/g, '_');
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
+      const link = document.createElement('a'); link.href = url;
       link.setAttribute('download', `Kurva_S_${safeLabel}_${type === 'excel' ? 'Lengkap.xlsx' : 'Lengkap.pdf'}`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      document.body.appendChild(link); link.click(); link.remove();
     } catch (error) {
-      console.error("Export failed:", error);
       alert(`Gagal mengunduh ${type}. Internal Server Error.`);
     } finally {
-      setIsExportingExcel(false);
-      setIsExportingPdf(false);
+      setIsExportingExcel(false); setIsExportingPdf(false);
     }
   };
 
@@ -556,7 +508,6 @@ export default function KurvaS({ selectedProject }) {
 
   return (
     <div className="w-full space-y-5 pb-20 relative animate-fade-in flex flex-col min-h-screen">
-      
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -568,9 +519,7 @@ export default function KurvaS({ selectedProject }) {
       {/* HEADER NAVIGASI */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"><ArrowLeft className="w-5 h-5" /></Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Matriks Waktu</span>
@@ -579,73 +528,30 @@ export default function KurvaS({ selectedProject }) {
             <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
               <span className="text-slate-400 mx-0.5">•</span>
-              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>
-                {project?.kategori || 'Belum Ditentukan'}
-              </span>
+              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>{project?.kategori || 'Belum Ditentukan'}</span>
             </div>
           </div>
         </div>
 
         <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
-          
-          {/* ACTION BUTTONS: FILTER GRAFIK */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all duration-300">
-            
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
-                <button 
-                  disabled={isLoading || isScheduleEmpty}
-                  onClick={() => setShowFilterPopup(!showFilterPopup)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                    showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter
-                      ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' 
-                      : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
+                <button disabled={isLoading || isScheduleEmpty} onClick={() => setShowFilterPopup(!showFilterPopup)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                   <Filter className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pengaturan Grafik</span>
                 </button>
-
                 {showFilterPopup && (
                   <div className="absolute right-0 md:left-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-5 z-50 animate-fade-in">
-                    
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Skala Tampilan Sumbu X</h4>
                     <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-5 shadow-inner border border-slate-200 dark:border-slate-700/50">
-                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => (
-                        <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                          {mode}
-                        </button>
-                      ))}
+                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>{mode}</button>)}
                     </div>
-
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Filter Rentang Waktu (Opsional)</h4>
                     <div className="flex flex-col gap-3">
-                      <div className="space-y-1.5">
-                         <label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label>
-                         <input 
-                           type="date" 
-                           min={projectBounds.start}
-                           max={endDateFilter || projectBounds.end}
-                           value={startDateFilter} 
-                           onChange={e => setStartDateFilter(e.target.value)} 
-                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" 
-                         />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label>
-                         <input 
-                           type="date" 
-                           min={startDateFilter || projectBounds.start}
-                           max={projectBounds.end}
-                           value={endDateFilter} 
-                           onChange={e => setEndDateFilter(e.target.value)} 
-                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" 
-                         />
-                      </div>
-                      
+                      <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label><input type="date" min={projectBounds.start} max={endDateFilter || projectBounds.end} value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" /></div>
+                      <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label><input type="date" min={startDateFilter || projectBounds.start} max={projectBounds.end} value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" /></div>
                       <div className="flex gap-2 mt-2">
-                        {(startDateFilter || endDateFilter) && (
-                          <button onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs shadow-sm transition-colors">Reset</button>
-                        )}
+                        {(startDateFilter || endDateFilter) && <button onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs shadow-sm transition-colors">Reset</button>}
                         <button onClick={() => setShowFilterPopup(false)} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Tutup</button>
                       </div>
                     </div>
@@ -653,165 +559,53 @@ export default function KurvaS({ selectedProject }) {
                 )}
               </div>
             )}
-
-            {canCreateData && isEditMode && (
-              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Batal</span>
-              </button>
-            )}
-
-            {canCreateData && !isScheduleEmpty && (
-               <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
-                 {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
-                 <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Target')}</span>
-               </button>
-            )}
-
-            {canCreateData && isEditMode && !isScheduleEmpty && (
-               <>
-                  <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                  <button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    <ListPlus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Tambah Minggu</span>
-                  </button>
-               </>
-            )}
-
-            {!isGuest && !isEditMode && !isScheduleEmpty && (
-              <>
-                <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-                  {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
-                </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-                  {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
-                </button>
-              </>
-            )}
+            {canCreateData && isEditMode && <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Batal</span></button>}
+            {canCreateData && !isScheduleEmpty && <button onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>{isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Target')}</span></button>}
+            {canCreateData && isEditMode && !isScheduleEmpty && <><div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div><button onClick={() => openWeekModal()} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"><ListPlus className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Tambah Minggu</span></button></>}
+            {!isGuest && !isEditMode && !isScheduleEmpty && <><div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div><button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">{isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span></button><button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf || isScheduleEmpty} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">{isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden lg:inline">{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span></button></>}
           </div>
-
-          {/* TAB NAVIGASI MODUL UTAMA */}
           <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
-            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
-              <Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span>
-            </button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
-              <FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span>
-            </button>
-            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap">
-              <TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Kurva S & Matriks</span>
-            </button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap">
-              <Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span>
-            </button>
+            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
+            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
+            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Kurva S & Matriks</span></button>
+            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span></button>
           </div>
         </div>
       </div>
 
-      {/* TAMPILAN LABEL FILTER AKTIF DI BAWAH HEADER */}
-      {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && !isScheduleEmpty && (
-        <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
-            Tampilan Grafik: {getActiveFilterLabel()}
-            <button onClick={() => applyFilter('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
-          </span>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* 2. LOADING STATE VS KONTEN UTAMA           */}
-      {/* ========================================== */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
-          <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-            Memproses Dashboard S-Curve...
-          </p>
-        </div>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in"><Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" /><p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memproses Dashboard S-Curve...</p></div>
       ) : isScheduleEmpty ? (
-        
-        /* ========================================== */
-        /* INLINE FORM: SETUP JADWAL AWAL             */
-        /* ========================================== */
         <div className="animate-fade-in space-y-4">
           <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
-            <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0">
-              <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-500" />
-            </div>
-            <div>
-              <h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3>
-              <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                Grafik Kurva S dan Matriks belum bisa ditampilkan. Silakan atur <strong>Jadwal Minggu Pertama</strong> di bawah ini untuk memulai.
-              </p>
-            </div>
+            <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0"><AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div>
+            <div><h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3><p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">Grafik Kurva S dan Matriks belum bisa ditampilkan. Silakan atur <strong>Jadwal Minggu Pertama</strong> di bawah ini untuk memulai.</p></div>
           </div>
-
           <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-5 md:p-6 shadow-sm">
-            <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2 mb-6">
-              <CalendarDays className="w-5 h-5"/> Setup Jadwal Pertama
-            </h3>
-
+            <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2 mb-6"><CalendarDays className="w-5 h-5"/> Setup Jadwal Pertama</h3>
             <div className="space-y-4">
               {weeksForm.map((week, index) => (
                 <div key={week.id} className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative transition-all">
-                  
                   <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4 gap-2">
-                    <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">
-                      Minggu Ke-{week.minggu_ke || (index+1)}
-                    </h2>
-                    {weeksForm.length > 1 && (
-                      <button onClick={() => handleRemoveInitialWeek(week.id)} className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-600 text-[10px] font-medium rounded-lg transition-all border border-rose-200 dark:border-rose-500/20"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>
-                    )}
+                    <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2">Minggu Ke-{week.minggu_ke || (index+1)}</h2>
+                    {weeksForm.length > 1 && <button onClick={() => handleRemoveInitialWeek(week.id)} className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-600 text-[10px] font-medium rounded-lg transition-all border border-rose-200 dark:border-rose-500/20"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>}
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div className="space-y-4">
                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> Rentang Waktu</label>
                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-medium text-slate-500">Bulan Ke-</label>
-                            <input type="number" min="1" value={week.bulan} onChange={(e) => handleInitialWeekChange(week.id, 'bulan', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-medium text-slate-500">Minggu Ke-</label>
-                            <input type="number" min="1" value={week.minggu_ke} onChange={(e) => handleInitialWeekChange(week.id, 'minggu_ke', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label>
-                            <input 
-                              type="date" 
-                              min={projectBounds.start}
-                              max={week.tanggal_selesai || projectBounds.end}
-                              value={week.tanggal_mulai} 
-                              onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_mulai', e.target.value)} 
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label>
-                            <input 
-                              type="date" 
-                              min={week.tanggal_mulai || projectBounds.start}
-                              max={projectBounds.end}
-                              value={week.tanggal_selesai} 
-                              onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_selesai', e.target.value)} 
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" 
-                            />
-                          </div>
+                          <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Bulan Ke-</label><input type="number" min="1" value={week.bulan} onChange={(e) => handleInitialWeekChange(week.id, 'bulan', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" /></div>
+                          <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Minggu Ke-</label><input type="number" min="1" value={week.minggu_ke} onChange={(e) => handleInitialWeekChange(week.id, 'minggu_ke', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500" /></div>
+                          <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Tgl Mulai <span className="text-rose-500">*</span></label><input type="date" min={projectBounds.start} max={week.tanggal_selesai || projectBounds.end} value={week.tanggal_mulai} onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_mulai', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" /></div>
+                          <div className="space-y-1.5"><label className="text-[10px] font-medium text-slate-500">Tgl Akhir <span className="text-rose-500">*</span></label><input type="date" min={week.tanggal_mulai || projectBounds.start} max={projectBounds.end} value={week.tanggal_selesai} onChange={(e) => handleInitialWeekChange(week.id, 'tanggal_selesai', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 [color-scheme:light_dark]" /></div>
                        </div>
                      </div>
-
                      <div className="space-y-4 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
                         <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2"><Target className="w-3.5 h-3.5" /> Target S-Curve</label>
                         <div className="space-y-3 pt-1">
                           <label className="text-[10px] font-medium text-slate-500">Target Kumulatif (Plan) <span className="text-rose-500">*</span></label>
                           <div className="flex items-center gap-3">
-                             <input 
-                               type="text" 
-                               placeholder="0.00"
-                               value={week.target_kumulatif}
-                               onChange={(e) => handleInitialWeekChange(week.id, 'target_kumulatif', e.target.value)}
-                               className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/50 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-600 dark:text-emerald-400 py-3 shadow-inner"
-                             />
+                             <input type="text" placeholder="0.00" value={week.target_kumulatif} onChange={(e) => handleInitialWeekChange(week.id, 'target_kumulatif', e.target.value)} className="w-32 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-500/50 text-center font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-xl text-emerald-600 dark:text-emerald-400 py-3 shadow-inner" />
                              <span className="font-extrabold text-emerald-600 dark:text-emerald-500 text-2xl">%</span>
                           </div>
                         </div>
@@ -819,31 +613,16 @@ export default function KurvaS({ selectedProject }) {
                   </div>
                 </div>
               ))}
-              
-              <button 
-                onClick={handleAddInitialWeek}
-                className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-500 rounded-2xl bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-blue-500 font-bold text-xs flex justify-center items-center gap-2 transition-all shadow-sm"
-              >
-                <Plus className="w-5 h-5" /> Tambah Minggu Berikutnya
-              </button>
+              <button onClick={handleAddInitialWeek} className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-500 rounded-2xl bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-blue-500 font-bold text-xs flex justify-center items-center gap-2 transition-all shadow-sm"><Plus className="w-5 h-5" /> Tambah Minggu Berikutnya</button>
             </div>
-
             <div className="mt-6 flex justify-end gap-3 pt-5 border-t border-slate-200 dark:border-slate-700">
               <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal & Kembali</button>
-              <button onClick={handleSaveInitialSchedule} disabled={isSavingInitial} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">
-                {isSavingInitial ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks
-              </button>
+              <button onClick={handleSaveInitialSchedule} disabled={isSavingInitial} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center gap-2 text-xs">{isSavingInitial ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Simpan & Render Matriks</button>
             </div>
           </div>
         </div>
-
       ) : (
-
-        /* ========================================== */
-        /* MODE NORMAL: TAMPILKAN GRAFIK & MATRIKS    */
-        /* ========================================== */
         <div className="animate-fade-in space-y-5">
-          {/* BAGIAN ATAS: GRAFIK S-CURVE FULL WIDTH */}
           <div id="chart-area" className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl flex flex-col shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 mb-4 gap-3">
               <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -875,100 +654,40 @@ export default function KurvaS({ selectedProject }) {
             </div>
           </div>
 
-          {/* BAGIAN BAWAH: MATRIKS SCHEDULE (KOMPONEN ANAK) */}
           <ScheduleWorkData 
-            scheduleData={scheduleData}
-            localWeeks={localWeeks}
-            isEditMode={isEditMode}
-            canCreateData={canCreateData}
-            grandTotalRAB={grandTotalRAB}
-            handleWeekCumulativeChange={handleWeekCumulativeChange}
-            openWeekModal={openWeekModal}
-            handleRemoveWeek={handleRemoveWeek}
+            scheduleData={scheduleData} localWeeks={localWeeks} isEditMode={isEditMode}
+            canCreateData={canCreateData} grandTotalRAB={grandTotalRAB} handleWeekCumulativeChange={handleWeekCumulativeChange}
+            openWeekModal={openWeekModal} handleRemoveWeek={handleRemoveWeek}
           />
-
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL EDIT MINGGUAN (JIKA MODE EDIT)       */}
-      {/* ========================================== */}
+      {/* MODAL EDIT MINGGUAN */}
       {weekModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 mb-5">
-              <CalendarDays className="w-5 h-5" /> Atur Info Minggu Ke-{weekModal.minggu_ke}
-            </h3>
+            <h3 className="text-sm font-extrabold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 mb-5"><CalendarDays className="w-5 h-5" /> Atur Info Minggu Ke-{weekModal.minggu_ke}</h3>
             <div className="space-y-4 mb-6">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- (Opsional)</label>
-                <input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label>
-                <input 
-                  type="date" 
-                  min={projectBounds.start}
-                  max={weekModal.tanggal_akhir || projectBounds.end}
-                  value={weekModal.tanggal_awal} 
-                  onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" 
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label>
-                <input 
-                  type="date" 
-                  min={weekModal.tanggal_awal || projectBounds.start}
-                  max={projectBounds.end}
-                  value={weekModal.tanggal_akhir} 
-                  onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" 
-                />
-              </div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Bulan Ke- (Opsional)</label><input type="number" value={weekModal.bulan} onChange={(e) => setWeekModal({...weekModal, bulan: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Mulai</label><input type="date" min={projectBounds.start} max={weekModal.tanggal_akhir || projectBounds.end} value={weekModal.tanggal_awal} onChange={(e) => setWeekModal({...weekModal, tanggal_awal: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Tanggal Akhir</label><input type="date" min={weekModal.tanggal_awal || projectBounds.start} max={projectBounds.end} value={weekModal.tanggal_akhir} onChange={(e) => setWeekModal({...weekModal, tanggal_akhir: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors [color-scheme:light_dark]" /></div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button>
-            </div>
+            <div className="flex gap-3"><button onClick={() => setWeekModal({ show: false })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button><button onClick={saveWeekModal} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-colors"><Save className="w-4 h-4"/> Set Tanggal</button></div>
           </div>
         </div>
       )}
 
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
-            <div className="w-14 h-14 bg-amber-50 dark:bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-500/20"><Save className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Target rencana mingguan akan diperbarui dan diterapkan langsung ke database S-Curve.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button>
-              <button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button>
-            </div>
-          </div>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700"><div className="w-14 h-14 bg-amber-50 dark:bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-500/20"><Save className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Target rencana mingguan akan diperbarui dan diterapkan langsung ke database S-Curve.</p><div className="flex gap-3"><button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button><button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button></div></div>
         </div>
       )}
 
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${exportModal.type === 'excel' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-200' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 border border-amber-200'}`}>
-              <Download className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Matriks Schedule</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>. 
-            </p>
-            <div className="flex gap-3">
-              <button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
-              <button disabled={isExportingExcel || isExportingPdf} onClick={executeExport} className={`flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-2 transition-all ${exportModal.type === 'excel' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'}`}>
-                {isExportingExcel || isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>} Proses
-              </button>
-            </div>
-          </div>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6"><div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${exportModal.type === 'excel' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-200' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 border border-amber-200'}`}><Download className="w-6 h-6" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Matriks Schedule</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>.</p><div className="flex gap-3"><button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button><button disabled={isExportingExcel || isExportingPdf} onClick={executeExport} className={`flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-2 transition-all ${exportModal.type === 'excel' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'}`}>{isExportingExcel || isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>} Proses</button></div></div>
         </div>
       )}
-
     </div>
   );
 }

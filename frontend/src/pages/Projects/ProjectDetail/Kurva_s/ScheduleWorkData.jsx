@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Info, Activity, BarChart, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2 } from 'lucide-react';
+import { Target, Info, Activity, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2 } from 'lucide-react';
 
 export default function ScheduleWorkData({
   scheduleData,
@@ -23,32 +23,21 @@ export default function ScheduleWorkData({
   const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
   const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
 
-  // =========================================================================================
-  // PERBAIKAN FILTER LOGIC: HANYA TAMPILKAN ITEM YANG PUNYA REALISASI
-  // =========================================================================================
+  // KARENA BACKEND SUDAH MEMFILTER SEMUANYA, FRONTEND TINGGAL MENAMPILKAN SAJA!
   const rawRabData = scheduleData?.rab_data;
-  let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
-
-  const cumulativeActualMap = scheduleData?.cumulative_actual || {};
-
-  safeRabData = safeRabData.map(cat => {
-    const items = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
-    
-    // Saring item: Hanya sisakan yang nilai kumulatif aktualnya lebih dari 0
-    const filteredItems = items.filter(item => {
-      const itemRealisasi = getSafeFloat(cumulativeActualMap[item.id]);
-      return itemRealisasi > 0;
-    });
-
-    return { ...cat, items: filteredItems };
-  }).filter(cat => cat.items.length > 0); // Buang kategori divisi jika semua itemnya 0%
-
-  // =========================================================================================
+  const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
 
   const handleOpenCellDetail = (item, weekNum) => {
     const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
     const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
-    const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    
+    let dailyRealizations = [];
+    if (item.id === 'manual') {
+       dailyRealizations = safeRealizations.filter(r => r.rab_item_id === null && parseInt(r.minggu_ke) === weekNum);
+    } else {
+       dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    }
+
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
   };
 
@@ -113,7 +102,7 @@ export default function ScheduleWorkData({
                       <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
                       <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
-                        Daftar uraian pekerjaan akan muncul di sini secara otomatis apabila ada <strong>Laporan Harian</strong> yang sudah disetujui (Approved).
+                        Daftar uraian pekerjaan akan otomatis muncul di tabel matriks ini apabila <strong>Laporan Harian</strong> di menu daftar laporan telah diverifikasi (Approved).
                       </p>
                     </div>
                   </td>
@@ -129,7 +118,7 @@ export default function ScheduleWorkData({
                       </tr>
                       
                       {safeItems.map(item => {
-                        const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
+                        const bobotStandar = item.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0);
                         const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
 
                         return (
@@ -139,7 +128,7 @@ export default function ScheduleWorkData({
                               <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                             </td>
                             <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
-                              {bobotStandar.toFixed(2)}%
+                              {item.is_manual ? '-' : `${bobotStandar.toFixed(2)}%`}
                             </td>
 
                             {weeksArray.map(w => {
