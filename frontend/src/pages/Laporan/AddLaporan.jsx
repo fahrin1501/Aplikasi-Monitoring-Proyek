@@ -88,29 +88,23 @@ export default function AddLaporan() {
       return;
     }
 
+    // FUNGSI BARU: TIDAK ADA LAGI PROMISE.ALL()
     const fetchScheduleAndRAB = async () => {
       setIsLoadingRab(true);
       try {
-        // PERBAIKAN: Ambil data RAB master secara terpisah agar opsi dropdown selalu lengkap
-        const [schedRes, rabRes] = await Promise.all([
-          api.get(`/projects/${selectedProjectId}/schedules`),
-          api.get(`/projects/${selectedProjectId}/rab`)
-        ]);
+        const res = await api.get(`/projects/${selectedProjectId}/schedules`);
+        const data = res.data.data;
+        setScheduleData(data);
         
-        const schedData = schedRes.data.data;
-        setScheduleData(schedData);
         setFormData(prev => ({ ...prev, minggu_ke: '' }));
 
-        const allRabData = rabRes.data.data;
         const flattenedItems = [];
-        allRabData.forEach(kategori => {
-          if (kategori.items) {
-            kategori.items.forEach(item => {
-              if (!item.is_subheader) {
-                flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
-              }
-            });
-          }
+        data.rab_data.forEach(kategori => {
+          kategori.items.forEach(item => {
+            if (!item.is_subheader) {
+              flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
+            }
+          });
         });
         setRabOptions(flattenedItems);
       } catch (error) {
@@ -131,15 +125,20 @@ export default function AddLaporan() {
   let optionsMingguLain = [];
   let scheduledItemsMap = new Map();
 
-  if (scheduleData && scheduleData.schedules && rabOptions.length > 0) {
+  if (scheduleData && scheduleData.schedules) {
     scheduleData.schedules.forEach(sched => {
-      const isThisWeek = parseInt(sched.minggu_ke) === parseInt(formData.minggu_ke);
-      // Cocokkan target dengan master RAB
-      const rabMatch = rabOptions.find(opt => opt.id === sched.rab_item_id);
+      let detailItem = null;
+      let namaKategori = '';
       
-      if (rabMatch) {
+      scheduleData.rab_data.forEach(cat => {
+        const itemMatch = cat.items.find(i => i.id === sched.rab_item_id);
+        if (itemMatch) { detailItem = itemMatch; namaKategori = cat.nama_kategori; }
+      });
+
+      if (detailItem) {
+        const isThisWeek = parseInt(sched.minggu_ke) === parseInt(formData.minggu_ke);
         if (!scheduledItemsMap.has(sched.rab_item_id)) {
-          scheduledItemsMap.set(sched.rab_item_id, { ...rabMatch, kategori: rabMatch.kategori_nama, is_this_week: isThisWeek });
+          scheduledItemsMap.set(sched.rab_item_id, { ...detailItem, kategori: namaKategori, is_this_week: isThisWeek });
         } else if (isThisWeek) {
           scheduledItemsMap.get(sched.rab_item_id).is_this_week = true;
         }
@@ -301,7 +300,6 @@ export default function AddLaporan() {
       <datalist id="peran-options">{defaultPersonilList.map(p => <option key={p} value={p} />)}</datalist>
       <datalist id="alat-options">{defaultPeralatanList.map(a => <option key={a} value={a} />)}</datalist>
 
-      {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl shadow-sm transition-colors">
@@ -332,7 +330,6 @@ export default function AddLaporan() {
 
       <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
         
-        {/* SECTION 1: Info Proyek & Pengawas (FULL WIDTH) */}
         <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
           <label className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3 mb-2">
             <Building2 className="w-4 h-4" /> Informasi Pengawasan
@@ -399,11 +396,7 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* ROW 1: SPLIT CUACA (KIRI) & CATATAN (KANAN)                   */}
-        {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
-          
           <div className="flex flex-col space-y-5 lg:space-y-6">
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
@@ -459,9 +452,6 @@ export default function AddLaporan() {
 
         </div>
 
-        {/* ============================================================== */}
-        {/* ROW 2: FULL WIDTH UNTUK KEGIATAN & GEOGRAFIS                  */}
-        {/* ============================================================== */}
         <div className="w-full">
           <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
@@ -484,18 +474,13 @@ export default function AddLaporan() {
                     )}
                   </div>
                   
-                  {/* PERBAIKAN: LOGIKA RENDER DROPDOWN RAB */}
                   <div className="col-span-12">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                       <span>Pilih RAB <span className="text-rose-500">*</span></span>
-                      {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat RAB...</span>}
+                      {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat...</span>}
                     </label>
                     
-                    {!selectedProjectId ? (
-                       <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20 shadow-sm">Pilih proyek terlebih dahulu.</div>
-                    ) : isLoadingRab ? (
-                       <div className="text-[10px] text-amber-500 bg-amber-50 dark:bg-amber-500/10 p-2 rounded-lg mb-2 border border-amber-200 dark:border-amber-500/20 shadow-sm">Sedang mengambil master data RAB...</div>
-                    ) : rabOptions.length > 0 ? (
+                    {rabOptions.length > 0 ? (
                       <div className="relative mb-2">
                         <select
                           value={item.rab_item_id || (item.rab_item_id === null ? "manual" : "")}
@@ -511,22 +496,22 @@ export default function AddLaporan() {
                         <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       </div>
                     ) : (
-                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20 shadow-sm">Data RAB pada proyek ini kosong. Silakan input RAB terlebih dahulu.</div>
+                      <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg mb-2 border border-rose-200 dark:border-rose-500/20">Pilih proyek terlebih dahulu.</div>
                     )}
 
-                    {(item.rab_item_id === null || (selectedProjectId && rabOptions.length === 0)) && (
+                    {(item.rab_item_id === null || rabOptions.length === 0) && (
                       <textarea rows="2" placeholder="Ketik uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors" />
                     )}
                   </div>
                   
                   <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
-                    <input type="text" placeholder="-3.3191, 114.59" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                    <input type="text" placeholder="STA 0+000" value={item.sta_awal} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_awal = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                   </div>
                   
                   <div className="col-span-12 sm:col-span-6 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
-                    <input type="text" placeholder="-3.3215, 114.61" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                    <input type="text" placeholder="STA 1+200" value={item.sta_akhir} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].sta_akhir = e.target.value; setKegiatanItems(newK); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                   </div>
                   
                   <div className="col-span-12 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
@@ -552,12 +537,9 @@ export default function AddLaporan() {
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* ROW 3: SPLIT PERSONIL & FOTO (KIRI) | ALAT & LAMPIRAN (KANAN)  */}
-        {/* ============================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
-          
           <div className="flex flex-col space-y-5 lg:space-y-6">
+            
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> Personil Lapangan</h2>
@@ -603,6 +585,7 @@ export default function AddLaporan() {
           </div>
 
           <div className="flex flex-col space-y-5 lg:space-y-6">
+            
             <div className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm space-y-4 backdrop-blur-sm flex flex-col h-full">
               <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3 gap-2">
                 <h2 className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" /> Pemakaian Peralatan</h2>
@@ -649,6 +632,7 @@ export default function AddLaporan() {
 
         </div>
 
+        {/* Action Submit */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
           <button type="button" onClick={() => navigate('/laporan')} className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-6 py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs border border-slate-200 dark:border-slate-600 shadow-sm transition-colors"><X className="w-4 h-4" /> Batal</button>
           <button type="submit" disabled={submitting} className="bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold px-8 py-3.5 rounded-xl shadow-md flex items-center justify-center gap-2 text-xs disabled:opacity-50 transition-colors">
