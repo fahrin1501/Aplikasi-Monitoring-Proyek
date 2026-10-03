@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, Eye, EyeOff, User, Building2, ShieldCheck, UserPlus } from 'lucide-react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, AlertCircle, Eye, EyeOff, User, ShieldCheck, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
 import api from '../../api';
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // =========================================================================
+  // KODE RAHASIA UNDANGAN (Silakan ubah sesuai keinginan Anda)
+  // =========================================================================
+  const SECRET_TOKEN = 'PRISMA-INVITE-2026';
+  const currentToken = searchParams.get('token');
+
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +46,31 @@ export default function Register() {
     }
   };
 
+  // =========================================================================
+  // TAMPILAN JIKA TOKEN SALAH / TIDAK ADA (AKSES DITOLAK)
+  // =========================================================================
+  if (currentToken !== SECRET_TOKEN) {
+    return (
+      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white dark:bg-slate-800/80 p-8 rounded-3xl border border-slate-200 dark:border-slate-700/60 shadow-2xl text-center backdrop-blur-sm animate-fade-in">
+          <div className="w-20 h-20 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-rose-100 dark:border-rose-500/20 shadow-inner">
+            <ShieldAlert className="w-10 h-10 text-rose-500 dark:text-rose-400" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-3 tracking-wide">Akses Ditolak</h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+            Halaman pendaftaran ini bersifat tertutup. Anda memerlukan tautan undangan resmi dari Administrator PRISMA GROUP untuk dapat membuat akun.
+          </p>
+          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full py-3.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-all shadow-sm">
+            <ArrowLeft className="w-4 h-4" /> Kembali ke Portal Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // TAMPILAN FORM REGISTER JIKA TOKEN BENAR
+  // =========================================================================
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       {/* Side Visual Section - Branding PRISMA GROUP */}
@@ -45,9 +78,7 @@ export default function Register() {
         <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-30 dark:opacity-20 transition-colors" />
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-amber-500 shadow-sm">
-            <Building2 className="w-8 h-8" />
-          </div>
+          <img src="/PRISMA.PNG" alt="Prisma Group Logo" className="h-12 w-auto object-contain drop-shadow-sm" />
           <div>
             <h1 className="text-xl font-extrabold text-slate-800 dark:text-white tracking-wide">PRISMA GROUP</h1>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Konsultan Teknik Konstruksi</p>
@@ -55,14 +86,14 @@ export default function Register() {
         </div>
 
         <div className="relative z-10 space-y-4 my-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wider shadow-sm">
-            <ShieldCheck className="w-4 h-4" /> Sistem Manajemen Proyek
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+            <ShieldCheck className="w-4 h-4" /> Undangan Akses Valid
           </div>
           <h2 className="text-4xl font-extrabold text-slate-800 dark:text-white leading-tight">
-            Pantau Progres & Pengawasan Lapangan Secara Real-Time
+            Selamat Datang di Portal Manajemen Proyek Terpadu
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm max-w-md leading-relaxed font-medium">
-            Kelola volume progres, laporan harian, matriks Kurva S, hingga pemetaan GIS lokasi proyek dalam satu sistem pengawasan terpadu yang presisi.
+            Tautan undangan Anda valid. Silakan lengkapi data diri Anda untuk mendapatkan akses ke dalam sistem pengawasan dan pelaporan proyek.
           </p>
         </div>
 
@@ -77,13 +108,11 @@ export default function Register() {
         <div className="w-full max-w-md space-y-8 bg-white dark:bg-slate-800/60 p-8 sm:p-10 rounded-2xl border border-slate-200 dark:border-slate-700/60 backdrop-blur-sm shadow-xl dark:shadow-2xl transition-colors">
           
           <div className="text-center space-y-2">
-            <div className="lg:hidden flex justify-center mb-2">
-              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-amber-500 shadow-sm">
-                <Building2 className="w-8 h-8" />
-              </div>
+            <div className="lg:hidden flex justify-center mb-4">
+              <img src="/PRISMA.PNG" alt="Prisma Group Logo" className="h-14 w-auto object-contain drop-shadow-sm" />
             </div>
             <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white">Buat Akun Baru</h2>
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daftar sebagai pengguna Tamu / Klien</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lengkapi data diri Anda di bawah ini</p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-5">
@@ -97,7 +126,7 @@ export default function Register() {
             {success && (
               <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm animate-fade-in">
                 <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
-                <span>Pendaftaran berhasil! Mengalihkan...</span>
+                <span>Pendaftaran berhasil! Mengalihkan ke Dashboard...</span>
               </div>
             )}
 
