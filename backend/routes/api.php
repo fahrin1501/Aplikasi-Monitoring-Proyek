@@ -28,6 +28,20 @@ Route::get('/reset-password/{token}', function (Request $request, $token) {
 })->name('password.reset');
 
 Route::middleware('auth:sanctum')->group(function () {
+
+    Route::post('/cms/landing-page', [CompanyProfileController::class, 'updateLandingPage']);
+    Route::post('/cms/contact', [CompanyProfileController::class, 'updateContact']);
+
+    // Manajemen Layanan
+    Route::get('/cms/services', [CompanyProfileController::class, 'getServices']);
+    Route::post('/cms/services', [CompanyProfileController::class, 'storeService']);
+    Route::delete('/cms/services/{id}', [CompanyProfileController::class, 'destroyService']);
+
+    // Manajemen Event
+    Route::get('/cms/events', [CompanyProfileController::class, 'getEvents']);
+    Route::post('/cms/events', [CompanyProfileController::class, 'storeEvent']);
+    Route::delete('/cms/events/{id}', [CompanyProfileController::class, 'destroyEvent']);
+
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/users', [AuthController::class, 'index']);
     Route::put('/users/{id}', [AuthController::class, 'update']);
@@ -97,4 +111,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects-active-report', [ProjectController::class, 'getActiveForReport']);
 
     Route::post('/register', [AuthController::class, 'register']);
+
+    Route::get('/public/company-profile', [CompanyProfileController::class, 'getPublicData']);
 });

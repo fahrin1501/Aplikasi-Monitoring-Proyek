@@ -2,71 +2,77 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CompanyProfile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use App\Models\CompanyProfile;
+use App\Models\Service;
+use App\Models\Event;
 
 class CompanyProfileController extends Controller
 {
-    // Mengambil Data Perusahaan
-    public function show()
+    // ==========================================
+    // 1. ENDPOINT PUBLIK (Untuk Website Utama)
+    // ==========================================
+    public function getPublicData()
     {
-        $profile = CompanyProfile::first();
-
-        // Jika belum ada data sama sekali, buat data default otomatis
-        if (!$profile) {
-            $profile = CompanyProfile::create([
-                'name' => 'CONS-MONITORING',
-                'subtitle' => 'Consultant System',
-            ]);
-        }
+        // Ambil data pertama (atau buat kosong jika belum ada)
+        $profile = CompanyProfile::firstOrCreate(['id' => 1]);
+        $services = Service::all();
+        $events = Event::where('status', 'Diterbitkan')->orderBy('date', 'desc')->take(5)->get();
 
         return response()->json([
-            'status' => 'success',
-            'data' => $profile
+            'profile' => $profile,
+            'services' => $services,
+            'events' => $events
         ]);
     }
 
-    // Mengupdate Data Perusahaan (Gunakan POST karena mengandung File Gambar)
-    public function update(Request $request)
+    // ==========================================
+    // 2. ENDPOINT ADMIN (Untuk Edit di Sidebar)
+    // ==========================================
+
+    // Simpan Pengaturan Landing Page
+    public function updateLandingPage(Request $request)
     {
-        $profile = CompanyProfile::first();
+        $profile = CompanyProfile::firstOrCreate(['id' => 1]);
+        $profile->update($request->only(['hero_title', 'hero_subtitle', 'btn_text']));
+        return response()->json(['message' => 'Landing Page berhasil diperbarui', 'data' => $profile]);
+    }
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'subtitle' => 'nullable|string|max:255',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048' // Max 2MB
-        ]);
+    // Simpan Pengaturan Kontak
+    public function updateContact(Request $request)
+    {
+        $profile = CompanyProfile::firstOrCreate(['id' => 1]);
+        $profile->update($request->only(['email', 'phone', 'website', 'address']));
+        return response()->json(['message' => 'Kontak berhasil diperbarui', 'data' => $profile]);
+    }
 
-        $dataUpdate = [
-            'name' => $request->name,
-            'subtitle' => $request->subtitle,
-        ];
+    // ==========================================
+    // 3. CRUD LAYANAN (SERVICES)
+    // ==========================================
+    public function getServices() { return response()->json(Service::all()); }
 
-        // Cek jika ada file logo yang diunggah
-        if ($request->hasFile('logo')) {
-            // Hapus logo lama dari server jika ada
-            if ($profile->logo_path) {
-                $oldPath = str_replace('storage/', '', $profile->logo_path);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
-            }
+    public function storeService(Request $request) {
+        $service = Service::create($request->all());
+        return response()->json(['message' => 'Layanan ditambahkan', 'data' => $service]);
+    }
 
-            // Simpan logo baru
-            $file = $request->file('logo');
-            $fileName = time() . '_logo_' . str_replace(' ', '_', $file->getClientOriginalName());
-            $path = $file->storeAs('company_logo', $fileName, 'public');
+    public function destroyService($id) {
+        Service::destroy($id);
+        return response()->json(['message' => 'Layanan dihapus']);
+    }
 
-            $dataUpdate['logo_path'] = 'storage/' . $path;
-        }
+    // ==========================================
+    // 4. CRUD EVENT (BERITA)
+    // ==========================================
+    public function getEvents() { return response()->json(Event::orderBy('date', 'desc')->get()); }
 
-        $profile->update($dataUpdate);
+    public function storeEvent(Request $request) {
+        $event = Event::create($request->all());
+        return response()->json(['message' => 'Event ditambahkan', 'data' => $event]);
+    }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Profil Perusahaan berhasil diperbarui!',
-            'data' => $profile
-        ]);
+    public function destroyEvent($id) {
+        Event::destroy($id);
+        return response()->json(['message' => 'Event dihapus']);
     }
 }

@@ -64,14 +64,6 @@ return new class extends Migration
             $table->integer('expiration');
         });
 
-        Schema::create('company_profiles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('subtitle')->nullable();
-            $table->string('logo_path')->nullable();
-            $table->timestamps();
-        });
-
         // ==========================================
         // 2. TABEL MASTER PROYEK
         // ==========================================
@@ -245,7 +237,6 @@ return new class extends Migration
         Schema::dropIfExists('project_documents');
         Schema::dropIfExists('project_personnels');
         Schema::dropIfExists('projects');
-        Schema::dropIfExists('company_profiles');
         Schema::dropIfExists('cache_locks');
         Schema::dropIfExists('cache');
         Schema::dropIfExists('personal_access_tokens');
