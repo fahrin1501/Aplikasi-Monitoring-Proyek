@@ -59,7 +59,7 @@ export default function CuacaLapangan({ isEditMode, reportData, editForm, setEdi
              ))}
            </div>
          ) : (
-             <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1 mt-3 shadow-sm">
+             <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed flex-1 mt-3 shadow-sm font-medium">
                  {reportData.cuaca || 'Tidak ada catatan cuaca harian.'}
              </div>
          )}

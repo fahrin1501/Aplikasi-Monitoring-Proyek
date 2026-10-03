@@ -1,6 +1,6 @@
 import React from 'react';
 import Select from 'react-select';
-import { ListTodo, Plus, Trash2, MapPin, Loader2 } from 'lucide-react';
+import { ListTodo, Plus, Trash2, MapPin, CheckCircle2, Target, Loader2, ChevronDown } from 'lucide-react';
 
 const formatKoordTampil = (staString) => {
   if (!staString) return null;
@@ -36,7 +36,6 @@ export default function KegiatanGeografis({
     setEditForm({...editForm, activities: newK});
   };
 
-  // Format data untuk React Select
   const formatGroup = (label, options) => ({
     label,
     options: options.map(opt => ({
@@ -48,18 +47,9 @@ export default function KegiatanGeografis({
   const selectOptions = [];
   if (optionsMingguIni?.length > 0) selectOptions.push(formatGroup('>>> TARGET MINGGU INI', optionsMingguIni));
   if (optionsMingguLain?.length > 0) selectOptions.push(formatGroup('>>> TARGET MINGGU LAINNYA', optionsMingguLain));
-  if (unscheduledRabOptions?.length > 0) selectOptions.push(formatGroup('>>> PEKERJAAN DI LUAR JADWAL', unscheduledRabOptions));
+  if (unscheduledRabOptions?.length > 0) selectOptions.push(formatGroup('>>> PEKERJAAN DI LUAR JADWAL (RAB)', unscheduledRabOptions));
   selectOptions.push({ label: 'LAINNYA', options: [{ value: 'manual', label: '+ Pekerjaan Tambah/Kurang (Input Manual)' }] });
 
-  // Custom Style untuk React Select agar mirip Tailwind
-  const selectStyles = {
-    control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#cbd5e1', padding: '2px', fontSize: '12px' }),
-    menu: (base) => ({ ...base, zIndex: 9999, fontSize: '12px' }),
-    groupHeading: (base) => ({ ...base, color: '#d97706', fontWeight: 'bold', fontSize: '10px' })
-  };
-
-  // Deteksi apakah ini form tambah (AddLaporan) atau edit (LaporanData)
-  // Di AddLaporan isEditMode kita anggap true secara default karena form terbuka
   const isFormActive = isEditMode !== false; 
   const activeActivities = isFormActive ? editForm.activities : reportData?.activities || [];
 
@@ -90,7 +80,6 @@ export default function KegiatanGeografis({
       {isFormActive ? (
         <div className="space-y-4 mt-2">
            {editForm.activities.map((item, index) => {
-              // Cari label untuk nilai yang sedang terpilih di react-select
               let currentVal = null;
               if (item.rab_item_id) {
                 const foundRab = rabOptions.find(r => r.id.toString() === item.rab_item_id.toString());
@@ -100,7 +89,7 @@ export default function KegiatanGeografis({
               }
 
               return (
-              <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm transition-all">
+              <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 items-start shadow-sm transition-all relative">
                 <div className="md:col-span-12 flex justify-between items-center mb-1">
                   <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
                     <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div> Uraian Pekerjaan {index + 1}
@@ -110,22 +99,43 @@ export default function KegiatanGeografis({
                   )}
                 </div>
                 
-                <div className="md:col-span-12">
+                <div className="md:col-span-12 relative z-50">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                     <span>Pilih dari Jadwal / RAB <span className="text-rose-500">*</span></span>
                     {isLoadingRab && <span className="text-[9px] text-amber-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Memuat RAB...</span>}
                   </label>
                   
                   {rabOptions.length > 0 ? (
-                    <div className="relative mb-2 z-50">
+                    <div className="mb-2 w-full text-slate-800 dark:text-white relative">
                       <Select
                         options={selectOptions}
                         value={currentVal}
                         onChange={(val) => handleKegiatanSelectEdit(index, val)}
-                        styles={selectStyles}
                         placeholder="Ketik untuk mencari pekerjaan..."
                         isSearchable={true}
                         noOptionsMessage={() => "Pekerjaan tidak ditemukan"}
+                        unstyled
+                        classNamePrefix="react-select"
+                        classNames={{
+                          control: ({ isFocused }) =>
+                            `bg-white dark:bg-slate-900 border ${isFocused ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-300 dark:border-slate-600'} rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white shadow-inner transition-colors cursor-pointer w-full flex items-center justify-between`,
+                          menu: () =>
+                            `absolute w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl mt-1.5 z-[100] overflow-hidden`,
+                          menuList: () =>
+                            `max-h-[250px] overflow-y-auto custom-scrollbar p-1 z-[100]`,
+                          option: ({ isFocused, isSelected }) =>
+                            `px-3 py-2.5 text-xs rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-amber-500 text-white font-bold' : isFocused ? 'bg-amber-50 dark:bg-slate-700 text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`,
+                          singleValue: () =>
+                            `text-slate-800 dark:text-white font-semibold truncate`,
+                          input: () =>
+                            `text-slate-800 dark:text-white outline-none ring-0 focus:ring-0 m-0 p-0 border-0 bg-transparent`,
+                          placeholder: () =>
+                            `text-slate-400 font-medium`,
+                          groupHeading: () =>
+                            `px-2 py-1.5 text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-500/10 rounded-md mb-1 mt-2 mx-1`,
+                          indicatorSeparator: () => 'hidden',
+                          dropdownIndicator: () => 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                        }}
                       />
                     </div>
                   ) : (
@@ -137,17 +147,17 @@ export default function KegiatanGeografis({
                   )}
                 </div>
                 
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm relative z-0">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
                   <input type="text" placeholder="STA 0+000" value={item.sta_awal} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_awal = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                 </div>
                 
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm">
+                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm relative z-0">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
                   <input type="text" placeholder="STA 1+200" value={item.sta_akhir} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_akhir = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                 </div>
                 
-                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm">
+                <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
                   <div className="grid grid-cols-12 gap-2 w-full">
                     <div className="col-span-5">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
@@ -172,12 +182,19 @@ export default function KegiatanGeografis({
           {activeActivities.length === 0 ? (
             <p className="text-slate-500 dark:text-slate-400 text-center col-span-1 py-4 italic">Tidak ada kegiatan harian yang terdaftar.</p>
           ) : (
-             /* ... Mode Read Only LaporanData.jsx ... */
              activeActivities.map((keg, idx) => (
                 <div key={idx} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm">
-                  <p className="font-bold text-slate-800">{idx + 1}. {keg.uraian}</p>
-                  <p className="text-slate-500 mt-1">STA: {formatKoordTampil(keg.sta_awal)} - {formatKoordTampil(keg.sta_akhir)}</p>
-                  <p className="text-emerald-600 mt-1">Vol: {keg.volume} {keg.satuan} | Bobot: {keg.persentase}%</p>
+                  {/* BUG FIXED: warna dijamin terlihat dengan dark:text-white */}
+                  <p className="font-bold text-slate-800 dark:text-white text-[13px]">{idx + 1}. {keg.uraian}</p>
+                  {(keg.sta_awal || keg.sta_akhir) && (
+                    <p className="text-slate-500 dark:text-slate-400 mt-1.5 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 self-start px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                      STA: {formatKoordTampil(keg.sta_awal) || '-'} s/d {formatKoordTampil(keg.sta_akhir) || '-'}
+                    </p>
+                  )}
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <p className="text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30">Vol: {keg.volume} {keg.satuan}</p>
+                    <p className="text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800/30">Bobot: {keg.persentase}%</p>
+                  </div>
                 </div>
              ))
           )}

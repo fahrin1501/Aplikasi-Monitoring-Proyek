@@ -34,7 +34,6 @@ export default function InfoPengawasan({ isEditMode, reportData, editForm, setEd
               <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Minggu Ke-</p>
               {isEditMode ? (
                 <div className="relative">
-                  {/* PERBAIKAN: Hanya munculkan minggu yang terdaftar di Kurva S */}
                   <select value={editForm.minggu_ke} onChange={e => setEditForm({...editForm, minggu_ke: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none shadow-inner cursor-pointer">
                     <option value="" disabled>-- Pilih --</option>
                     {availableWeeks.length > 0 ? (
