@@ -69,14 +69,7 @@ export default function App() {
         
         {/* MODUL AKUN */}
         <Route path="/accounts" element={<AccountList />} />
-
-        {/* ========================================== */}
-        {/* MODUL PENGATURAN PROFIL PERUSAHAAN         */}
-        {/* ========================================== */}
-        <Route path="/company-profile" element={<CompanyProfileLayout />}>
-          {/* Redirect otomatis ke tab Landing Page saat menu sidebar diklik */}
-          <Route index element={<Navigate to="landing" replace />} />
-        </Route>
+        
       </Route>
 
       {/* Rute tidak ditemukan (Kembali ke Login) */}
