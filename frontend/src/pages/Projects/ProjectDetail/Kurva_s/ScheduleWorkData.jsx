@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Target, Info, Activity, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Target, Info, Activity, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2, Edit3, Check, Loader2 } from 'lucide-react';
+import api from '../../../../api';
 
 export default function ScheduleWorkData({
-  scheduleData,
-  localWeeks,
-  isEditMode,
-  canCreateData,
-  grandTotalRAB,
-  handleWeekCumulativeChange,
-  openWeekModal,
-  handleRemoveWeek
+  scheduleData, localWeeks, isEditMode, canCreateData, grandTotalRAB,
+  handleWeekCumulativeChange, openWeekModal, handleRemoveWeek, onRefresh
 }) {
-  const navigate = useNavigate();
   const [detailModal, setDetailModal] = useState({ show: false, item: null, weekNum: null, targetPlan: 0, realizations: [] });
+  
+  // STATE UNTUK INLINE EDIT
+  const [inlineEditId, setInlineEditId] = useState(null);
+  const [inlineEditData, setInlineEditData] = useState({ volume: '', persentase: '' });
+  const [isSavingInline, setIsSavingInline] = useState(false);
 
   const getSafeFloat = (val) => {
     if (val === null || val === undefined) return 0;
@@ -26,7 +24,6 @@ export default function ScheduleWorkData({
 
   const rawRabData = scheduleData?.rab_data;
   let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
-
   const cumulativeActualMap = scheduleData?.cumulative_actual || {};
 
   safeRabData = safeRabData.map(cat => {
@@ -37,9 +34,7 @@ export default function ScheduleWorkData({
 
   if (getSafeFloat(cumulativeActualMap['manual']) > 0) {
     safeRabData.push({
-      id: 'cat-manual',
-      nama_kategori: 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)',
-      kode_divisi: 'EXT',
+      id: 'cat-manual', nama_kategori: 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)', kode_divisi: 'EXT',
       items: [{ id: 'manual', kode_pekerjaan: '-', uraian_pekerjaan: 'Pekerjaan Input Manual', is_manual: true }]
     });
   }
@@ -49,13 +44,36 @@ export default function ScheduleWorkData({
     const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
     
     let dailyRealizations = [];
-    if (item.id === 'manual') {
-       dailyRealizations = safeRealizations.filter(r => r.rab_item_id === null && parseInt(r.minggu_ke) === weekNum);
-    } else {
-       dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
-    }
+    if (item.id === 'manual') dailyRealizations = safeRealizations.filter(r => r.rab_item_id === null && parseInt(r.minggu_ke) === weekNum);
+    else dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
 
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
+    setInlineEditId(null);
+  };
+
+  const startInlineEdit = (r) => {
+    setInlineEditId(r.activity_id);
+    setInlineEditData({ volume: r.volume_laporan || '', persentase: r.bobot_realisasi || '' });
+  };
+
+  const saveInlineEdit = async (activityId) => {
+    setIsSavingInline(true);
+    try {
+      await api.put(`/daily-report-activities/${activityId}`, {
+        volume: inlineEditData.volume,
+        persentase: inlineEditData.persentase
+      });
+      // Update UI Modal secara instan
+      const updated = detailModal.realizations.map(r => r.activity_id === activityId ? { ...r, volume_laporan: inlineEditData.volume, bobot_realisasi: inlineEditData.persentase } : r);
+      setDetailModal({ ...detailModal, realizations: updated });
+      setInlineEditId(null);
+      // Trigger update background grafik
+      if (onRefresh) onRefresh();
+    } catch(e) {
+      alert("Gagal mengupdate data realisasi.");
+    } finally {
+      setIsSavingInline(false);
+    }
   };
 
   const extraCols = isEditMode && canCreateData ? 3 : 2; 
@@ -155,7 +173,7 @@ export default function ScheduleWorkData({
                                   {totalActual > 0 ? (
                                     <button 
                                       onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
-                                      title="Klik untuk lihat rincian & edit"
+                                      title="Klik untuk lihat rincian laporan & Edit"
                                       className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-sm active:scale-95 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border-emerald-200 dark:border-emerald-800/30"
                                     >
                                       {totalActual.toFixed(2)}
@@ -255,7 +273,7 @@ export default function ScheduleWorkData({
 
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
               <h3 className="text-sm font-extrabold text-slate-800 dark:text-white uppercase flex gap-2"><Activity className="w-4 h-4 text-emerald-500" /> SUMBER REALISASI HARIAN (M-{detailModal.weekNum})</h3>
               <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5"/></button>
@@ -273,35 +291,65 @@ export default function ScheduleWorkData({
                      <thead className="bg-slate-100 dark:bg-slate-900/80 text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700/60">
                        <tr>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-12">Hari</th>
-                         <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Tanggal Laporan</th>
-                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Volume Harian</th>
-                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Aktual Harian</th>
-                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Status</th>
+                         <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 w-32">Tanggal Laporan</th>
+                         <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Volume</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Aktual (%)</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Status</th>
                          {canCreateData && <th className="p-3 text-center w-28">Aksi</th>}
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
-                       {(detailModal.realizations || []).map((r, index) => (
-                         <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                           <td className="p-3 text-center font-mono font-bold text-slate-500">H{index + 1}</td>
-                           <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</td>
-                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</td>
-                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
-                             {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
-                           </td>
-                           {canCreateData && (
-                             <td className="p-2 text-center">
-                               <button 
-                                 onClick={() => navigate(`/laporan/${r.report_id}`)}
-                                 className="flex items-center justify-center gap-1.5 w-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-sm"
-                               >
-                                 <Edit3 className="w-3 h-3" /> Edit Laporan
-                               </button>
+                       {(detailModal.realizations || []).map((r, index) => {
+                         const isEditing = inlineEditId === r.activity_id;
+                         return (
+                           <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                             <td className="p-3 text-center font-mono font-bold text-slate-500">H{index + 1}</td>
+                             <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                             <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 leading-relaxed font-semibold">
+                               {r.uraian_laporan || detailModal.item?.uraian_pekerjaan || '-'}
                              </td>
-                           )}
-                         </tr>
-                       ))}
+                             <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
+                               {isEditing ? (
+                                 <input type="number" step="any" className="w-full text-center border border-blue-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none" value={inlineEditData.volume} onChange={(e)=>setInlineEditData({...inlineEditData, volume: e.target.value})} />
+                               ) : (
+                                 <span className="font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</span>
+                               )}
+                             </td>
+                             <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
+                               {isEditing ? (
+                                 <input type="number" step="any" className="w-full text-center border border-emerald-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none text-emerald-600 font-bold" value={inlineEditData.persentase} onChange={(e)=>setInlineEditData({...inlineEditData, persentase: e.target.value})} />
+                               ) : (
+                                 <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</span>
+                               )}
+                             </td>
+                             <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
+                               {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
+                             </td>
+                             {canCreateData && (
+                               <td className="p-2 text-center">
+                                 {isEditing ? (
+                                   <div className="flex gap-1.5 justify-center">
+                                     {isSavingInline ? <Loader2 className="w-5 h-5 text-emerald-500 animate-spin"/> : (
+                                       <>
+                                         <button onClick={() => saveInlineEdit(r.activity_id)} className="p-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 shadow-sm"><Check className="w-3.5 h-3.5"/></button>
+                                         <button onClick={() => setInlineEditId(null)} className="p-1.5 bg-rose-500 text-white rounded-md hover:bg-rose-600 shadow-sm"><X className="w-3.5 h-3.5"/></button>
+                                       </>
+                                     )}
+                                   </div>
+                                 ) : (
+                                   <button 
+                                     onClick={() => startInlineEdit(r)}
+                                     className="flex items-center justify-center gap-1.5 w-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-sm"
+                                   >
+                                     <Edit3 className="w-3 h-3" /> Edit
+                                   </button>
+                                 )}
+                               </td>
+                             )}
+                           </tr>
+                         );
+                       })}
                      </tbody>
                    </table>
                  </div>

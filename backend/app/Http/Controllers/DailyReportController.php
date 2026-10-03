@@ -14,9 +14,6 @@ use Exception;
 
 class DailyReportController extends Controller
 {
-    // =================================================================
-    // FUNGSI BANTUAN UNTUK AUTO-UPDATE STATUS PROYEK
-    // =================================================================
     private function syncProjectStatus($projectId)
     {
         $project = \App\Models\Project::find($projectId);
@@ -37,8 +34,6 @@ class DailyReportController extends Controller
             ->where('rab_items.is_subheader', false)
             ->sum('rab_items.total_harga');
 
-        // FIX: Sekarang prioritas mengkalkulasi Uang Realisasi berdasarkan input Persentase.
-        // COALESCE akan memakai persentase jika ada, jika null maka fallback ke volume * harga.
         $totalRealisasiUang = DB::table('daily_report_activities')
             ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
             ->join('rab_items', 'daily_report_activities.rab_item_id', '=', 'rab_items.id')
@@ -48,7 +43,6 @@ class DailyReportController extends Controller
 
         if ($totalRab > 0) {
             $progress = ($totalRealisasiUang / $totalRab) * 100;
-
             if ($progress >= 99.99) {
                 $project->update(['status' => 'Selesai']);
             } else {
@@ -236,6 +230,32 @@ class DailyReportController extends Controller
         }
     }
 
+    // ================================================================
+    // FUNGSI BARU: INLINE EDIT UPDATE MATRIKS S-CURVE
+    // ================================================================
+    public function quickUpdateActivity(Request $request, $id)
+    {
+        try {
+            DB::beginTransaction();
+            $activity = \App\Models\DailyReportActivity::findOrFail($id);
+            $activity->update([
+                'volume' => $request->volume,
+                'persentase' => $request->persentase
+            ]);
+
+            $report = DailyReport::find($activity->daily_report_id);
+            if ($report) {
+                $this->syncProjectStatus($report->project_id);
+            }
+
+            DB::commit();
+            return response()->json(['status' => 'success', 'message' => 'Data realisasi berhasil diperbarui']);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function uploadAttachment(Request $request, $id)
     {
         $report = DailyReport::findOrFail($id);
@@ -302,44 +322,23 @@ class DailyReportController extends Controller
     {
         try {
             $report = DailyReport::findOrFail($id);
-            $report->update([
-                'status' => 'approved',
-                'verified_at' => now()
-            ]);
-
+            $report->update(['status' => 'approved', 'verified_at' => now()]);
             $this->syncProjectStatus($report->project_id);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Laporan Lapangan berhasil disetujui & diverifikasi!'
-            ]);
+            return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan berhasil disetujui & diverifikasi!']);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Gagal verifikasi laporan: ' . $e->getMessage()], 500);
         }
     }
 
-    // Fungsi Menolak Laporan (Kembalikan ke Pengawas)
     public function rejectReport($id)
     {
         try {
             $report = DailyReport::findOrFail($id);
-            $report->update([
-                'status' => 'rejected',
-                'verified_at' => null // Reset tanggal verifikasi jika ada
-            ]);
-
-            // Sinkronisasi status proyek (jika diperlukan)
+            $report->update(['status' => 'rejected', 'verified_at' => null]);
             $this->syncProjectStatus($report->project_id);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Laporan Lapangan dikembalikan (Ditolak)!'
-            ]);
+            return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan dikembalikan (Ditolak)!']);
         } catch (Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal menolak laporan: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal menolak laporan: ' . $e->getMessage()], 500);
         }
     }
 

@@ -34,13 +34,15 @@ class ProjectScheduleController extends Controller
             $hasManual = false;
 
             try {
-                // PERBAIKAN: Menambahkan 'daily_reports.id as report_id' agar Frontend bisa membuka link edit
+                // PERBAIKAN: Menarik activity_id dan uraian untuk Modal Inline Edit React
                 $rawRealizations = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
                     ->where('daily_reports.status', 'approved')
                     ->select(
                         'daily_reports.id as report_id',
+                        'daily_report_activities.id as activity_id',
+                        'daily_report_activities.uraian as uraian_laporan',
                         'daily_report_activities.rab_item_id',
                         'daily_reports.minggu_ke',
                         'daily_reports.tanggal as tgl_input',
@@ -152,7 +154,6 @@ class ProjectScheduleController extends Controller
     {
         try {
             DB::beginTransaction();
-
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
@@ -160,10 +161,7 @@ class ProjectScheduleController extends Controller
                 DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
                 foreach ($weeks as $week) {
-                    DB::table('project_schedules')
-                        ->where('project_id', $projectId)
-                        ->where('minggu_ke', $week['minggu_ke'])
-                        ->delete();
+                    DB::table('project_schedules')->where('project_id', $projectId)->where('minggu_ke', $week['minggu_ke'])->delete();
                 }
             }
 
@@ -172,25 +170,16 @@ class ProjectScheduleController extends Controller
 
             foreach ($weeks as $week) {
                 $insertData[] = [
-                    'project_id' => $projectId,
-                    'minggu_ke' => $week['minggu_ke'],
-                    'bulan' => $week['bulan'] ?? null,
-                    'tanggal_awal' => $week['tanggal_awal'] ?? null,
-                    'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
-                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0),
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'project_id' => $projectId, 'minggu_ke' => $week['minggu_ke'], 'bulan' => $week['bulan'] ?? null,
+                    'tanggal_awal' => $week['tanggal_awal'] ?? null, 'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
+                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0), 'created_at' => $now, 'updated_at' => $now,
                 ];
             }
 
-            if (!empty($insertData)) {
-                DB::table('project_schedules')->insert($insertData);
-            }
+            if (!empty($insertData)) { DB::table('project_schedules')->insert($insertData); }
 
             $project = Project::find($projectId);
-            if ($project && $project->status === 'Perencanaan') {
-                $project->update(['status' => 'Persiapan']);
-            }
+            if ($project && $project->status === 'Perencanaan') { $project->update(['status' => 'Persiapan']); }
 
             DB::commit();
             return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan (Plan) berhasil disimpan!']);

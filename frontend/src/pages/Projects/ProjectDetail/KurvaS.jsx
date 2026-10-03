@@ -212,15 +212,11 @@ export default function KurvaS({ selectedProject }) {
     return `Skala ${filterMode} | ${rangeLabel}`;
   };
 
-  // ====================================================================================
-  // PERBAIKAN FATAL: MENGGUNAKAN LOCAL DATE PARSER AGAR TIDAK KENA BUG UTC TIMEZONE SHIFT
-  // ====================================================================================
   useEffect(() => {
     if (!scheduleData) return;
 
     const parseLocalDate = (dateStr) => {
       if (!dateStr) return new Date();
-      // Pastikan format YYYY-MM-DD diekstrak dengan aman tanpa zona waktu tambahan
       const cleanStr = dateStr.split(' ')[0].split('T')[0];
       const [y, m, d] = cleanStr.split('-');
       return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
@@ -247,7 +243,7 @@ export default function KurvaS({ selectedProject }) {
 
     safeRealizations.forEach(r => {
       if (!r.tgl_input) return;
-      const ymd = r.tgl_input.split('T')[0].split(' ')[0]; // Ambil YYYY-MM-DD murni
+      const ymd = r.tgl_input.split('T')[0].split(' ')[0]; 
       dailyRealisasi[ymd] = getSafeFloat(dailyRealisasi[ymd]) + getSafeFloat(r.bobot_realisasi);
       if (r.minggu_ke) dailyRealisasiWeeks[ymd] = r.minggu_ke;
       if (!maxReportedDayStr || ymd > maxReportedDayStr) maxReportedDayStr = ymd;
@@ -264,8 +260,6 @@ export default function KurvaS({ selectedProject }) {
     if (maxReportedDayStr) { const d = parseLocalDate(maxReportedDayStr); if (d > maxDate) maxDate = d; }
 
     minDate.setHours(0,0,0,0); maxDate.setHours(0,0,0,0);
-    
-    // Hitung total hari yang perlu di render
     const totalDays = Math.max(1, Math.floor((maxDate - minDate) / (1000 * 3600 * 24)) + 1);
 
     const tempChartData = [];
@@ -273,13 +267,11 @@ export default function KurvaS({ selectedProject }) {
     let hasAnyReportEver = safeRealizations.length > 0;
 
     for (let i = 0; i < totalDays; i++) {
-      // Loop berdasar penambahan hari lokal murni (bebas dari timezone jump)
       const currDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate() + i);
-      
       const yyyy = currDate.getFullYear();
       const mm = String(currDate.getMonth() + 1).padStart(2, '0');
       const dd = String(currDate.getDate()).padStart(2, '0');
-      const yyyymmdd = `${yyyy}-${mm}-${dd}`; // Tanggal String Murni
+      const yyyymmdd = `${yyyy}-${mm}-${dd}`; 
 
       const shortDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       const displayDate = currDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -319,11 +311,8 @@ export default function KurvaS({ selectedProject }) {
         realisasiKumulatif: finalRealisasiKumulatif, hasReportToday
       });
     }
-
     setFullChartData(tempChartData);
   }, [scheduleData]);
-
-  // ====================================================================================
 
   useEffect(() => {
     if (fullChartData.length === 0) return;
@@ -431,7 +420,6 @@ export default function KurvaS({ selectedProject }) {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* HEADER NAVIGASI */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"><ArrowLeft className="w-5 h-5" /></Link>
@@ -581,7 +569,7 @@ export default function KurvaS({ selectedProject }) {
           <ScheduleWorkData 
             scheduleData={scheduleData} localWeeks={localWeeks} isEditMode={isEditMode}
             canCreateData={canCreateData} grandTotalRAB={grandTotalRAB} handleWeekCumulativeChange={handleWeekCumulativeChange}
-            openWeekModal={openWeekModal} handleRemoveWeek={handleRemoveWeek}
+            openWeekModal={openWeekModal} handleRemoveWeek={handleRemoveWeek} onRefresh={fetchSchedule}
           />
         </div>
       )}
