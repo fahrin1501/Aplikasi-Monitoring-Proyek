@@ -1,112 +1,92 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Kurva S dan Kemajuan Proyek</title>
-    <style>
-        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11px; color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-        th, td { border: 1px solid #000000; padding: 6px; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .font-bold { font-weight: bold; }
-        .bg-head { background-color: #cbd5e1; font-weight: bold; text-align: center; }
-        .title-section { font-size: 13px; font-weight: bold; margin-bottom: 8px; margin-top: 15px; color: #0f172a;}
-        .header-title { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px; text-transform: uppercase; }
-        .header-subtitle { font-size: 12px; text-align: center; margin-bottom: 20px; color: #555; }
-    </style>
-</head>
-<body>
-    <div class="header-title">LAPORAN KURVA S &amp; KEMAJUAN PROYEK</div>
-    <div class="header-subtitle">
-        {{ $project->nama_proyek }} | SPK: {{ $project->kode_kontrak }} <br>
-        @if(isset($startDate) && isset($endDate))
-            <strong>Periode Laporan:</strong> {{ \Carbon\Carbon::parse($startDate)->translatedFormat('d M Y') }} s/d {{ \Carbon\Carbon::parse($endDate)->translatedFormat('d M Y') }}
-        @endif
-    </div>
+<?php
 
-    <!-- Tampilkan gambar grafik (KHUSUS PDF). Membaca langsung dari Base64 -->
-    @if(!isset($isExcel) && isset($chartImageBase64))
-        <div style="text-align: center; margin-bottom: 30px;">
-            <img src="{{ $chartImageBase64 }}" style="max-height: 350px; max-width: 900px; border: 1px solid #ccc;">
-        </div>
-    @endif
+namespace App\Exports;
 
-    @if(isset($isExcel))
-        <table>
-            @for($i=0; $i<18; $i++)
-                <tr><td style="border: none;"></td></tr>
-            @endfor
-        </table>
-    @endif
+use Illuminate\Contracts\View\View;
+use Maatwebsite\Excel\Concerns\FromView;
+use Maatwebsite\Excel\Concerns\WithDrawings;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
-    <div class="title-section">1. TOTAL PROGRESS PEKERJAAN</div>
-    <table>
-        <thead>
-            <tr>
-                <th class="bg-head" style="width: 45%;">ITEM PEKERJAAN</th>
-                <th class="bg-head" style="width: 20%;">VOL / SAT</th>
-                <th class="bg-head" style="width: 15%;">BOBOT (%)</th>
-                <th class="bg-head" style="width: 20%;">PROGRESS (%)</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($itemProgress as $item)
-                <tr>
-                    <td>{{ $item['nama'] }}</td>
-                    <td class="text-center">{{ $item['volume'] }} {{ $item['satuan'] }}</td>
-                    <td class="text-center">{{ number_format($item['bobot'], 2) }}</td>
-                    <td class="text-right font-bold" style="color: {{ $item['progress'] >= 100 ? 'green' : 'orange' }}">
-                        {{ number_format($item['progress'], 2) }}
-                    </td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
+class KurvaExport implements FromView, WithDrawings, WithStyles, WithEvents
+{
+    protected $data, $imagePath;
 
-    <div class="title-section">2. PARAMETER EVALUASI DEVIASI (RENTANG TANGGAL)</div>
-    <table>
-        <thead>
-            <tr>
-                <th class="bg-head">TANGGAL</th>
-                <th class="bg-head">PERIODE</th>
-                <th class="bg-head">RENCANA (%)</th>
-                <th class="bg-head">REALISASI (%)</th>
-                <th class="bg-head">KUMULATIF RENCANA (%)</th>
-                <th class="bg-head">KUMULATIF REALISASI (%)</th>
-                <th class="bg-head">DEVIASI (%)</th>
-                <th class="bg-head">STATUS</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($chartData as $row)
-                @php
-                    $isDevNegative = isset($row['deviasi']) && $row['deviasi'] < 0;
-                    $status = "Positif";
+    public function __construct($data, $imagePath)
+    {
+        $this->data = $data;
+        $this->imagePath = $imagePath;
+    }
 
-                    if(isset($row['isPlanEmpty']) && $row['isPlanEmpty'] && isset($row['isActEmpty']) && $row['isActEmpty']) {
-                        $status = "Belum Berjalan";
-                    } elseif (isset($row['isActEmpty']) && $row['isActEmpty']) {
-                        $status = "Menunggu Lap.";
-                    } elseif ($isDevNegative) {
-                        $status = "Terlambat";
-                    }
-                @endphp
-                <tr>
-                    <td class="text-center font-bold">{{ $row['displayDate'] ?? '-' }}</td>
-                    <td class="text-center">{{ $row['label'] }}</td>
-                    <td class="text-right">{{ isset($row['isPlanEmpty']) && $row['isPlanEmpty'] ? '-' : number_format($row['bobotRencana'] ?? 0, 2) }}</td>
-                    <td class="text-right">{{ isset($row['isActEmpty']) && $row['isActEmpty'] ? '-' : number_format($row['bobotRealisasi'] ?? 0, 2) }}</td>
-                    <td class="text-right">{{ isset($row['isPlanEmpty']) && $row['isPlanEmpty'] ? '-' : number_format($row['rencanaKumulatif'] ?? 0, 2) }}</td>
-                    <td class="text-right">{{ isset($row['isActEmpty']) && $row['isActEmpty'] ? '-' : number_format($row['realisasiKumulatif'] ?? 0, 2) }}</td>
+    public function view(): View
+    {
+        $this->data['isExcel'] = true;
+        return view('exports.kurva-s', $this->data);
+    }
 
-                    <td class="text-center font-bold" style="color: {{ isset($row['isActEmpty']) && $row['isActEmpty'] ? '#666' : ($isDevNegative ? 'red' : 'green') }}">
-                        {{ isset($row['isActEmpty']) && $row['isActEmpty'] ? '-' : (($row['deviasi'] ?? 0) > 0 ? '+' : '') . number_format($row['deviasi'] ?? 0, 2) }}
-                    </td>
-                    <td class="text-center">{{ $status }}</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-</body>
-</html>
+    public function drawings()
+    {
+        $drawings = [];
+        if ($this->imagePath && file_exists($this->imagePath)) {
+            $drawing = new Drawing();
+            $drawing->setName('Kurva S');
+            $drawing->setDescription('Grafik Kurva S Proyek');
+            $drawing->setPath($this->imagePath);
+            $drawing->setHeight(320); // Tinggi grafik
+            $drawing->setCoordinates('B4'); // Diambil pada baris ke-4 agar rapi
+            $drawing->setOffsetX(30);
+            $drawings[] = $drawing;
+        }
+        return $drawings;
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        // 1. Tentukan Lebar Kolom Dasar (Kiri)
+        $sheet->getColumnDimension('A')->setWidth(15); // Kode Pekerjaan
+        $sheet->getColumnDimension('B')->setWidth(50); // Uraian Pekerjaan
+        $sheet->getColumnDimension('C')->setWidth(10); // Bobot
+
+        // 2. Loop Kolom Mingguan Dinamis (M-1 dst) mulai dari Kolom D
+        $totalWeeks = count($this->data['localWeeks']);
+        $colIndex = 4; // Kolom ke-4 adalah D
+        for ($i = 0; $i < $totalWeeks; $i++) {
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+            $sheet->getColumnDimension($columnLetter)->setWidth(8); // Lebar setiap kolom minggu
+            $colIndex++;
+        }
+
+        // 3. Kolom Paling Kanan (Kumulatif)
+        $lastColumnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+        $sheet->getColumnDimension($lastColumnLetter)->setWidth(15);
+
+        return [];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Set kertas ke Landscape A3 karena tabel memanjang ke samping
+                $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A3);
+                $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+                $sheet->getPageSetup()->setFitToWidth(1);
+                $sheet->getPageSetup()->setFitToHeight(0);
+
+                // Ratakan Vertikal Tabel
+                $highestRow = $sheet->getHighestRow();
+                $highestCol = $sheet->getHighestColumn();
+                $sheet->getStyle('A20:' . $highestCol . $highestRow)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+                $sheet->getStyle('A20:' . $highestCol . $highestRow)->getAlignment()->setWrapText(true);
+            },
+        ];
+    }
+}

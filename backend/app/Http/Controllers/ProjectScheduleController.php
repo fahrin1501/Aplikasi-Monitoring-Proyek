@@ -6,6 +6,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Project;
 use Throwable;
+use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\KurvaExport;
 
 class ProjectScheduleController extends Controller
 {
@@ -192,5 +196,127 @@ class ProjectScheduleController extends Controller
             DB::rollBack();
             return response()->json(['status' => 'error', 'message' => 'Gagal menghapus jadwal: ' . $e->getMessage()], 500);
         }
+    }
+
+    private function prepareExportData($projectId, $request)
+    {
+        $projectInfo = DB::table('projects')->where('id', $projectId)->first();
+
+        $grandTotalRAB = DB::table('rab_items')
+            ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
+            ->where('rab_categories.project_id', $projectId)
+            ->where('rab_items.is_subheader', false)
+            ->sum('rab_items.total_harga');
+
+        // Ambil Data S-Curve Minggu
+        $schedules = DB::table('project_schedules')->where('project_id', $projectId)->orderBy('minggu_ke', 'asc')->get();
+
+        $matrix_actual = [];
+        $weekly_actual = [];
+        $cumulative_actual = [];
+        $reportedItemIds = [];
+        $hasManual = false;
+
+        try {
+            $aggregatedActuals = DB::table('daily_report_activities')
+                ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                ->where('daily_reports.project_id', $projectId)
+                ->where('daily_reports.status', 'approved')
+                ->select(
+                    'daily_report_activities.rab_item_id',
+                    'daily_reports.minggu_ke',
+                    DB::raw('SUM(daily_report_activities.persentase) as total_persen')
+                )
+                ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
+                ->having('total_persen', '>', 0)
+                ->get();
+
+            foreach($aggregatedActuals as $r) {
+                $itemId = $r->rab_item_id ?? 'manual';
+                $minggu = $r->minggu_ke ?? 0;
+                $persen = (float) $r->total_persen;
+
+                if ($r->rab_item_id) { $reportedItemIds[] = $r->rab_item_id; }
+                else { $hasManual = true; }
+
+                if(!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
+                $matrix_actual[$itemId][$minggu] = $persen;
+
+                if(!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
+                $weekly_actual[$minggu] += $persen;
+
+                if(!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
+                $cumulative_actual[$itemId] += $persen;
+            }
+            $reportedItemIds = array_unique($reportedItemIds);
+        } catch (Throwable $th) {}
+
+        $rabData = [];
+        if (!empty($reportedItemIds)) {
+            $rabCategories = DB::table('rab_categories')
+                ->where('project_id', $projectId)
+                ->whereIn('id', function($query) use ($reportedItemIds) {
+                    $query->select('rab_category_id')->from('rab_items')->whereIn('id', $reportedItemIds);
+                })->get();
+
+            $rabItems = DB::table('rab_items')->whereIn('id', $reportedItemIds)->get();
+
+            foreach ($rabCategories as $cat) {
+                $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
+                if ($items->count() > 0) {
+                    $rabData[] = ['id' => $cat->id, 'nama_kategori' => $cat->nama_kategori, 'kode_divisi' => $cat->kode_divisi ?? null, 'items' => $items];
+                }
+            }
+        }
+
+        if ($hasManual) {
+            $rabData[] = ['id' => 'cat-manual', 'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)', 'kode_divisi' => 'EXT', 'items' => [[
+                'id' => 'manual', 'kode_pekerjaan' => '-', 'uraian_pekerjaan' => 'Pekerjaan Input Manual', 'is_manual' => true, 'total_harga' => 0
+            ]]];
+        }
+
+        return [
+            'project' => $projectInfo,
+            'rabData' => $rabData,
+            'localWeeks' => $schedules,
+            'matrix_actual' => $matrix_actual,
+            'weekly_actual' => $weekly_actual,
+            'cumulative_actual' => $cumulative_actual,
+            'grandTotalRAB' => $grandTotalRAB,
+            'startDate' => $request->start_date,
+            'endDate' => $request->end_date,
+            'viewMode' => $request->view_mode
+        ];
+    }
+
+    public function exportKurvaPdf(Request $request, $projectId)
+    {
+        $exportData = $this->prepareExportData($projectId, $request);
+        $exportData['chartImageBase64'] = $request->chart_image ?? null;
+
+        $pdf = Pdf::loadView('exports.kurva-s', $exportData)->setPaper('a4', 'landscape');
+        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
+        return $pdf->download("KurvaS_Matriks_{$safeName}.pdf");
+    }
+
+    public function exportKurvaExcel(Request $request, $projectId)
+    {
+        $exportData = $this->prepareExportData($projectId, $request);
+
+        // Simpan gambar grafik sementara jika ada
+        $imagePath = null;
+        if ($request->has('chart_image') && !empty($request->chart_image)) {
+            $imageParts = explode(";base64,", $request->chart_image);
+            if (count($imageParts) == 2) {
+                $decoded = base64_decode($imageParts[1]);
+                $fileName = 'temp_chart_' . time() . '.jpg';
+                Storage::disk('public')->put($fileName, $decoded);
+                $imagePath = storage_path('app/public/' . $fileName);
+            }
+        }
+
+        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
+        $export = new KurvaExport($exportData, $imagePath);
+        return Excel::download($export, "KurvaS_Matriks_{$safeName}.xlsx");
     }
 }

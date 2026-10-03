@@ -4,18 +4,20 @@
     <meta charset="UTF-8">
     <title>Laporan Harian - {{ $report->tanggal }}</title>
     <style>
-        body { font-family: 'Arial', sans-serif; font-size: 11px; color: #000; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px;}
-        th, td { border: 1px solid #000; padding: 5px; vertical-align: middle; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10px; color: #000; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 6px; vertical-align: middle; word-wrap: break-word; }
         .border-none-right { border-right: none !important; }
         .border-none-left { border-left: none !important; }
         .border-none-bottom { border-bottom: none !important; }
         .text-center { text-align: center; }
         .text-left { text-align: left; }
+        .text-right { text-align: right; }
         .font-bold { font-weight: bold; }
         .bg-grey { background-color: #e2e8f0; }
         .text-sm { font-size: 9px; }
         .align-top { vertical-align: top; }
+        .p-10 { padding: 10px; }
     </style>
 </head>
 <body>
@@ -25,46 +27,46 @@
         <!-- ===================================== -->
         <tr>
             <!-- LOGO -->
-            <th colspan="2" class="text-center border-none-right" style="padding: 15px 10px;">
-                <img src="{{ public_path('logo.png') }}" width="65" alt="LOGO">
+            <th colspan="2" class="text-center border-none-right border-none-bottom p-10">
+                <img src="{{ public_path('logo.png') }}" width="60" alt="LOGO">
             </th>
             <!-- TEXT TENGAH -->
-            <th colspan="6" class="text-center border-none-left border-none-right" style="padding: 15px 10px;">
-                <div style="font-size: 14px;">PEMERINTAH KABUPATEN / KOTA DAERAH</div>
-                <div style="font-size: 15px; font-weight: bold; margin: 5px 0;">DINAS PEKERJAAN UMUM DAN PENATAAN RUANG</div>
-                <div style="font-size: 9px; font-weight: normal;">Alamat: Jl. Jendral Sudirman No. 1 Kode Pos 12345 Telp/Fax. (0123) 456789</div>
+            <th colspan="6" class="text-center border-none-left border-none-right border-none-bottom p-10">
+                <div style="font-size: 14px;">PEMERINTAH DAERAH</div>
+                <div style="font-size: 15px; font-weight: bold; margin: 4px 0;">DINAS PEKERJAAN UMUM DAN PENATAAN RUANG</div>
+                <div style="font-size: 9px; font-weight: normal;">Laporan Pengawasan Teknis Lapangan Harian Kontraktor</div>
             </th>
             <!-- KOTAK KANAN -->
-            <th colspan="4" class="text-center font-bold" style="font-size: 14px;">
+            <th colspan="4" class="text-center font-bold border-none-bottom" style="font-size: 14px;">
                 BUKU HARIAN STANDAR<br>CATATAN HARIAN
             </th>
         </tr>
 
         <!-- ===================================== -->
-        <!-- INFORMASI PROYEK                      -->
+        <!-- INFORMASI PROYEK (GRID 12 KOLOM)      -->
         <!-- ===================================== -->
         <tr>
             <td colspan="2" class="font-bold border-none-right border-none-bottom">KEGIATAN</td>
-            <td colspan="6" class="border-none-left border-none-right border-none-bottom">: {{ $report->project->kategori ?? 'PENYELENGGARAAN JALAN KABUPATEN/KOTA' }}</td>
+            <td colspan="6" class="border-none-left border-none-right border-none-bottom">: {{ $report->project->kategori ?? 'PENYELENGGARAAN INFRASTRUKTUR' }}</td>
             <td colspan="2" class="font-bold border-none-left border-none-right border-none-bottom">Tanggal</td>
-            <td colspan="2" class="border-none-left border-none-bottom">: {{ \Carbon\Carbon::parse($report->tanggal)->translatedFormat('d F Y') }}</td>
+            <td colspan="2" class="border-none-left border-none-bottom font-bold">: {{ \Carbon\Carbon::parse($report->tanggal)->translatedFormat('d F Y') }}</td>
         </tr>
         <tr>
             <td colspan="2" class="font-bold border-none-right border-none-bottom">PEKERJAAN</td>
             <td colspan="6" class="border-none-left border-none-right border-none-bottom">: {{ $report->project->nama_proyek }}</td>
-            <td colspan="2" class="font-bold border-none-left border-none-right border-none-bottom">Kode Kontrak</td>
-            <td colspan="2" class="border-none-left border-none-bottom">: {{ $report->project->kode_kontrak }}</td>
+            <td colspan="2" class="font-bold border-none-left border-none-right border-none-bottom">Minggu Ke-</td>
+            <td colspan="2" class="border-none-left border-none-bottom font-bold">: M-{{ $report->minggu_ke }}</td>
         </tr>
         <tr>
             <td colspan="2" class="font-bold border-none-right border-none-bottom">KONTRAKTOR</td>
             <td colspan="6" class="border-none-left border-none-right border-none-bottom">: {{ $report->project->kontraktor ?? '-' }}</td>
-            <td colspan="2" class="font-bold border-none-left border-none-right border-none-bottom">Pengawas</td>
-            <td colspan="2" class="border-none-left border-none-bottom">: {{ $report->pengawas }}</td>
+            <td colspan="2" class="font-bold border-none-left border-none-right border-none-bottom">Kode Kontrak</td>
+            <td colspan="2" class="border-none-left border-none-bottom">: {{ $report->project->kode_kontrak }}</td>
         </tr>
         <tr>
             <td colspan="2" class="font-bold border-none-right">KONSULTAN</td>
             <td colspan="6" class="border-none-left border-none-right">: {{ $report->project->konsultan ?? '-' }}</td>
-            <td colspan="2" class="font-bold border-none-left border-none-right">Lokasi</td>
+            <td colspan="2" class="font-bold border-none-left border-none-right">Lokasi Proyek</td>
             <td colspan="2" class="border-none-left">: {{ $report->lokasi }}</td>
         </tr>
 
@@ -72,19 +74,19 @@
         <!-- BAGIAN KIRI (PEKERJAAN) & KANAN (ALAT)-->
         <!-- ===================================== -->
         <tr>
-            <td colspan="6" class="font-bold bg-grey">A. URAIAN PEKERJAAN</td>
-            <td colspan="6" class="font-bold bg-grey">B. PEMAKAIAN PERALATAN</td>
+            <td colspan="6" class="font-bold bg-grey text-center">A. URAIAN PEKERJAAN LAPANGAN</td>
+            <td colspan="6" class="font-bold bg-grey text-center">B. PEMAKAIAN PERALATAN KERJA</td>
         </tr>
-        <tr class="text-center font-bold text-sm">
-            <td style="width: 3%;">NO</td>
-            <td colspan="2" style="width: 25%;">JENIS PEKERJAAN</td>
-            <td style="width: 12%;">LOKASI (STA)</td>
-            <td style="width: 5%;">VOL</td>
-            <td style="width: 5%;">SAT</td>
+        <tr class="text-center font-bold text-sm bg-grey">
+            <td colspan="1" style="width: 4%;">NO</td>
+            <td colspan="2" style="width: 24%;">JENIS / URAIAN PEKERJAAN</td>
+            <td colspan="1" style="width: 14%;">LOKASI (STA)</td>
+            <td colspan="1" style="width: 10%;">VOL & SAT</td>
+            <td colspan="1" style="width: 8%;">BOBOT</td>
 
-            <td style="width: 3%;">NO</td>
-            <td colspan="3" style="width: 32%;">JENIS / NAMA ALAT MESIN</td>
-            <td colspan="2" style="width: 15%;">JUMLAH UNIT</td>
+            <td colspan="1" style="width: 4%;">NO</td>
+            <td colspan="3" style="width: 26%;">JENIS / NAMA ALAT MESIN</td>
+            <td colspan="2" style="width: 10%;">JUMLAH UNIT</td>
         </tr>
 
         @php
@@ -96,9 +98,9 @@
         @for($i = 0; $i < $maxAC; $i++)
             <tr>
                 <!-- SISI KIRI: PEKERJAAN -->
-                <td class="text-center">{{ isset($report->activities[$i]) ? $i+1 : '' }}</td>
-                <td colspan="2">{{ $report->activities[$i]->uraian ?? '' }}</td>
-                <td class="text-center text-sm">
+                <td class="text-center align-top">{{ isset($report->activities[$i]) ? $i+1 : '' }}</td>
+                <td colspan="2" class="align-top">{{ $report->activities[$i]->uraian ?? '' }}</td>
+                <td class="text-center text-sm align-top">
                     @if(isset($report->activities[$i]))
                         @if($report->activities[$i]->sta_awal || $report->activities[$i]->sta_akhir)
                             {{ $report->activities[$i]->sta_awal ?: '...' }}<br>
@@ -109,13 +111,26 @@
                         @endif
                     @endif
                 </td>
-                <td class="text-center font-bold">{{ isset($report->activities[$i]) ? (float)$report->activities[$i]->volume : '' }}</td>
-                <td class="text-center">{{ $report->activities[$i]->satuan ?? '' }}</td>
+                <td class="text-center font-bold align-top">
+                    @if(isset($report->activities[$i]))
+                        {{ (float)$report->activities[$i]->volume }}<br>
+                        <span class="text-sm" style="font-weight: normal;">{{ $report->activities[$i]->satuan }}</span>
+                    @endif
+                </td>
+                <td class="text-center font-bold align-top">
+                    @if(isset($report->activities[$i]))
+                        {{ (float)$report->activities[$i]->persentase }}%
+                    @endif
+                </td>
 
                 <!-- SISI KANAN: PERALATAN -->
-                <td class="text-center">{{ isset($report->equipments[$i]) ? $i+1 : '' }}</td>
-                <td colspan="3">{{ $report->equipments[$i]->nama_alat ?? '' }}</td>
-                <td colspan="2" class="text-center">{{ $report->equipments[$i]->jumlah ?? '' }}</td>
+                <td class="text-center align-top">{{ isset($report->equipments[$i]) ? $i+1 : '' }}</td>
+                <td colspan="3" class="align-top">{{ $report->equipments[$i]->nama_alat ?? '' }}</td>
+                <td colspan="2" class="text-center font-bold align-top">
+                    @if(isset($report->equipments[$i]))
+                        {{ $report->equipments[$i]->jumlah }} Unit
+                    @endif
+                </td>
             </tr>
         @endfor
 
@@ -123,14 +138,14 @@
         <!-- BAGIAN KIRI (PERSONIL) & KANAN (CUACA)-->
         <!-- ===================================== -->
         <tr>
-            <td colspan="6" class="font-bold bg-grey">C. PERSONIL PROYEK / TENAGA KERJA</td>
-            <td colspan="6" class="font-bold bg-grey">D. CUACA / BENCANA ALAM</td>
+            <td colspan="6" class="font-bold bg-grey text-center">C. PERSONIL / MANPOWER</td>
+            <td colspan="6" class="font-bold bg-grey text-center">D. KONDISI CUACA HARIAN</td>
         </tr>
-        <tr class="text-center font-bold text-sm">
-            <td>NO</td>
-            <td colspan="3">TUGAS / JABATAN</td>
+        <tr class="text-center font-bold text-sm bg-grey">
+            <td colspan="1">NO</td>
+            <td colspan="3">POSISI / JABATAN / PERAN</td>
             <td colspan="2">JUMLAH ORANG</td>
-            <td colspan="6">KETERANGAN CUACA / KENDALA LAPANGAN</td>
+            <td colspan="6">CATATAN CUACA / KENDALA ALAM</td>
         </tr>
 
         @php
@@ -141,15 +156,19 @@
         @for($i = 0; $i < $maxPersonil; $i++)
             <tr>
                 <!-- SISI KIRI: PERSONIL -->
-                <td class="text-center">{{ isset($report->personnels[$i]) ? $i+1 : '' }}</td>
-                <td colspan="3">{{ $report->personnels[$i]->peran ?? '' }}</td>
-                <td colspan="2" class="text-center">{{ $report->personnels[$i]->jumlah ?? '' }}</td>
+                <td class="text-center align-top">{{ isset($report->personnels[$i]) ? $i+1 : '' }}</td>
+                <td colspan="3" class="align-top">{{ $report->personnels[$i]->peran ?? '' }}</td>
+                <td colspan="2" class="text-center font-bold align-top">
+                    @if(isset($report->personnels[$i]))
+                        {{ $report->personnels[$i]->jumlah }} Org
+                    @endif
+                </td>
 
                 <!-- SISI KANAN: CUACA (Digabung Barisnya/Rowspan) -->
                 @if($i == 0)
-                    <td colspan="6" rowspan="{{ $maxPersonil }}" class="text-left align-top text-sm" style="padding: 10px; line-height: 1.6;">
-                        <!-- Gunakan nl2br agar enter/baris baru di textarea terbaca di PDF -->
-                        {!! nl2br(e($report->cuaca ?: 'Tidak ada catatan cuaca harian.')) !!}
+                    <td colspan="6" rowspan="{{ $maxPersonil }}" class="text-left align-top" style="padding: 10px; line-height: 1.6;">
+                        <!-- nl2br agar format spasi/enter terbaca di PDF & Excel -->
+                        {!! nl2br(e($report->cuaca ?: 'Cerah (Bekerja Full Time)')) !!}
                     </td>
                 @endif
             </tr>
@@ -159,13 +178,11 @@
         <!-- BAGIAN BAWAH (TANDA TANGAN & CATATAN) -->
         <!-- ===================================== -->
         <tr>
-            <td colspan="12" class="font-bold bg-grey">E. CATATAN / PELAPORAN / TANDA TANGAN</td>
+            <td colspan="12" class="font-bold bg-grey text-center">E. CATATAN TAMBAHAN / INSTRUKSI PENGAWAS</td>
         </tr>
         <tr>
-            <!-- MENGGABUNGKAN CATATAN KE DALAM TABEL UTAMA AGAR EXCEL TIDAK BERANTAKAN -->
-            <td colspan="12" style="min-height: 60px; padding: 10px;" class="align-top text-sm">
-                <b>Catatan Tambahan / Instruksi Pengawas:</b><br><br>
-                {!! nl2br(e($report->catatan ?: 'Tidak ada catatan tambahan pada hari ini.')) !!}
+            <td colspan="12" style="min-height: 60px; padding: 15px;" class="align-top text-sm">
+                {!! nl2br(e($report->catatan ?: 'Tidak ada instruksi atau kendala khusus pada hari ini. Seluruh pekerjaan berjalan sesuai rencana.')) !!}
             </td>
         </tr>
         <tr class="text-center font-bold text-sm">
