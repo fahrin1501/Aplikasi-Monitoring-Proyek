@@ -14,27 +14,51 @@ class ProjectScheduleController extends Controller
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
+            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL
             $grandTotalRAB = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
                 ->where('rab_items.is_subheader', false)
                 ->sum('rab_items.total_harga');
 
+            // 2. KEMBALIKAN LOGIKA: AMBIL SELURUH DATA RAB!
+            // Ini WAJIB untuk mensuplai Dropdown di Form Laporan agar semua pekerjaan bisa dipilih.
+            // (Tabel Kurva S di Frontend sudah dilengkapi filter penangkal item kosong).
+            $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
+            $categoryIds = $rabCategories->pluck('id')->toArray();
+
+            $rabItems = collect([]);
+            if (!empty($categoryIds)) {
+                $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
+            }
+
+            $rabData = [];
+            foreach ($rabCategories as $cat) {
+                $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
+                if ($items->count() > 0) {
+                    $rabData[] = [
+                        'id' => $cat->id,
+                        'nama_kategori' => $cat->nama_kategori,
+                        'kode_divisi' => $cat->kode_divisi ?? null,
+                        'items' => $items
+                    ];
+                }
+            }
+
+            // 3. AMBIL TARGET JADWAL MINGGUAN (Macro)
             $schedules = DB::table('project_schedules')
                 ->where('project_id', $projectId)
                 ->orderBy('minggu_ke', 'asc')
                 ->get();
 
+            // 4. AMBIL DATA AKTUAL (REALISASI HARIAN) UNTUK MATRIKS
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
             $cumulative_actual = [];
 
-            $reportedItemIds = [];
-            $hasManual = false;
-
             try {
-                // PERBAIKAN: Menarik activity_id dan uraian untuk Modal Inline Edit React
+                // Tarik data dengan ID Laporan dan ID Activity untuk fitur Inline Edit React
                 $rawRealizations = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
@@ -70,12 +94,6 @@ class ProjectScheduleController extends Controller
                     $minggu = $r->minggu_ke ?? 0;
                     $persen = (float) $r->total_persen;
 
-                    if ($r->rab_item_id) {
-                        $reportedItemIds[] = $r->rab_item_id;
-                    } else {
-                        $hasManual = true;
-                    }
-
                     if(!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                     $matrix_actual[$itemId][$minggu] = $persen;
 
@@ -86,54 +104,14 @@ class ProjectScheduleController extends Controller
                     $cumulative_actual[$itemId] += $persen;
                 }
 
-                $reportedItemIds = array_unique($reportedItemIds);
-
             } catch (Throwable $th) {}
-
-            $rabData = [];
-            if (!empty($reportedItemIds)) {
-                $rabCategories = DB::table('rab_categories')
-                    ->where('project_id', $projectId)
-                    ->whereIn('id', function($query) use ($reportedItemIds) {
-                        $query->select('rab_category_id')->from('rab_items')->whereIn('id', $reportedItemIds);
-                    })->get();
-
-                $rabItems = DB::table('rab_items')->whereIn('id', $reportedItemIds)->get();
-
-                foreach ($rabCategories as $cat) {
-                    $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
-                    if ($items->count() > 0) {
-                        $rabData[] = [
-                            'id' => $cat->id,
-                            'nama_kategori' => $cat->nama_kategori,
-                            'kode_divisi' => $cat->kode_divisi ?? null,
-                            'items' => $items
-                        ];
-                    }
-                }
-            }
-
-            if ($hasManual) {
-                $rabData[] = [
-                    'id' => 'cat-manual',
-                    'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)',
-                    'kode_divisi' => 'EXT',
-                    'items' => [[
-                        'id' => 'manual',
-                        'kode_pekerjaan' => '-',
-                        'uraian_pekerjaan' => 'Pekerjaan Input Manual',
-                        'is_manual' => true,
-                        'total_harga' => 0
-                    ]]
-                ];
-            }
 
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'project_info' => $projectInfo,
                     'grand_total_rab' => (float) $grandTotalRAB,
-                    'rab_data' => $rabData,
+                    'rab_data' => $rabData, // Seluruh Data RAB dikembalikan untuk Form Dropdown
                     'schedules' => $schedules,
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,
@@ -154,6 +132,7 @@ class ProjectScheduleController extends Controller
     {
         try {
             DB::beginTransaction();
+
             $isFullSync = $request->input('full_sync', false);
             $weeks = $request->input('weeks', []);
 
@@ -161,7 +140,10 @@ class ProjectScheduleController extends Controller
                 DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
                 foreach ($weeks as $week) {
-                    DB::table('project_schedules')->where('project_id', $projectId)->where('minggu_ke', $week['minggu_ke'])->delete();
+                    DB::table('project_schedules')
+                        ->where('project_id', $projectId)
+                        ->where('minggu_ke', $week['minggu_ke'])
+                        ->delete();
                 }
             }
 
@@ -170,16 +152,25 @@ class ProjectScheduleController extends Controller
 
             foreach ($weeks as $week) {
                 $insertData[] = [
-                    'project_id' => $projectId, 'minggu_ke' => $week['minggu_ke'], 'bulan' => $week['bulan'] ?? null,
-                    'tanggal_awal' => $week['tanggal_awal'] ?? null, 'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
-                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0), 'created_at' => $now, 'updated_at' => $now,
+                    'project_id' => $projectId,
+                    'minggu_ke' => $week['minggu_ke'],
+                    'bulan' => $week['bulan'] ?? null,
+                    'tanggal_awal' => $week['tanggal_awal'] ?? null,
+                    'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
+                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0),
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ];
             }
 
-            if (!empty($insertData)) { DB::table('project_schedules')->insert($insertData); }
+            if (!empty($insertData)) {
+                DB::table('project_schedules')->insert($insertData);
+            }
 
             $project = Project::find($projectId);
-            if ($project && $project->status === 'Perencanaan') { $project->update(['status' => 'Persiapan']); }
+            if ($project && $project->status === 'Perencanaan') {
+                $project->update(['status' => 'Persiapan']);
+            }
 
             DB::commit();
             return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan (Plan) berhasil disimpan!']);
