@@ -19,7 +19,6 @@ Route::get('/test-koneksi', function () {
     ]);
 });
 
-Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/company-profile', [CompanyProfileController::class, 'show']);
 
@@ -96,4 +95,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/import', [ProjectController::class, 'import']);
     Route::post('/projects/{id}/import-rab', [RabController::class, 'importRAB']);
     Route::get('/projects-active-report', [ProjectController::class, 'getActiveForReport']);
+
+    Route::post('/register', [AuthController::class, 'register']);
 });

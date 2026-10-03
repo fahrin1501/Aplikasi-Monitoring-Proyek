@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { 
   Map, FolderKanban, ClipboardList, LogOut, Menu, X, 
-  Users, Sun, Moon
+  Users, Sun, Moon, Building2 // Tambahkan icon Building2
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -11,7 +11,6 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // --- SETTING TAB BROWSER OTOMATIS ---
   useEffect(() => {
     document.title = "Prisma Group";
     let link = document.querySelector("link[rel~='icon']");
@@ -23,7 +22,6 @@ export default function Sidebar() {
     link.href = '/PRISMA.PNG';
   }, []);
 
-  // --- STATE TEMA (DARK/LIGHT MODE) ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') !== 'light';
@@ -42,7 +40,6 @@ export default function Sidebar() {
     }
   }, [isDarkMode]);
 
-  // --- STATE DATA USER LOGIN & RBAC ---
   const [userData, setUserData] = useState(() => {
     const stored = localStorage.getItem('user_data');
     if (stored) {
@@ -71,16 +68,19 @@ export default function Sidebar() {
     return name.charAt(0).toUpperCase();
   };
 
-  // DEFINISI HAK AKSES
   const userRole = userData?.role || 'Tamu';
   const isAdmin = userRole === 'Administrator';
 
-  // --- MENU ITEMS (Time Schedule Dihapus) ---
+  // --- MENU ITEMS DIPERBAIKI ---
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard Utama', icon: Map },
     { path: '/projects', label: 'Daftar Project', icon: FolderKanban },
     { path: '/laporan', label: 'Daftar Laporan', icon: ClipboardList },
-    ...(isAdmin ? [{ path: '/accounts', label: 'Manajemen Akun', icon: Users }] : []),
+    // Tambahkan Menu Profil Perusahaan khusus untuk Admin
+    ...(isAdmin ? [
+        { path: '/accounts', label: 'Manajemen Akun', icon: Users },
+        { path: '/company-profile', label: 'Profil Perusahaan', icon: Building2 } // Menu Baru
+    ] : []),
   ];
 
   const handleItemClick = () => {
@@ -189,7 +189,6 @@ export default function Sidebar() {
 
         <div className="flex flex-col mt-8">
           
-          {/* IDENTITAS PERUSAHAAN (STATIS / HARDCODED) */}
           <div className={`relative ${isCollapsed ? 'flex justify-center' : 'px-1'} mb-5`}>
             <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
               <div 

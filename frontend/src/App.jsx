@@ -5,9 +5,7 @@ import MainLayout from './components/Layout/MainLayout';
 
 // Import Pages Auth & Public
 import Login from './pages/Auth/Login';
-import Register from './pages/Auth/Register';
 import ForgotPassword from './pages/Auth/ForgotPassword';
-import CompanyProfile from './pages/CompanyProfile/CompanyProfile';
 
 // Import Modul Dashboard & Proyek
 import DashboardUtama from './pages/Dashboard/DashboardUtama';
@@ -25,7 +23,15 @@ import LaporanList from './pages/Laporan/LaporanList';
 import AddLaporan from './pages/Laporan/AddLaporan';
 import LaporanData from './pages/Laporan/LaporanData'; 
 
+// Import Modul Akun
 import AccountList from './pages/Accounts/AccountList';
+
+// Import Modul Pengaturan Profil Perusahaan (Nested Routes)
+import CompanyProfileLayout from './pages/CompanyProfile/CompanyProfileLayout';
+import LandingPage from './pages/CompanyProfile/LandingPage';
+import Layanan from './pages/CompanyProfile/Layanan';
+import Event from './pages/CompanyProfile/Event';
+import ContactInfo from './pages/CompanyProfile/ContactInfo';
 
 export default function App() {
   return (
@@ -33,9 +39,8 @@ export default function App() {
       {/* ========================================== */}
       {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar)     */}
       {/* ========================================== */}
-      <Route path="/" element={<CompanyProfile />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* ========================================== */}
@@ -64,10 +69,23 @@ export default function App() {
         
         {/* MODUL AKUN */}
         <Route path="/accounts" element={<AccountList />} />
+
+        {/* ========================================== */}
+        {/* MODUL PENGATURAN PROFIL PERUSAHAAN         */}
+        {/* ========================================== */}
+        <Route path="/company-profile" element={<CompanyProfileLayout />}>
+          {/* Redirect otomatis ke tab Landing Page saat menu sidebar diklik */}
+          <Route index element={<Navigate to="landing" replace />} />
+          
+          <Route path="landing" element={<LandingPage />} />
+          <Route path="layanan" element={<Layanan />} />
+          <Route path="event" element={<Event />} />
+          <Route path="kontak" element={<ContactInfo />} />
+        </Route>
       </Route>
 
-      {/* Rute tidak ditemukan (Kembali ke Landing Page) */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Rute tidak ditemukan (Kembali ke Login) */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
