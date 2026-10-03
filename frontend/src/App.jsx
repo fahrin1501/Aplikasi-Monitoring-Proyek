@@ -27,7 +27,7 @@ import LaporanData from './pages/Laporan/LaporanData';
 import AccountList from './pages/Accounts/AccountList';
 
 // Import Modul Pengaturan Profil Perusahaan (Nested Routes)
-import CompanyProfileLayout from './pages/CompanyProfile/CompanyProfileLayout';
+import CompanyProfileLayout from './pages/CompanyProfile/CompanyProfile';
 import LandingPage from './pages/CompanyProfile/LandingPage';
 import Layanan from './pages/CompanyProfile/Layanan';
 import Event from './pages/CompanyProfile/Event';
@@ -39,7 +39,7 @@ export default function App() {
       {/* ========================================== */}
       {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar)     */}
       {/* ========================================== */}
-      <Route path="/" element={<Navigate to="/company-profile" replace />} />
+      <Route path="/" element={<CompanyProfile />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 

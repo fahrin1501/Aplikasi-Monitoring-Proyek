@@ -1,72 +1,38 @@
-import React, { useState } from 'react';
-import { LayoutTemplate, Save, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function LandingPage() {
-  const [formData, setFormData] = useState({
-    heroTitle: 'Pantau Progres & Pengawasan Lapangan Secara Real-Time',
-    heroSubtitle: 'Kelola volume progres, laporan harian, matriks Kurva S, hingga pemetaan GIS lokasi proyek dalam satu sistem pengawasan terpadu yang presisi.',
-    btnText: 'Sistem Manajemen Proyek'
-  });
-
   return (
-    <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-5 md:p-7 shadow-sm backdrop-blur-sm animate-fade-in">
-      <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-700/60 pb-4">
-        <LayoutTemplate className="w-5 h-5 text-amber-500" />
-        <h2 className="text-lg font-extrabold text-slate-800 dark:text-white tracking-wide">Pengaturan Teks Landing Page</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Kolom Kiri: Form Input */}
-        <div className="lg:col-span-2 space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Label / Badge (Kecil)</label>
-            <input 
-              type="text" 
-              value={formData.btnText}
-              onChange={(e) => setFormData({...formData, btnText: e.target.value})}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" 
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Judul Utama (Hero Title)</label>
-            <input 
-              type="text" 
-              value={formData.heroTitle}
-              onChange={(e) => setFormData({...formData, heroTitle: e.target.value})}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" 
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Deskripsi Singkat (Subtitle)</label>
-            <textarea 
-              rows="4" 
-              value={formData.heroSubtitle}
-              onChange={(e) => setFormData({...formData, heroSubtitle: e.target.value})}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors resize-none"
-            ></textarea>
-          </div>
-        </div>
-
-        {/* Kolom Kanan: Pengaturan Gambar Cover */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Gambar Cover (Opsional)</label>
-          <div className="w-full h-48 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex flex-col items-center justify-center text-center p-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer group">
-            <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
-              <ImageIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-            </div>
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Klik untuk unggah gambar</p>
-            <p className="text-[10px] text-slate-500 mt-1">Format: JPG/PNG, Maks: 2MB</p>
-          </div>
-        </div>
-      </div>
+    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden flex items-center justify-center min-h-[90vh]">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-40 dark:opacity-10 pointer-events-none" />
       
-      <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-700/60 flex justify-end">
-        <button className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-95">
-          <Save className="w-4 h-4" /> Simpan Perubahan
-        </button>
+      {/* Gradient Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/20 dark:bg-amber-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="container mx-auto px-6 md:px-12 relative z-10 text-center animate-fade-in">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-widest shadow-sm mb-6">
+          <ShieldCheck className="w-4 h-4" /> Sistem Manajemen Proyek Terpadu
+        </div>
+        
+        <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-slate-800 dark:text-white tracking-tight leading-tight max-w-5xl mx-auto mb-6">
+          Pantau Progres & Pengawasan Lapangan <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-500">Secara Real-Time</span>
+        </h1>
+        
+        <p className="text-base md:text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed font-medium mb-10">
+          Kami menyediakan layanan manajemen konstruksi dan pengawasan teknis dengan platform digital cerdas. Kelola laporan, Kurva S, hingga GIS dalam satu sistem.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <button onClick={() => document.getElementById('layanan').scrollIntoView({ behavior: 'smooth' })} className="w-full sm:w-auto px-8 py-4 bg-slate-800 dark:bg-white hover:bg-slate-700 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-bold rounded-full transition-all shadow-lg active:scale-95 text-sm">
+            Lihat Layanan Kami
+          </button>
+          <Link to="/login" className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-full transition-all shadow-xl shadow-amber-500/20 active:scale-95 text-sm">
+            Masuk Portal Klien <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
