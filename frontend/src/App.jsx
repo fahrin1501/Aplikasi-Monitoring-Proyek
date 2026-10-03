@@ -40,6 +40,11 @@ export default function App() {
       {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar)     */}
       {/* ========================================== */}
       <Route path="/" element={<CompanyProfile />} />
+      <Route path="/landing-page" element={<LandingPage />} />
+      <Route path="/layanan" element={<Layanan />} />
+      <Route path="/event" element={<Event />} />
+      <Route path="/contact-info" element={<ContactInfo />} />
+
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
