@@ -39,7 +39,7 @@ export default function App() {
       {/* ========================================== */}
       {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar)     */}
       {/* ========================================== */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/company-profile" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
