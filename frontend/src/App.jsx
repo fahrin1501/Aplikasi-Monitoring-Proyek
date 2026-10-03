@@ -27,7 +27,7 @@ import LaporanData from './pages/Laporan/LaporanData';
 import AccountList from './pages/Accounts/AccountList';
 
 // Import Modul Pengaturan Profil Perusahaan (Nested Routes)
-import CompanyProfileLayout from './pages/CompanyProfile/CompanyProfile';
+import CompanyProfile from './pages/CompanyProfile/CompanyProfile';
 import LandingPage from './pages/CompanyProfile/LandingPage';
 import Layanan from './pages/CompanyProfile/Layanan';
 import Event from './pages/CompanyProfile/Event';
@@ -76,11 +76,6 @@ export default function App() {
         <Route path="/company-profile" element={<CompanyProfileLayout />}>
           {/* Redirect otomatis ke tab Landing Page saat menu sidebar diklik */}
           <Route index element={<Navigate to="landing" replace />} />
-          
-          <Route path="landing" element={<LandingPage />} />
-          <Route path="layanan" element={<Layanan />} />
-          <Route path="event" element={<Event />} />
-          <Route path="kontak" element={<ContactInfo />} />
         </Route>
       </Route>
 
