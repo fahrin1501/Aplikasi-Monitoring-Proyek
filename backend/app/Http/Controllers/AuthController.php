@@ -12,9 +12,7 @@ class AuthController extends Controller
 {
     public function index()
     {
-        // Mengambil semua user, lalu mengecek apakah usianya kurang dari 3 hari
         $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
-            // Menambahkan indikator 'is_new' (true jika dibuat dalam 3 hari terakhir)
             $user->is_new = $user->created_at ? $user->created_at->diffInDays(now()) <= 3 : false;
             return $user;
         });
@@ -22,14 +20,12 @@ class AuthController extends Controller
         return response()->json($users);
     }
 
-    // Fungsi Update Akun (Fitur Edit)
     public function update(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            // Pengecualian unique email untuk ID user ini sendiri agar bisa disimpan tanpa ganti email
             'email' => 'required|string|email|unique:users,email,' . $id,
             'role' => 'required|string',
             'status' => 'required|string'
@@ -49,22 +45,27 @@ class AuthController extends Controller
         ]);
     }
 
-    // Fungsi Register (Bisa dipakai saat tambah akun dari AccountList)
+    // ==============================================================
+    // PERBAIKAN: Menerima 'role' dari Frontend, jika kosong set 'Tamu'
+    // ==============================================================
     public function register(Request $request)
     {
-        // 1. Hapus 'role' dari validasi
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6'
+            'password' => 'required|string|min:6',
+            'role' => 'nullable|string' // Role kini diizinkan masuk
         ]);
 
-        // 2. Buat user dengan role otomatis 'Tamu' (atau 'Owner / PPK')
+        // Jika Frontend mengirimkan Role (misal dari Manajemen Akun), gunakan itu.
+        // Jika kosong (misal mendaftar dari halaman depan), gunakan 'Tamu'.
+        $roleToSet = !empty($validated['role']) ? $validated['role'] : 'Tamu';
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => 'Tamu', // <--- Role diatur otomatis oleh sistem
+            'role' => $roleToSet,
             'status' => 'Aktif'
         ]);
 
@@ -78,7 +79,6 @@ class AuthController extends Controller
         ]);
     }
 
-    // Fungsi Login
     public function login(Request $request)
     {
         $request->validate([
@@ -112,7 +112,6 @@ class AuthController extends Controller
         ]);
     }
 
-    // Fungsi Reset Password
     public function resetPassword(Request $request, $id)
     {
         $user = User::findOrFail($id);
@@ -135,7 +134,6 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        // Cek apakah email terdaftar
         $user = User::where('email', $request->email)->first();
         if (!$user) {
             return response()->json([
@@ -143,7 +141,6 @@ class AuthController extends Controller
             ], 404);
         }
 
-        // Generate Token Reset & Kirim Email (Bawaan Laravel)
         $status = Password::sendResetLink($request->only('email'));
 
         if ($status === Password::RESET_LINK_SENT) {
@@ -158,7 +155,6 @@ class AuthController extends Controller
         ], 500);
     }
 
-    // Fungsi Logout
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
