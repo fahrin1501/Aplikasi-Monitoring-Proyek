@@ -1,6 +1,6 @@
 import React from 'react';
 import Select from 'react-select';
-import { ListTodo, Plus, Trash2, MapPin, CheckCircle2, Target, Loader2, ChevronDown } from 'lucide-react';
+import { ListTodo, Plus, Trash2, MapPin, CheckCircle2, Target, Loader2 } from 'lucide-react';
 
 const formatKoordTampil = (staString) => {
   if (!staString) return null;
@@ -106,25 +106,27 @@ export default function KegiatanGeografis({
                   </label>
                   
                   {rabOptions.length > 0 ? (
-                    <div className="mb-2 w-full text-slate-800 dark:text-white relative">
+                    <div className="relative mb-2 w-full text-slate-800 dark:text-white">
                       <Select
                         options={selectOptions}
                         value={currentVal}
                         onChange={(val) => handleKegiatanSelectEdit(index, val)}
                         placeholder="Ketik untuk mencari pekerjaan..."
                         isSearchable={true}
+                        menuPortalTarget={document.body}
+                        styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
                         noOptionsMessage={() => "Pekerjaan tidak ditemukan"}
                         unstyled
                         classNamePrefix="react-select"
                         classNames={{
                           control: ({ isFocused }) =>
-                            `bg-white dark:bg-slate-900 border ${isFocused ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-300 dark:border-slate-600'} rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white shadow-inner transition-colors cursor-pointer w-full flex items-center justify-between`,
+                            `bg-white dark:bg-slate-900 border ${isFocused ? 'border-amber-500 ring-2 ring-amber-500/50' : 'border-slate-300 dark:border-slate-600'} rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white shadow-inner transition-colors cursor-pointer w-full flex items-center justify-between`,
                           menu: () =>
-                            `absolute w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl mt-1.5 z-[100] overflow-hidden`,
+                            `absolute w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl mt-1.5 overflow-hidden`,
                           menuList: () =>
-                            `max-h-[250px] overflow-y-auto custom-scrollbar p-1 z-[100]`,
+                            `max-h-[250px] overflow-y-auto custom-scrollbar p-1`,
                           option: ({ isFocused, isSelected }) =>
-                            `px-3 py-2.5 text-xs rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-amber-500 text-white font-bold' : isFocused ? 'bg-amber-50 dark:bg-slate-700 text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`,
+                            `px-3 py-2.5 text-xs rounded-lg cursor-pointer transition-colors mb-0.5 ${isSelected ? 'bg-amber-500 text-white font-bold' : isFocused ? 'bg-amber-50 dark:bg-slate-700 text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`,
                           singleValue: () =>
                             `text-slate-800 dark:text-white font-semibold truncate`,
                           input: () =>
@@ -134,7 +136,8 @@ export default function KegiatanGeografis({
                           groupHeading: () =>
                             `px-2 py-1.5 text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-500/10 rounded-md mb-1 mt-2 mx-1`,
                           indicatorSeparator: () => 'hidden',
-                          dropdownIndicator: () => 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                          dropdownIndicator: () => 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer',
+                          clearIndicator: () => 'text-slate-400 hover:text-rose-500 cursor-pointer'
                         }}
                       />
                     </div>
@@ -149,12 +152,12 @@ export default function KegiatanGeografis({
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm relative z-0">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500"/> STA Awal</label>
-                  <input type="text" placeholder="STA 0+000" value={item.sta_awal} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_awal = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                  <input type="text" placeholder="-3.3191, 114.5911" value={item.sta_awal} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_awal = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                 </div>
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 shadow-sm relative z-0">
                   <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-indigo-500"/> STA Akhir</label>
-                  <input type="text" placeholder="STA 1+200" value={item.sta_akhir} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_akhir = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
+                  <input type="text" placeholder="-3.3215, 114.6102" value={item.sta_akhir} onChange={(e) => { const newK = [...editForm.activities]; newK[index].sta_akhir = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-[11px] font-mono font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors" />
                 </div>
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
@@ -184,7 +187,6 @@ export default function KegiatanGeografis({
           ) : (
              activeActivities.map((keg, idx) => (
                 <div key={idx} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm">
-                  {/* BUG FIXED: warna dijamin terlihat dengan dark:text-white */}
                   <p className="font-bold text-slate-800 dark:text-white text-[13px]">{idx + 1}. {keg.uraian}</p>
                   {(keg.sta_awal || keg.sta_akhir) && (
                     <p className="text-slate-500 dark:text-slate-400 mt-1.5 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 self-start px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
