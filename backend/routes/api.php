@@ -20,7 +20,7 @@ Route::get('/test-koneksi', function () {
 });
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/company-profile', [CompanyProfileController::class, 'show']);
+Route::get('/', [CompanyProfileController::class, 'show']);
 
 Route::get('/reset-password/{token}', function (Request $request, $token) {
     $frontendUrl = 'http://localhost:5173/reset-password';
