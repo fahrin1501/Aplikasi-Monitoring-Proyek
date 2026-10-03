@@ -12,7 +12,7 @@ export default function LandingPage() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/20 dark:bg-amber-500/10 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="container mx-auto px-6 md:px-12 relative z-10 text-center animate-fade-in">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-widest shadow-sm mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 text-green-600 dark:text-blue-400 text-xs font-bold uppercase tracking-widest shadow-sm mb-6">
           <ShieldCheck className="w-4 h-4" /> Sistem Manajemen Proyek Terpadu
         </div>
         
@@ -28,9 +28,6 @@ export default function LandingPage() {
           <button onClick={() => document.getElementById('layanan').scrollIntoView({ behavior: 'smooth' })} className="w-full sm:w-auto px-8 py-4 bg-slate-800 dark:bg-white hover:bg-slate-700 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-bold rounded-full transition-all shadow-lg active:scale-95 text-sm">
             Lihat Layanan Kami
           </button>
-          <Link to="/login" className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-full transition-all shadow-xl shadow-amber-500/20 active:scale-95 text-sm">
-            Masuk Portal Klien <ArrowRight className="w-4 h-4" />
-          </Link>
         </div>
       </div>
     </section>

@@ -67,7 +67,7 @@ export default function CompanyProfile() {
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
             <button onClick={() => scrollToSection('layanan')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Layanan</button>
-            <button onClick={() => scrollToSection('event')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Berita & Event</button>
+            <button onClick={() => scrollToSection('event')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Event</button>
             <button onClick={() => scrollToSection('kontak')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Kontak</button>
             
             <div className="flex items-center gap-4 pl-4 border-l border-slate-300 dark:border-slate-700">

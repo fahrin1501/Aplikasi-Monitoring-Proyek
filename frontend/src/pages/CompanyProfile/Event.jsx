@@ -13,7 +13,7 @@ export default function Event() {
       <div className="container mx-auto px-6 md:px-12">
         <div className="flex flex-col md:flex-row items-end justify-between mb-12 gap-6">
           <div className="max-w-xl">
-            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4">Berita & Informasi Terkini</h2>
+            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4">Event Terkini</h2>
             <p className="text-slate-600 dark:text-slate-400 font-medium">Ikuti perkembangan terbaru mengenai proyek yang kami tangani dan inovasi teknologi konstruksi kami.</p>
           </div>
           <button className="text-amber-600 dark:text-amber-500 font-bold hover:underline flex items-center gap-2">
