@@ -14,35 +14,33 @@ class ProjectScheduleController extends Controller
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL
             $grandTotalRAB = DB::table('rab_items')
                 ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
                 ->where('rab_categories.project_id', $projectId)
                 ->where('rab_items.is_subheader', false)
                 ->sum('rab_items.total_harga');
 
-            // 2. AMBIL TARGET JADWAL MINGGUAN (Macro)
             $schedules = DB::table('project_schedules')
                 ->where('project_id', $projectId)
                 ->orderBy('minggu_ke', 'asc')
                 ->get();
 
-            // 3. AMBIL DATA AKTUAL (REALISASI HARIAN) TERLEBIH DAHULU
             $rawRealizations = collect([]);
             $matrix_actual = [];
             $weekly_actual = [];
             $cumulative_actual = [];
 
-            // Array untuk menampung ID RAB yang benar-benar ada progresnya
             $reportedItemIds = [];
             $hasManual = false;
 
             try {
+                // PERBAIKAN: Menambahkan 'daily_reports.id as report_id' agar Frontend bisa membuka link edit
                 $rawRealizations = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
                     ->where('daily_reports.status', 'approved')
                     ->select(
+                        'daily_reports.id as report_id',
                         'daily_report_activities.rab_item_id',
                         'daily_reports.minggu_ke',
                         'daily_reports.tanggal as tgl_input',
@@ -52,7 +50,6 @@ class ProjectScheduleController extends Controller
                     )
                     ->get();
 
-                // Hitung total persentase per pekerjaan, HANYA AMBIL YANG > 0
                 $aggregatedActuals = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
@@ -63,7 +60,7 @@ class ProjectScheduleController extends Controller
                         DB::raw('SUM(daily_report_activities.persentase) as total_persen')
                     )
                     ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
-                    ->having('total_persen', '>', 0) // FILTER UTAMA
+                    ->having('total_persen', '>', 0)
                     ->get();
 
                 foreach($aggregatedActuals as $r) {
@@ -71,7 +68,6 @@ class ProjectScheduleController extends Controller
                     $minggu = $r->minggu_ke ?? 0;
                     $persen = (float) $r->total_persen;
 
-                    // Tampung ID yang aktif
                     if ($r->rab_item_id) {
                         $reportedItemIds[] = $r->rab_item_id;
                     } else {
@@ -92,7 +88,6 @@ class ProjectScheduleController extends Controller
 
             } catch (Throwable $th) {}
 
-            // 4. SUSUN DATA RAB YANG HANYA MEMILIKI REALISASI SAJA
             $rabData = [];
             if (!empty($reportedItemIds)) {
                 $rabCategories = DB::table('rab_categories')
@@ -116,7 +111,6 @@ class ProjectScheduleController extends Controller
                 }
             }
 
-            // INJEKSI PEKERJAAN MANUAL DARI BACKEND JIKA ADA
             if ($hasManual) {
                 $rabData[] = [
                     'id' => 'cat-manual',
@@ -137,7 +131,7 @@ class ProjectScheduleController extends Controller
                 'data' => [
                     'project_info' => $projectInfo,
                     'grand_total_rab' => (float) $grandTotalRAB,
-                    'rab_data' => $rabData, // SEKARANG DATA RAB SUDAH SANGAT BERSIH!
+                    'rab_data' => $rabData,
                     'schedules' => $schedules,
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,

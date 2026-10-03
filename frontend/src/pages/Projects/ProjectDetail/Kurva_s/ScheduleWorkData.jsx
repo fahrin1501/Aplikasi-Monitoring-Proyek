@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Target, Info, Activity, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Target, Info, Activity, CheckCircle2, Clock, X, CalendarDays, Inbox, Plus, Trash2, Edit3 } from 'lucide-react';
 
 export default function ScheduleWorkData({
   scheduleData,
@@ -11,7 +12,7 @@ export default function ScheduleWorkData({
   openWeekModal,
   handleRemoveWeek
 }) {
-  
+  const navigate = useNavigate();
   const [detailModal, setDetailModal] = useState({ show: false, item: null, weekNum: null, targetPlan: 0, realizations: [] });
 
   const getSafeFloat = (val) => {
@@ -23,9 +24,25 @@ export default function ScheduleWorkData({
   const safeLocalWeeks = Array.isArray(localWeeks) ? localWeeks : (localWeeks ? Object.values(localWeeks) : []);
   const weeksArray = safeLocalWeeks.map(w => parseInt(w.minggu_ke) || 0);
 
-  // KARENA BACKEND SUDAH MEMFILTER SEMUANYA, FRONTEND TINGGAL MENAMPILKAN SAJA!
   const rawRabData = scheduleData?.rab_data;
-  const safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
+  let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
+
+  const cumulativeActualMap = scheduleData?.cumulative_actual || {};
+
+  safeRabData = safeRabData.map(cat => {
+    const items = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
+    const filteredItems = items.filter(item => getSafeFloat(cumulativeActualMap[item.id]) > 0);
+    return { ...cat, items: filteredItems };
+  }).filter(cat => cat.items.length > 0);
+
+  if (getSafeFloat(cumulativeActualMap['manual']) > 0) {
+    safeRabData.push({
+      id: 'cat-manual',
+      nama_kategori: 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)',
+      kode_divisi: 'EXT',
+      items: [{ id: 'manual', kode_pekerjaan: '-', uraian_pekerjaan: 'Pekerjaan Input Manual', is_manual: true }]
+    });
+  }
 
   const handleOpenCellDetail = (item, weekNum) => {
     const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
@@ -138,7 +155,7 @@ export default function ScheduleWorkData({
                                   {totalActual > 0 ? (
                                     <button 
                                       onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
-                                      title="Klik untuk lihat rincian laporan"
+                                      title="Klik untuk lihat rincian & edit"
                                       className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-sm active:scale-95 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 border-emerald-200 dark:border-emerald-800/30"
                                     >
                                       {totalActual.toFixed(2)}
@@ -231,16 +248,16 @@ export default function ScheduleWorkData({
       <div className="mt-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs flex gap-4 shadow-sm shrink-0">
         <span className="font-semibold text-slate-700 dark:text-slate-300 flex gap-1.5"><Info className="w-4 h-4 text-amber-500" /> Keterangan Matriks:</span>
         <div className="flex gap-x-5 flex-wrap text-slate-500 dark:text-slate-400">
-          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 cursor-pointer font-bold">0.00</span> Aktual Laporan Harian</span>
+          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 cursor-pointer font-bold">0.00</span> Aktual Laporan Harian (Bisa di-klik)</span>
           <span className="flex items-center gap-1.5"><span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/30 font-bold">0.00</span> Target Kumulatif Rencana</span>
         </div>
       </div>
 
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white uppercase flex gap-2"><Activity className="w-4 h-4 text-emerald-500" /> BUKTI REALISASI HARIAN (M-{detailModal.weekNum})</h3>
+              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white uppercase flex gap-2"><Activity className="w-4 h-4 text-emerald-500" /> SUMBER REALISASI HARIAN (M-{detailModal.weekNum})</h3>
               <button onClick={() => setDetailModal({ ...detailModal, show: false })} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5"/></button>
             </div>
             
@@ -259,7 +276,8 @@ export default function ScheduleWorkData({
                          <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Tanggal Laporan</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Volume Harian</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Aktual Harian</th>
-                         <th className="p-3 text-center">Status Verifikasi</th>
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">Status</th>
+                         {canCreateData && <th className="p-3 text-center w-28">Aksi</th>}
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-800 dark:text-slate-200">
@@ -269,9 +287,19 @@ export default function ScheduleWorkData({
                            <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
                            <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</td>
                            <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</td>
-                           <td className="p-3 text-center">
+                           <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
                              {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
                            </td>
+                           {canCreateData && (
+                             <td className="p-2 text-center">
+                               <button 
+                                 onClick={() => navigate(`/laporan/${r.report_id}`)}
+                                 className="flex items-center justify-center gap-1.5 w-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-sm"
+                               >
+                                 <Edit3 className="w-3 h-3" /> Edit Laporan
+                               </button>
+                             </td>
+                           )}
                          </tr>
                        ))}
                      </tbody>
