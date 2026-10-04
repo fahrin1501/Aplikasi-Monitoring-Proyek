@@ -19,14 +19,23 @@ Route::get('/test-koneksi', function () {
     ]);
 });
 
+// ==============================================================
+// RUTE PUBLIK (BISA DIAKSES TANPA LOGIN)
+// ==============================================================
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/', [CompanyProfileController::class, 'show']);
+
+// PERBAIKAN: Pindahkan rute Public Company Profile ke SINI
+Route::get('/public/company-profile', [CompanyProfileController::class, 'getPublicData']);
+
 
 Route::get('/reset-password/{token}', function (Request $request, $token) {
-    $frontendUrl = 'http://localhost:5173/reset-password';
+    $frontendUrl = 'http://localhost:5173/reset-password'; // Ganti dengan URL Vercel nanti jika sudah live
     return redirect($frontendUrl . '?token=' . $token . '&email=' . $request->email);
 })->name('password.reset');
 
+// ==============================================================
+// RUTE PROTECTED (HARUS LOGIN / MEMBAWA TOKEN)
+// ==============================================================
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/cms/landing-page', [CompanyProfileController::class, 'updateLandingPage']);
@@ -112,5 +121,4 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/register', [AuthController::class, 'register']);
 
-    Route::get('/public/company-profile', [CompanyProfileController::class, 'getPublicData']);
 });
