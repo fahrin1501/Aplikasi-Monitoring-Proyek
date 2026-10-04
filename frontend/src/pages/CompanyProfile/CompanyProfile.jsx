@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LogIn, Menu, X, Sun, Moon } from 'lucide-react';
+import { LogIn, Menu, X, Sun, Moon, Loader2 } from 'lucide-react';
+import api from '../../api'; // Pastikan path import api ini benar
 import LandingPage from './LandingPage';
 import Layanan from './Layanan';
 import Event from './Event';
@@ -9,12 +10,13 @@ import ContactInfo from './ContactInfo';
 export default function CompanyProfile() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // STATE UNTUK DATA CMS DARI DATABASE
+  const [cmsData, setCmsData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // --- STATE TEMA (DARK/LIGHT MODE) ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') !== 'light';
-    }
+    if (typeof window !== 'undefined') return localStorage.getItem('theme') !== 'light';
     return true;
   });
 
@@ -36,6 +38,19 @@ export default function CompanyProfile() {
     }
   }, [isDarkMode]);
 
+  // FETCH DATA DARI BACKEND
+  useEffect(() => {
+    api.get('/public/company-profile')
+      .then((res) => {
+        setCmsData(res.data);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Gagal memuat data company profile:", err);
+        setIsLoading(false);
+      });
+  }, []);
+
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -44,27 +59,27 @@ export default function CompanyProfile() {
     }
   };
 
+  // TAMPILAN LOADING SEMENTARA
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
+        <p className="text-slate-500 dark:text-slate-400 font-bold animate-pulse">Memuat Website...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 font-sans selection:bg-amber-500 selection:text-white">
       
-      {/* PUBLIC NAVBAR */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 border-b ${
-        isScrolled 
-          ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-slate-200 dark:border-slate-800 py-3 shadow-sm' 
-          : 'bg-transparent border-transparent py-5'
+        isScrolled ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-slate-200 dark:border-slate-800 py-3 shadow-sm' : 'bg-transparent border-transparent py-5'
       }`}>
         <div className="container mx-auto px-6 md:px-12 flex items-center justify-between">
-          
-          {/* Logo */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
-            <img src="/PRISMA.PNG" alt="Prisma Group" className="h-10 w-auto drop-shadow-sm" />
-            <div>
-              <h1 className="text-lg font-extrabold text-slate-800 dark:text-white leading-none tracking-wide">PRISMA GROUP</h1>
-              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest mt-0.5">Konsultan Teknik</p>
-            </div>
+          <div className="flex items-center cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            <img src="/PRISMA.PNG" alt="Prisma Group" className="h-12 md:h-14 w-auto drop-shadow-sm object-contain" />
           </div>
 
-          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
             <button onClick={() => scrollToSection('layanan')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Layanan</button>
             <button onClick={() => scrollToSection('event')} className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">Event</button>
@@ -80,13 +95,11 @@ export default function CompanyProfile() {
             </div>
           </nav>
 
-          {/* Mobile Toggle */}
           <button className="md:hidden p-2 text-slate-600 dark:text-slate-300" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xl flex flex-col px-6 py-4 gap-4 animate-fade-in">
             <button onClick={() => scrollToSection('layanan')} className="text-left font-bold text-slate-700 dark:text-slate-300 py-2">Layanan Kami</button>
@@ -102,18 +115,17 @@ export default function CompanyProfile() {
         )}
       </header>
 
-      {/* COMPONENT SECTIONS (Disusun ke bawah) */}
+      {/* COMPONENT SECTIONS - MENERUSKAN DATA SEBAGAI PROPS */}
       <main>
-        <LandingPage />
-        <div id="layanan"><Layanan /></div>
-        <div id="event"><Event /></div>
-        <div id="kontak"><ContactInfo /></div>
+        <LandingPage profile={cmsData?.profile} />
+        <div id="layanan"><Layanan services={cmsData?.services} /></div>
+        <div id="event"><Event events={cmsData?.events} /></div>
+        <div id="kontak"><ContactInfo profile={cmsData?.profile} /></div>
       </main>
 
-      {/* FOOTER */}
-      <footer className="bg-slate-900 border-t border-slate-800 py-8 text-center text-slate-400 text-sm">
+      <footer className="bg-slate-900 border-t border-slate-800 py-10 text-center text-slate-400 text-sm">
         <div className="container mx-auto px-6">
-          <img src="/PRISMA.PNG" alt="Prisma Group" className="h-10 w-auto mx-auto mb-4 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all" />
+          <img src="/PRISMA.PNG" alt="Prisma Group" className="h-14 w-auto mx-auto mb-5 drop-shadow-md object-contain" />
           <p className="font-medium">&copy; {new Date().getFullYear()} Prisma Jasa Konsulindo. All rights reserved.</p>
         </div>
       </footer>

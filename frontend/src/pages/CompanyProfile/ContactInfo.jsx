@@ -1,7 +1,11 @@
 import React from 'react';
 import { MapPin, Mail, Phone, Clock } from 'lucide-react';
 
-export default function ContactInfo() {
+export default function ContactInfo({ profile }) {
+  const email = profile?.email || 'admin@prisma-group.com';
+  const phone = profile?.phone || '+62 811-2345-6789';
+  const address = profile?.address || 'Jl. Ahmad Yani KM 5, Banjarmasin, Kalimantan Selatan, Indonesia';
+
   return (
     <section className="py-20 bg-white dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800">
       <div className="container mx-auto px-6 md:px-12">
@@ -22,7 +26,7 @@ export default function ContactInfo() {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800 dark:text-white">Alamat Kantor Pusat</h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Jl. Ahmad Yani KM 5, Banjarmasin<br/>Kalimantan Selatan, Indonesia</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{address}</p>
                 </div>
               </div>
 
@@ -32,7 +36,7 @@ export default function ContactInfo() {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800 dark:text-white">Email Resmi</h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">admin@prisma-group.com</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{email}</p>
                 </div>
               </div>
 
@@ -42,13 +46,12 @@ export default function ContactInfo() {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800 dark:text-white">Telepon / WhatsApp</h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">+62 811-2345-6789</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{phone}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Kotak Pesan / Peta (Visual) */}
           <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-700/60 shadow-xl">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">Jam Operasional</h3>
             <div className="space-y-4">
