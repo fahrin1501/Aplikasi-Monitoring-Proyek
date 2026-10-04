@@ -73,8 +73,12 @@ export default function CompanyProfile() {
         isScrolled ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-slate-200 dark:border-slate-800 py-3 shadow-sm' : 'bg-transparent border-transparent py-5'
       }`}>
         <div className="container mx-auto px-6 md:px-12 flex items-center justify-between">
-          <div className="flex items-center cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
-            <img src="/PRISMA.PNG" alt="Prisma Group" className="h-12 md:h-14 w-auto drop-shadow-sm object-contain" />
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            <img src="/PRISMA.PNG" alt="Prisma Group" className="h-10 md:h-12 w-auto drop-shadow-sm object-contain group-hover:scale-105 transition-transform" />
+            <div className="hidden sm:block"> {/* Teks disembunyikan di layar HP agar rapi, tampil di layar besar */}
+              <h1 className="text-lg font-extrabold text-slate-800 dark:text-white leading-none tracking-wide group-hover:text-amber-500 transition-colors">PRISMA GROUP</h1>
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest mt-0.5">Konsultan Teknik</p>
+            </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-8">
