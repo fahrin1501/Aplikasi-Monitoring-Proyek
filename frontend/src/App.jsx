@@ -6,6 +6,7 @@ import MainLayout from './components/Layout/MainLayout';
 // Import Pages Auth & Public
 import Login from './pages/Auth/Login';
 import ForgotPassword from './pages/Auth/ForgotPassword';
+import PublicLanding from './pages/PublicLanding'; 
 
 // Import Modul Dashboard & Proyek
 import DashboardUtama from './pages/Dashboard/DashboardUtama';
@@ -26,31 +27,18 @@ import LaporanData from './pages/Laporan/LaporanData';
 // Import Modul Akun
 import AccountList from './pages/Accounts/AccountList';
 
-// Import Modul Pengaturan Profil Perusahaan (Nested Routes)
-import CompanyProfile from './pages/CompanyProfile/CompanyProfile';
-import LandingPage from './pages/CompanyProfile/LandingPage';
-import Layanan from './pages/CompanyProfile/Layanan';
-import Event from './pages/CompanyProfile/Event';
-import ContactInfo from './pages/CompanyProfile/ContactInfo';
+// Import Modul Pengaturan Profil Perusahaan (Satu File CRUD)
+import PengaturanProfile from './pages/CompanyProfile/PengaturanProfile';
 
 export default function App() {
   return (
     <Routes>
-      {/* ========================================== */}
-      {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar)     */}
-      {/* ========================================== */}
-      <Route path="/" element={<CompanyProfile />} />
-      <Route path="/landing-page" element={<LandingPage />} />
-      <Route path="/layanan" element={<Layanan />} />
-      <Route path="/event" element={<Event />} />
-      <Route path="/contact-info" element={<ContactInfo />} />
-
+      {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar) */}
+      <Route path="/" element={<PublicLanding />} /> 
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* ========================================== */}
-      {/* RUTE PROTECTED (Dibungkus MainLayout)        */}
-      {/* ========================================== */}
+      {/* RUTE PROTECTED (Dibungkus MainLayout & Sidebar) */}
       <Route element={<MainLayout />}>
         <Route path="/dashboard" element={<DashboardUtama />} />
         
@@ -63,7 +51,7 @@ export default function App() {
         <Route path="/projects/:id/kurva-s" element={<KurvaS />} />
         <Route path="/projects/:id/peta-gis" element={<PetaGIS />} />
 
-        {/* ALIAS RUTE JADWAL LAMA -> DIARAHKAN LANGSUNG KE KURVA S (All-in-One) */}
+        {/* ALIAS RUTE JADWAL LAMA */}
         <Route path="/schedules/:id/data/input" element={<KurvaS />} />
         <Route path="/schedules/:id/data" element={<KurvaS />} />
         
@@ -74,10 +62,12 @@ export default function App() {
         
         {/* MODUL AKUN */}
         <Route path="/accounts" element={<AccountList />} />
-        
+
+        {/* MODUL PENGATURAN PROFIL PERUSAHAAN (PASTIKAN ADA DI SINI) */}
+        <Route path="/pengaturan-profile" element={<PengaturanProfile />} />
       </Route>
 
-      {/* Rute tidak ditemukan (Kembali ke Login) */}
+      {/* RUTE CATCH-ALL (Jika rute tidak ditemukan, kembalikan ke Login) */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
