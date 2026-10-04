@@ -3,10 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Import Layout Wrapper
 import MainLayout from './components/Layout/MainLayout';
 
-// Import Pages Auth & Public
+// Import Pages Auth
 import Login from './pages/Auth/Login';
 import ForgotPassword from './pages/Auth/ForgotPassword';
-import PublicLanding from './pages/PublicLanding'; 
+
+// IMPORT TAMPILAN WEBSITE PUBLIK (Pengganti PublicLanding)
+import CompanyProfile from './pages/CompanyProfile/CompanyProfile'; 
 
 // Import Modul Dashboard & Proyek
 import DashboardUtama from './pages/Dashboard/DashboardUtama';
@@ -27,18 +29,22 @@ import LaporanData from './pages/Laporan/LaporanData';
 // Import Modul Akun
 import AccountList from './pages/Accounts/AccountList';
 
-// Import Modul Pengaturan Profil Perusahaan (Satu File CRUD)
+// IMPORT MODUL PENGATURAN PROFIL PERUSAHAAN (Untuk Sidebar CMS)
 import PengaturanPerusahaan from './pages/CompanyProfile/PengaturanPerusahaan';
 
 export default function App() {
   return (
     <Routes>
+      {/* ============================================================== */}
       {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar) */}
-      <Route path="/" element={<PublicLanding />} /> 
+      {/* ============================================================== */}
+      <Route path="/" element={<CompanyProfile />} /> 
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
+      {/* ============================================================== */}
       {/* RUTE PROTECTED (Dibungkus MainLayout & Sidebar) */}
+      {/* ============================================================== */}
       <Route element={<MainLayout />}>
         <Route path="/dashboard" element={<DashboardUtama />} />
         
@@ -63,8 +69,8 @@ export default function App() {
         {/* MODUL AKUN */}
         <Route path="/accounts" element={<AccountList />} />
 
-        {/* MODUL PENGATURAN PROFIL PERUSAHAAN (PASTIKAN ADA DI SINI) */}
-        <Route path="/pengaturan-profile" element={<PengaturanPerusahaan />} />
+        {/* PENGATURAN PROFIL PERUSAHAAN (Sinkron dengan Sidebar) */}
+        <Route path="/pengaturan-perusahaan" element={<PengaturanPerusahaan />} />
       </Route>
 
       {/* RUTE CATCH-ALL (Jika rute tidak ditemukan, kembalikan ke Login) */}
