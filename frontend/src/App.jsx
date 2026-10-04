@@ -28,7 +28,7 @@ import LaporanData from './pages/Laporan/LaporanData';
 import AccountList from './pages/Accounts/AccountList';
 
 // Import Modul Pengaturan Profil Perusahaan (Satu File CRUD)
-import PengaturanProfile from './pages/CompanyProfile/PengaturanProfile';
+import PengaturanPerusahaan from './pages/CompanyProfile/PengaturanPerusahaan';
 
 export default function App() {
   return (
@@ -64,7 +64,7 @@ export default function App() {
         <Route path="/accounts" element={<AccountList />} />
 
         {/* MODUL PENGATURAN PROFIL PERUSAHAAN (PASTIKAN ADA DI SINI) */}
-        <Route path="/pengaturan-profile" element={<PengaturanProfile />} />
+        <Route path="/pengaturan-profile" element={<PengaturanPerusahaan />} />
       </Route>
 
       {/* RUTE CATCH-ALL (Jika rute tidak ditemukan, kembalikan ke Login) */}
