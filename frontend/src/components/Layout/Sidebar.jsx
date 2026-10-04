@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { 
   Map, FolderKanban, ClipboardList, LogOut, Menu, X, 
-  Users, Sun, Moon, Building2 // Tambahkan icon Building2
+  Users, Sun, Moon, Building2 
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -71,15 +71,15 @@ export default function Sidebar() {
   const userRole = userData?.role || 'Tamu';
   const isAdmin = userRole === 'Administrator';
 
-  // --- MENU ITEMS DIPERBAIKI ---
+  // --- MENU ITEMS ---
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard Utama', icon: Map },
     { path: '/projects', label: 'Daftar Project', icon: FolderKanban },
     { path: '/laporan', label: 'Daftar Laporan', icon: ClipboardList },
-    // Tambahkan Menu Profil Perusahaan khusus untuk Admin
+    // Menu khusus Administrator
     ...(isAdmin ? [
         { path: '/accounts', label: 'Manajemen Akun', icon: Users },
-        { path: '/company-profile', label: 'Profil Perusahaan', icon: Building2 } // Menu Baru
+        { path: '/pengaturan-profile', label: 'Profil Perusahaan', icon: Building2 } 
     ] : []),
   ];
 
@@ -190,10 +190,14 @@ export default function Sidebar() {
         <div className="flex flex-col mt-8">
           
           <div className={`relative ${isCollapsed ? 'flex justify-center' : 'px-1'} mb-5`}>
-            <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
+            {/* Logo diklik akan kembali ke dashboard */}
+            <Link 
+              to="/dashboard"
+              onClick={handleItemClick}
+              className={`flex items-center gap-3 overflow-hidden group ${isCollapsed ? 'justify-center' : ''}`}
+            >
               <div 
-                onClick={handleItemClick}
-                className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all bg-transparent drop-shadow-md"
+                className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all bg-transparent drop-shadow-md group-hover:scale-105"
                 title="PRISMA JASA KONSULINDO"
               >
                 <img src="/PRISMA.PNG" alt="Logo Prisma" className="w-full h-full object-contain" />
@@ -201,7 +205,7 @@ export default function Sidebar() {
 
               {!isCollapsed && (
                 <div className="whitespace-nowrap transition-opacity duration-200 flex-1 min-w-0">
-                  <h1 className="text-sm font-bold tracking-wide truncate text-slate-800 dark:text-white">
+                  <h1 className="text-sm font-bold tracking-wide truncate text-slate-800 dark:text-white group-hover:text-amber-500 transition-colors">
                     PRISMA JASA
                   </h1>
                   <p className="text-[10px] truncate text-amber-600 dark:text-amber-500/90 font-bold tracking-widest mt-0.5">
@@ -209,7 +213,7 @@ export default function Sidebar() {
                   </p>
                 </div>
               )}
-            </div>
+            </Link>
           </div>
 
           <div className="border-t border-slate-200 dark:border-slate-700/60 pt-4 flex flex-col gap-2">
