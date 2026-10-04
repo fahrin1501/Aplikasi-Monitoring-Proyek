@@ -79,7 +79,7 @@ export default function Sidebar() {
     // Menu khusus Administrator
     ...(isAdmin ? [
         { path: '/accounts', label: 'Manajemen Akun', icon: Users },
-        { path: '/pengaturan-profile', label: 'Profil Perusahaan', icon: Building2 } 
+        { path: '/pengaturan-perusahaan', label: 'Profil Perusahaan', icon: Building2 } 
     ] : []),
   ];
 
