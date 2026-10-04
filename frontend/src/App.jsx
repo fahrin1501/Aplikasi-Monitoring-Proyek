@@ -1,13 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Import Layout Wrapper
+// Import Layout Wrapper Sistem Informasi
 import MainLayout from './components/Layout/MainLayout';
 
 // Import Pages Auth
 import Login from './pages/Auth/Login';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 
-// IMPORT TAMPILAN WEBSITE PUBLIK (Pengganti PublicLanding)
+// 1. IMPORT WEBSITE PUBLIK (Etalase Depan)
 import CompanyProfile from './pages/CompanyProfile/CompanyProfile'; 
 
 // Import Modul Dashboard & Proyek
@@ -29,21 +29,21 @@ import LaporanData from './pages/Laporan/LaporanData';
 // Import Modul Akun
 import AccountList from './pages/Accounts/AccountList';
 
-// IMPORT MODUL PENGATURAN PROFIL PERUSAHAAN (Untuk Sidebar CMS)
+// 2. IMPORT PENGATURAN PERUSAHAAN (Dapur CMS / Dalam Sidebar)
 import PengaturanPerusahaan from './pages/CompanyProfile/PengaturanPerusahaan';
 
 export default function App() {
   return (
     <Routes>
       {/* ============================================================== */}
-      {/* RUTE PUBLIK (Tampil Penuh Tanpa Sidebar) */}
+      {/* AREA PUBLIK (Bisa diakses siapa saja, tanpa Sidebar)           */}
       {/* ============================================================== */}
       <Route path="/" element={<CompanyProfile />} /> 
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* ============================================================== */}
-      {/* RUTE PROTECTED (Dibungkus MainLayout & Sidebar) */}
+      {/* AREA SISTEM INFORMASI (Harus Login, dibungkus Sidebar Layout)  */}
       {/* ============================================================== */}
       <Route element={<MainLayout />}>
         <Route path="/dashboard" element={<DashboardUtama />} />
@@ -69,7 +69,7 @@ export default function App() {
         {/* MODUL AKUN */}
         <Route path="/accounts" element={<AccountList />} />
 
-        {/* PENGATURAN PROFIL PERUSAHAAN (Sinkron dengan Sidebar) */}
+        {/* CMS: PENGATURAN PROFIL PERUSAHAAN */}
         <Route path="/pengaturan-perusahaan" element={<PengaturanPerusahaan />} />
       </Route>
 

@@ -12,22 +12,17 @@ use App\Http\Controllers\ProjectScheduleController;
 use App\Http\Controllers\CompanyProfileController;
 
 Route::get('/test-koneksi', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Halo dari Laravel! Koneksi React dan Laravel berhasil 🚀',
-        'data' => ['total_proyek' => 12, 'proyek_aktif' => 5]
-    ]);
+    return response()->json(['status' => 'success']);
 });
 
 // ==============================================================
-// 1. RUTE PUBLIK (TAMPILAN WEBSITE DEPAN & AUTH)
-// (Dapat diakses oleh siapa saja tanpa perlu Login)
+// 1. RUTE PUBLIK (Website Utama CompanyProfile.jsx)
 // ==============================================================
 Route::get('/public/company-profile', [CompanyProfileController::class, 'getPublicData']);
+
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-
 Route::get('/reset-password/{token}', function (Request $request, $token) {
     $frontendUrl = 'http://localhost:5173/reset-password';
     return redirect($frontendUrl . '?token=' . $token . '&email=' . $request->email);
@@ -35,15 +30,14 @@ Route::get('/reset-password/{token}', function (Request $request, $token) {
 
 
 // ==============================================================
-// 2. RUTE PROTECTED UMUM (KLIEN, TAMU & ADMIN)
-// (Hanya mengecek apakah user sudah Login / Punya Token)
+// 2. RUTE SISTEM INFORMASI (Harus Login / auth:sanctum)
 // ==============================================================
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) { return $request->user(); });
 
-    // Modul Proyek & Laporan (Akses Umum)
+    // --- MANAJEMEN PROYEK & LAPORAN ---
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects/{id}', [ProjectController::class, 'show']);
@@ -53,7 +47,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{projectId}/personnels', [ProjectDetailController::class, 'storePersonnel']);
     Route::put('/personnels/{id}', [ProjectDetailController::class, 'updatePersonnel']);
     Route::delete('/personnels/{id}', [ProjectDetailController::class, 'destroyPersonnel']);
-
     Route::post('/projects/{projectId}/documents', [ProjectDetailController::class, 'storeDocument']);
     Route::delete('/documents/{id}', [ProjectDetailController::class, 'destroyDocument']);
 
@@ -102,21 +95,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{id}/import-rab', [RabController::class, 'importRAB']);
     Route::get('/projects-active-report', [ProjectController::class, 'getActiveForReport']);
 
-        // Manajemen Akun (Hanya Admin yang boleh mengurus User)
-        Route::get('/users', [AuthController::class, 'index']);
-        Route::put('/users/{id}', [AuthController::class, 'update']);
-        Route::put('/users/{id}/reset-password', [AuthController::class, 'resetPassword']);
+    // --- MANAJEMEN AKUN ---
+    Route::get('/users', [AuthController::class, 'index']);
+    Route::put('/users/{id}', [AuthController::class, 'update']);
+    Route::put('/users/{id}/reset-password', [AuthController::class, 'resetPassword']);
 
-        // CMS / Pengaturan Profil Perusahaan
-        Route::post('/cms/landing-page', [CompanyProfileController::class, 'updateLandingPage']);
-        Route::post('/cms/contact', [CompanyProfileController::class, 'updateContact']);
+    // --- CMS PENGATURAN PERUSAHAAN (Untuk PengaturanPerusahaan.jsx) ---
+    Route::post('/cms/landing-page', [CompanyProfileController::class, 'updateLandingPage']);
+    Route::post('/cms/contact', [CompanyProfileController::class, 'updateContact']);
 
-        Route::get('/cms/services', [CompanyProfileController::class, 'getServices']);
-        Route::post('/cms/services', [CompanyProfileController::class, 'storeService']);
-        Route::delete('/cms/services/{id}', [CompanyProfileController::class, 'destroyService']);
+    Route::get('/cms/services', [CompanyProfileController::class, 'getServices']);
+    Route::post('/cms/services', [CompanyProfileController::class, 'storeService']);
+    Route::delete('/cms/services/{id}', [CompanyProfileController::class, 'destroyService']);
 
-        Route::get('/cms/events', [CompanyProfileController::class, 'getEvents']);
-        Route::post('/cms/events', [CompanyProfileController::class, 'storeEvent']);
-        Route::delete('/cms/events/{id}', [CompanyProfileController::class, 'destroyEvent']);
-
-    });
+    Route::get('/cms/events', [CompanyProfileController::class, 'getEvents']);
+    Route::post('/cms/events', [CompanyProfileController::class, 'storeEvent']);
+    Route::delete('/cms/events/{id}', [CompanyProfileController::class, 'destroyEvent']);
+});
