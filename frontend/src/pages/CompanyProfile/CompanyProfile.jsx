@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn, Menu, X, Sun, Moon, Loader2 } from 'lucide-react';
-import api from '../../api'; // Pastikan path import api ini benar
+import api from '../../api';
 import LandingPage from './LandingPage';
 import Layanan from './Layanan';
 import Event from './Event';
@@ -11,7 +11,6 @@ export default function CompanyProfile() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // STATE UNTUK DATA CMS DARI DATABASE
   const [cmsData, setCmsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,7 +37,6 @@ export default function CompanyProfile() {
     }
   }, [isDarkMode]);
 
-  // FETCH DATA DARI BACKEND
   useEffect(() => {
     api.get('/public/company-profile')
       .then((res) => {
@@ -59,7 +57,6 @@ export default function CompanyProfile() {
     }
   };
 
-  // TAMPILAN LOADING SEMENTARA
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center">
@@ -115,7 +112,6 @@ export default function CompanyProfile() {
         )}
       </header>
 
-      {/* COMPONENT SECTIONS - MENERUSKAN DATA SEBAGAI PROPS */}
       <main>
         <LandingPage profile={cmsData?.profile} />
         <div id="layanan"><Layanan services={cmsData?.services} /></div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, ArrowRight, CalendarDays } from 'lucide-react';
+import { Calendar, CalendarDays } from 'lucide-react';
 
 export default function Event({ events = [] }) {
   return (
@@ -22,7 +22,7 @@ export default function Event({ events = [] }) {
                     <img 
                       src={`${import.meta.env.VITE_API_URL.replace('/api', '')}/storage/${item.image}`} 
                       alt={item.title} 
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
                   ) : (

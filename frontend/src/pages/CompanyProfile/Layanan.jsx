@@ -20,7 +20,7 @@ export default function Layanan({ services = [] }) {
                   <img 
                     src={srv.image ? `${import.meta.env.VITE_API_URL.replace('/api', '')}/storage/${srv.image}` : "/PRISMA.PNG"} 
                     alt={srv.title} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className={`w-full h-full group-hover:scale-110 transition-transform duration-500 ${srv.image ? 'object-cover' : 'object-contain h-16 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100'}`}
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/PRISMA.PNG";

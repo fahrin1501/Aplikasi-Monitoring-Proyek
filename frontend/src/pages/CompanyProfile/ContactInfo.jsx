@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Mail, Phone, Clock } from 'lucide-react';
+import { MapPin, Mail, Phone, Clock, Globe } from 'lucide-react';
 
 export default function ContactInfo({ profile }) {
   const email = profile?.email || 'admin@prisma-group.com';
@@ -49,6 +49,18 @@ export default function ContactInfo({ profile }) {
                   <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{phone}</p>
                 </div>
               </div>
+
+              {profile?.website && (
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center shrink-0 text-sky-500 border border-slate-200 dark:border-slate-700">
+                    <Globe className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 dark:text-white">Website Resmi</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{profile.website}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
