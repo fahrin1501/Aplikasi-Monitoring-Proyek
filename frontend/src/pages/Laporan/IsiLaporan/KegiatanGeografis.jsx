@@ -14,8 +14,25 @@ const formatKoordTampil = (staString) => {
 export default function KegiatanGeografis({ 
   isEditMode, reportData, editForm, setEditForm, 
   rabOptions, isLoadingRab, mingguKe, 
-  optionsMingguIni, optionsMingguLain, unscheduledRabOptions 
+  optionsMingguIni, optionsMingguLain, unscheduledRabOptions,
+  grandTotalRab // TERIMA TOTAL RAB DARI INDUK
 }) {
+
+  // --- FUNGSI MENGHITUNG PERSENTASE OTOMATIS SAAT EDIT ---
+  const calculatePercentage = (volume, rabItem) => {
+    if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
+    
+    const volNum = parseFloat(volume);
+    if (isNaN(volNum) || volNum <= 0) return '';
+    
+    const targetVolume = parseFloat(rabItem.volume);
+    if (isNaN(targetVolume) || targetVolume <= 0) return '';
+
+    const bobotItem = (parseFloat(rabItem.total_harga) / grandTotalRab) * 100;
+    const progress = (volNum / targetVolume) * bobotItem;
+    
+    return progress.toFixed(4);
+  };
 
   const handleKegiatanSelectEdit = (index, selectedOption) => {
     const newK = [...editForm.activities];
@@ -25,13 +42,31 @@ export default function KegiatanGeografis({
       newK[index].rab_item_id = null;
       newK[index].uraian = '';
       newK[index].satuan = '';
+      newK[index].persentase = '';
     } else {
       const selectedRab = rabOptions.find(r => r.id.toString() === selectedRabId.toString());
       if (selectedRab) {
         newK[index].rab_item_id = selectedRab.id;
         newK[index].uraian = selectedRab.uraian;
         newK[index].satuan = selectedRab.satuan || '';
+        
+        // Hitung ulang jika volume sudah ada
+        if (newK[index].volume) {
+          newK[index].persentase = calculatePercentage(newK[index].volume, selectedRab);
+        }
       }
+    }
+    setEditForm({...editForm, activities: newK});
+  };
+
+  // --- FUNGSI UPDATE VOLUME SAAT DIKETIK DI MODE EDIT ---
+  const handleVolumeChangeEdit = (index, value) => {
+    const newK = [...editForm.activities];
+    newK[index].volume = value;
+
+    if (newK[index].rab_item_id) {
+        const selectedRab = rabOptions.find(r => r.id.toString() === newK[index].rab_item_id.toString());
+        newK[index].persentase = calculatePercentage(value, selectedRab);
     }
     setEditForm({...editForm, activities: newK});
   };
@@ -161,18 +196,45 @@ export default function KegiatanGeografis({
                 </div>
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
-                  <div className="grid grid-cols-12 gap-2 w-full">
+                  <div className="grid grid-cols-12 gap-2 w-full items-end">
                     <div className="col-span-5">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                      <input type="number" step="any" required placeholder="0" value={item.volume} onChange={(e) => { const newK = [...editForm.activities]; newK[index].volume = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" />
+                      
+                      {/* --- INPUT VOLUME TERHUBUNG KE RUMUS OTOMATIS --- */}
+                      <input 
+                        type="number" 
+                        step="any" 
+                        required 
+                        placeholder="0" 
+                        value={item.volume} 
+                        onChange={(e) => handleVolumeChangeEdit(index, e.target.value)} 
+                        className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" 
+                      />
+
                     </div>
                     <div className="col-span-3">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
                       <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...editForm.activities]; newK[index].satuan = e.target.value; setEditForm({...editForm, activities: newK}); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-4 relative group">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
-                      <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...editForm.activities]; newK[index].persentase = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs text-blue-700 dark:text-blue-400 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center transition-colors" />
+                      
+                      {/* --- INPUT PERSEN DIKUNCI JIKA DARI RAB --- */}
+                      <input 
+                        type="number" 
+                        step="any" 
+                        placeholder="0.0" 
+                        value={item.persentase} 
+                        onChange={(e) => { const newK = [...editForm.activities]; newK[index].persentase = e.target.value; setEditForm({...editForm, activities: newK}); }} 
+                        className={`w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent' : 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-600'}`} 
+                        readOnly={!!item.rab_item_id}
+                      />
+                      {item.rab_item_id && (
+                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                              Otomatis terhitung
+                          </div>
+                      )}
+
                     </div>
                   </div>
                 </div>
@@ -194,8 +256,13 @@ export default function KegiatanGeografis({
                     </p>
                   )}
                   <div className="mt-2.5 flex items-center gap-2">
-                    <p className="text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30">Vol: {keg.volume} {keg.satuan}</p>
-                    <p className="text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800/30">Bobot: {keg.persentase}%</p>
+                    {/* MEMBUANG NOL BERLEBIH PADA TAMPILAN NON-EDIT */}
+                    <p className="text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30">
+                      Vol: {keg.volume ? parseFloat(keg.volume) : 0} {keg.satuan}
+                    </p>
+                    <p className="text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800/30">
+                      Bobot: {keg.persentase ? parseFloat(keg.persentase).toFixed(4) : 0}%
+                    </p>
                   </div>
                 </div>
              ))

@@ -6,7 +6,6 @@ import {
   CheckCircle2, Save, X, Loader2, Trash2, FileSpreadsheet, FileText 
 } from 'lucide-react';
 
-// IMPORT KOMPONEN TERPISAH
 import InfoPengawasan from './IsiLaporan/InfoPengawasan';
 import CuacaLapangan from './IsiLaporan/CuacaLapangan';
 import KegiatanGeografis from './IsiLaporan/KegiatanGeografis';
@@ -73,7 +72,14 @@ export default function LaporanData() {
          schedRes.data.data.rab_data.forEach(kategori => {
            kategori.items.forEach(item => {
              if (!item.is_subheader) {
-               flattenedItems.push({ id: item.id, uraian: item.uraian_pekerjaan, satuan: item.satuan, kategori_nama: kategori.nama_kategori });
+               flattenedItems.push({ 
+                 id: item.id, 
+                 uraian: item.uraian_pekerjaan, 
+                 satuan: item.satuan, 
+                 volume: item.volume, // Untuk rumus otomatis
+                 total_harga: item.total_harga, // Untuk rumus otomatis
+                 kategori_nama: kategori.nama_kategori 
+               });
              }
            });
          });
@@ -135,7 +141,6 @@ export default function LaporanData() {
         lokasi: reportData.lokasi,
         catatan: reportData.catatan || '',
         cuacaItems: parsedCuaca,
-        // Konversi key agar sesuai dengan properti form: sta_awal & sta_akhir
         activities: JSON.parse(JSON.stringify(reportData.activities || [])).map(act => ({
           ...act, 
           sta_awal: act.sta_awal || '',
@@ -216,7 +221,6 @@ export default function LaporanData() {
 
   const currentMingguKe = isEditMode ? editForm.minggu_ke : reportData?.minggu_ke;
 
-  // PERBAIKAN: EKSTRAKSI MINGGU YANG TERSEDIA DARI KURVA S
   const availableWeeks = scheduleData?.schedules
     ? [...new Set(scheduleData.schedules.map(s => parseInt(s.minggu_ke)))].sort((a, b) => a - b)
     : [];
@@ -354,7 +358,6 @@ export default function LaporanData() {
   return (
     <div className="w-full space-y-5 md:space-y-6 relative pb-20 animate-fade-in">
 
-      {/* --- TOP HEADER / ACTION BAR --- */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all cursor-pointer shadow-sm">
@@ -450,9 +453,6 @@ export default function LaporanData() {
         )}
       </div>
 
-      {/* ============================================================== */}
-      {/* 1. INFORMASI PENGAWASAN (FULL WIDTH)                            */}
-      {/* ============================================================== */}
       <InfoPengawasan 
         isEditMode={isEditMode} 
         reportData={reportData} 
@@ -461,9 +461,6 @@ export default function LaporanData() {
         availableWeeks={availableWeeks} 
       />
 
-      {/* ============================================================== */}
-      {/* 2. ROW 1: CUACA (KIRI) & CATATAN (KANAN)                       */}
-      {/* ============================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-stretch">
         <CuacaLapangan isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} />
         
@@ -489,20 +486,16 @@ export default function LaporanData() {
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 3. ROW 2: URAIAN KEGIATAN & GEOGRAFIS (FULL WIDTH)             */}
-      {/* ============================================================== */}
       <div className="w-full">
+        {/* MENGIRIMKAN GRAND TOTAL RAB KE KEGIATAN GEOGRAFIS */}
         <KegiatanGeografis 
           isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
           rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
           optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
+          grandTotalRab={scheduleData?.grand_total_rab} 
         />
       </div>
 
-      {/* ============================================================== */}
-      {/* 4. ROW 3: PERSONIL (KIRI) & ALAT (KANAN)                       */}
-      {/* ============================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-stretch">
         <PersonilCard 
           isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm} 
@@ -514,9 +507,6 @@ export default function LaporanData() {
         />
       </div>
 
-      {/* ============================================================== */}
-      {/* 5. ROW 4: FOTO (KIRI) & DOKUMEN (KANAN)                        */}
-      {/* ============================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-stretch">
         <FotoCard 
           isEditMode={isEditMode} reportData={reportData} handleUploadFile={handleUploadFile} 
@@ -528,7 +518,6 @@ export default function LaporanData() {
         />
       </div>
 
-      {/* Action Submit */}
       {isEditMode && (
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-8">
           <button type="button" onClick={toggleEditMode} className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-6 py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-xs border border-slate-200 dark:border-slate-600 shadow-sm"><X className="w-4 h-4" /> Batal</button>
@@ -539,7 +528,6 @@ export default function LaporanData() {
         </div>
       )}
 
-      {/* MODALS PERSONIL & PERALATAN */}
       {showPersonilModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -594,7 +582,6 @@ export default function LaporanData() {
         </div>
       )}
 
-      {/* --- MODAL KONFIRMASI HAPUS LAPORAN FULL --- */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
