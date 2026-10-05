@@ -10,24 +10,27 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\KurvaExport;
+use App\Services\ProjectProgressService; // IMPORT SERVICE KITA
 
 class ProjectScheduleController extends Controller
 {
+    private $progressService;
+
+    // Inject Service
+    public function __construct(ProjectProgressService $progressService)
+    {
+        $this->progressService = $progressService;
+    }
+
     public function getSchedules($projectId)
     {
         try {
             $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-            // 1. HITUNG GRAND TOTAL RAB SECARA GLOBAL
-            $grandTotalRAB = DB::table('rab_items')
-                ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-                ->where('rab_categories.project_id', $projectId)
-                ->where('rab_items.is_subheader', false)
-                ->sum('rab_items.total_harga');
+            // 1. MENGGUNAKAN SERVICE UNTUK MENGHITUNG GRAND TOTAL RAB
+            $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-            // 2. KEMBALIKAN LOGIKA: AMBIL SELURUH DATA RAB!
-            // Ini WAJIB untuk mensuplai Dropdown di Form Laporan agar semua pekerjaan bisa dipilih.
-            // (Tabel Kurva S di Frontend sudah dilengkapi filter penangkal item kosong).
+            // 2. AMBIL SELURUH DATA RAB
             $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
             $categoryIds = $rabCategories->pluck('id')->toArray();
 
@@ -62,7 +65,6 @@ class ProjectScheduleController extends Controller
             $cumulative_actual = [];
 
             try {
-                // Tarik data dengan ID Laporan dan ID Activity untuk fitur Inline Edit React
                 $rawRealizations = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
@@ -115,7 +117,7 @@ class ProjectScheduleController extends Controller
                 'data' => [
                     'project_info' => $projectInfo,
                     'grand_total_rab' => (float) $grandTotalRAB,
-                    'rab_data' => $rabData, // Seluruh Data RAB dikembalikan untuk Form Dropdown
+                    'rab_data' => $rabData,
                     'schedules' => $schedules,
                     'matrix_actual' => $matrix_actual,
                     'weekly_actual' => $weekly_actual,
@@ -202,13 +204,9 @@ class ProjectScheduleController extends Controller
     {
         $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
-        $grandTotalRAB = DB::table('rab_items')
-            ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-            ->where('rab_categories.project_id', $projectId)
-            ->where('rab_items.is_subheader', false)
-            ->sum('rab_items.total_harga');
+        // Gunakan service
+        $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-        // Ambil Data S-Curve Minggu
         $schedules = DB::table('project_schedules')->where('project_id', $projectId)->orderBy('minggu_ke', 'asc')->get();
 
         $matrix_actual = [];
@@ -303,7 +301,6 @@ class ProjectScheduleController extends Controller
     {
         $exportData = $this->prepareExportData($projectId, $request);
 
-        // Simpan gambar grafik sementara jika ada
         $imagePath = null;
         if ($request->has('chart_image') && !empty($request->chart_image)) {
             $imageParts = explode(";base64,", $request->chart_image);

@@ -10,10 +10,19 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\DailyReportExport;
+use App\Services\ProjectProgressService; // IMPORT SERVICE BARU
 use Exception;
 
 class DailyReportController extends Controller
 {
+    private $progressService;
+
+    // Masukkan Service ke dalam Controller (Dependency Injection)
+    public function __construct(ProjectProgressService $progressService)
+    {
+        $this->progressService = $progressService;
+    }
+
     private function syncProjectStatus($projectId)
     {
         $project = \App\Models\Project::find($projectId);
@@ -28,11 +37,7 @@ class DailyReportController extends Controller
             return;
         }
 
-        $totalRab = DB::table('rab_items')
-            ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
-            ->where('rab_categories.project_id', $projectId)
-            ->where('rab_items.is_subheader', false)
-            ->sum('rab_items.total_harga');
+        $totalRab = $this->progressService->calculateTotalProjectValue($projectId);
 
         $totalRealisasiUang = DB::table('daily_report_activities')
             ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
@@ -109,16 +114,32 @@ class DailyReportController extends Controller
             $personil = json_decode($request->personil, true) ?? [];
             $peralatan = json_decode($request->peralatan, true) ?? [];
 
+            // AMBIL TOTAL RAB PROYEK UNTUK PERHITUNGAN OTOMATIS
+            $totalProjectValue = $this->progressService->calculateTotalProjectValue($projectId);
+
             foreach ($kegiatan as $item) {
                 if (!empty($item['uraian'])) {
+
+                    $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
+                    $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
+
+                    // LOGIKA PERHITUNGAN OTOMATIS JIKA ADA ITEM RAB
+                    if (!empty($item['rab_item_id']) && $volume > 0) {
+                        $persentase = $this->progressService->calculateItemProgress(
+                            $item['rab_item_id'],
+                            $volume,
+                            $totalProjectValue
+                        );
+                    }
+
                     $report->activities()->create([
                         'rab_item_id' => !empty($item['rab_item_id']) ? $item['rab_item_id'] : null,
                         'uraian' => $item['uraian'],
                         'sta_awal' => $item['sta_awal'] ?? null,
                         'sta_akhir' => $item['sta_akhir'] ?? null,
-                        'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
+                        'volume' => $volume,
                         'satuan' => !empty($item['satuan']) ? $item['satuan'] : null,
-                        'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null,
+                        'persentase' => $persentase, // Disimpan otomatis
                     ]);
                 }
             }
@@ -168,6 +189,7 @@ class DailyReportController extends Controller
         try {
             DB::beginTransaction();
             $report = DailyReport::findOrFail($id);
+            $totalProjectValue = $this->progressService->calculateTotalProjectValue($report->project_id);
 
             $report->update([
                 'tanggal' => $request->tanggal ?? $report->tanggal,
@@ -184,16 +206,29 @@ class DailyReportController extends Controller
             if ($request->has('kegiatan')) {
                 $report->activities()->delete();
                 $kegiatan = json_decode($request->kegiatan, true) ?? [];
+
                 foreach ($kegiatan as $item) {
                     if (!empty($item['uraian'])) {
+                        $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
+                        $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
+
+                        // HITUNG ULANG OTOMATIS SAAT UPDATE
+                        if (!empty($item['rab_item_id']) && $volume > 0) {
+                            $persentase = $this->progressService->calculateItemProgress(
+                                $item['rab_item_id'],
+                                $volume,
+                                $totalProjectValue
+                            );
+                        }
+
                         $report->activities()->create([
                             'rab_item_id' => $item['rab_item_id'] ?? null,
                             'uraian' => $item['uraian'],
                             'sta_awal' => $item['sta_awal'] ?? null,
                             'sta_akhir' => $item['sta_akhir'] ?? null,
-                            'volume' => (isset($item['volume']) && $item['volume'] !== '') ? $item['volume'] : null,
+                            'volume' => $volume,
                             'satuan' => $item['satuan'] ?? null,
-                            'persentase' => (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null,
+                            'persentase' => $persentase,
                         ]);
                     }
                 }
@@ -231,19 +266,32 @@ class DailyReportController extends Controller
     }
 
     // ================================================================
-    // FUNGSI BARU: INLINE EDIT UPDATE MATRIKS S-CURVE
+    // INLINE EDIT (Matriks S-Curve) - Sekarang otomatis hitung persentase
     // ================================================================
     public function quickUpdateActivity(Request $request, $id)
     {
         try {
             DB::beginTransaction();
             $activity = \App\Models\DailyReportActivity::findOrFail($id);
+            $report = DailyReport::find($activity->daily_report_id);
+
+            $persentase = $request->persentase;
+
+            // Jika ada volume yang dikirim, hitung otomatis persentasenya
+            if ($request->has('volume') && $activity->rab_item_id) {
+                $totalProjectValue = $this->progressService->calculateTotalProjectValue($report->project_id);
+                $persentase = $this->progressService->calculateItemProgress(
+                    $activity->rab_item_id,
+                    $request->volume,
+                    $totalProjectValue
+                );
+            }
+
             $activity->update([
                 'volume' => $request->volume,
-                'persentase' => $request->persentase
+                'persentase' => $persentase // Update dengan data otomatis
             ]);
 
-            $report = DailyReport::find($activity->daily_report_id);
             if ($report) {
                 $this->syncProjectStatus($report->project_id);
             }

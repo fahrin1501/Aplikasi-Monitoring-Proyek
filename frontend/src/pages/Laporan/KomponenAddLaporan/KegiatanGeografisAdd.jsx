@@ -4,7 +4,8 @@ import { ListTodo, Plus, Trash2, MapPin, Loader2 } from 'lucide-react';
 
 export default function KegiatanGeografisAdd({ 
   kegiatanItems, setKegiatanItems, rabOptions, isLoadingRab, 
-  optionsMingguIni, optionsMingguLain, unscheduledRabOptions 
+  optionsMingguIni, optionsMingguLain, unscheduledRabOptions,
+  grandTotalRab // KITA BUTUH TOTAL RAB PROYEK UNTUK RUMUS
 }) {
 
   const formatGroup = (label, options) => ({
@@ -21,20 +22,66 @@ export default function KegiatanGeografisAdd({
   if (unscheduledRabOptions?.length > 0) selectOptions.push(formatGroup('PEKERJAAN DI LUAR JADWAL (RAB)', unscheduledRabOptions));
   selectOptions.push({ label: 'LAINNYA', options: [{ value: 'manual', label: '+ Pekerjaan Manual / Baru' }] });
 
+  // 1. FUNGSI UNTUK MENGHITUNG PERSENTASE OTOMATIS
+  const calculatePercentage = (volume, rabItem) => {
+    // Jika tidak ada data item RAB, volume kosong, atau Grand Total RAB tidak ada, set 0
+    if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
+    
+    // Pastikan volume valid
+    const volNum = parseFloat(volume);
+    if (isNaN(volNum) || volNum <= 0) return '';
+    
+    // Pastikan volume RAB (target) valid
+    const targetVolume = parseFloat(rabItem.volume);
+    if (isNaN(targetVolume) || targetVolume <= 0) return '';
+
+    // RUMUS: (Harga Total Item / Grand Total Proyek * 100) -> Dapatkan Bobot Item
+    const bobotItem = (parseFloat(rabItem.total_harga) / grandTotalRab) * 100;
+    
+    // RUMUS: (Volume Harian / Volume Target) * Bobot Item
+    const progress = (volNum / targetVolume) * bobotItem;
+    
+    // Kembalikan angka dengan 4 desimal (agar presisi)
+    return progress.toFixed(4);
+  };
+
   const handleSelect = (index, option) => {
     const newK = [...kegiatanItems];
     const val = option ? option.value : null;
+    
     if (val === "manual" || !val) {
-      newK[index].rab_item_id = null; newK[index].uraian = ''; newK[index].satuan = '';
+      newK[index].rab_item_id = null; 
+      newK[index].uraian = ''; 
+      newK[index].satuan = '';
+      newK[index].persentase = ''; // Reset persen jika manual
     } else {
       const selectedRab = rabOptions.find(r => r.id.toString() === val.toString());
       if (selectedRab) {
         newK[index].rab_item_id = selectedRab.id;
-        newK[index].uraian = selectedRab.uraian;
+        newK[index].uraian = selectedRab.uraian_pekerjaan || selectedRab.uraian;
         newK[index].satuan = selectedRab.satuan || '';
+        
+        // Coba hitung langsung jika volume sudah terisi saat item diubah
+        if (newK[index].volume) {
+            newK[index].persentase = calculatePercentage(newK[index].volume, selectedRab);
+        }
       }
     }
     setKegiatanItems(newK);
+  };
+
+  // 2. FUNGSI HANDLE PERUBAHAN VOLUME
+  const handleVolumeChange = (index, value) => {
+      const newK = [...kegiatanItems];
+      newK[index].volume = value;
+
+      // Jika ada rab_item_id, hitung otomatis persentasenya
+      if (newK[index].rab_item_id) {
+          const selectedRab = rabOptions.find(r => r.id.toString() === newK[index].rab_item_id.toString());
+          newK[index].persentase = calculatePercentage(value, selectedRab);
+      }
+
+      setKegiatanItems(newK);
   };
 
   return (
@@ -117,18 +164,38 @@ export default function KegiatanGeografisAdd({
               </div>
 
               <div className="col-span-12 bg-white dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col justify-center shadow-sm relative z-0">
-                <div className="grid grid-cols-12 gap-2 w-full">
+                <div className="grid grid-cols-12 gap-2 w-full items-end">
                   <div className="col-span-5">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                    <input type="number" step="any" placeholder="0" value={item.volume} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].volume = e.target.value; setKegiatanItems(newK); }} className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" />
+                    <input 
+                      type="number" 
+                      step="any" 
+                      placeholder="0" 
+                      value={item.volume} 
+                      onChange={(e) => handleVolumeChange(index, e.target.value)} 
+                      className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" 
+                    />
                   </div>
                   <div className="col-span-3">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 text-center block">Sat</label>
                     <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
                   </div>
-                  <div className="col-span-4">
-                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 text-center block">Persen</label>
-                    <input type="number" step="any" placeholder="0.0" value={item.persentase} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-2 text-xs font-bold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-center transition-colors" />
+                  <div className="col-span-4 relative group">
+                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 text-center block">Persen %</label>
+                    <input 
+                      type="number" 
+                      step="any" 
+                      placeholder="0.00" 
+                      value={item.persentase} 
+                      onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} 
+                      className={`w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent' : 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-600'}`} 
+                      readOnly={!!item.rab_item_id} // Kunci input jika dari RAB agar tidak diubah manual
+                    />
+                    {item.rab_item_id && (
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            Otomatis terhitung
+                        </div>
+                    )}
                   </div>
                 </div>
               </div>
