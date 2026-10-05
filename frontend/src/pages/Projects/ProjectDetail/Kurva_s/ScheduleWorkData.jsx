@@ -13,7 +13,7 @@ export default function ScheduleWorkData({
   const [inlineEditData, setInlineEditData] = useState({ volume: '', persentase: '' });
   const [isSavingInline, setIsSavingInline] = useState(false);
 
-  // Fungsi ini sangat berguna untuk membuang angka nol (.0000) yang tidak perlu dari database
+  // Fungsi untuk membuang angka nol (.0000) yang tidak perlu dari database
   const getSafeFloat = (val) => {
     if (val === null || val === undefined) return 0;
     const parsed = parseFloat(val);
@@ -79,6 +79,9 @@ export default function ScheduleWorkData({
 
   const extraCols = isEditMode && canCreateData ? 4 : 3;
 
+  // Hitung Bobot Standar untuk ditampilkan di dalam Header Modal
+  const bobotMaksimalModal = detailModal.item?.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(detailModal.item?.total_harga || 0) / grandTotalRAB) * 100) : 0);
+
   return (
     <>
       <style>{`
@@ -97,8 +100,10 @@ export default function ScheduleWorkData({
               <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
                 <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan (Realisasi Aktual)</th>
-                <th className="p-3 w-[70px] text-center border-r border-slate-200 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Bobot</th>
                 
+                {/* --- KOLOM BOBOT MAKSIMAL DI TABEL UTAMA --- */}
+                <th className="p-3 w-[70px] text-center border-r border-slate-200 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Bobot</th>
+
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
                     <div className="flex flex-col items-center justify-center h-full gap-1.5">
@@ -163,6 +168,8 @@ export default function ScheduleWorkData({
                             <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
                               <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                             </td>
+                            
+                            {/* --- TAMPILKAN BOBOT DI TABEL UTAMA --- */}
                             <td className="p-2.5 text-center font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-700/60 bg-blue-50/30 dark:bg-blue-900/10">
                               {item.is_manual ? '-' : `${bobotStandar.toFixed(2)}%`}
                             </td>
@@ -272,6 +279,7 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
+      {/* --- MODAL RINCIAN AKTIVITAS --- */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
@@ -294,6 +302,11 @@ export default function ScheduleWorkData({
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-12">Hari</th>
                          <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 w-32">Tanggal Laporan</th>
                          <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan</th>
+                         
+                         {/* --- TAMBAHAN: KOLOM BOBOT DI DALAM MODAL --- */}
+                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-20 text-blue-600 dark:text-blue-400">Bobot</th>
+                         {/* ------------------------------------------- */}
+
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Volume</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Aktual (%)</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Status</th>
@@ -310,11 +323,16 @@ export default function ScheduleWorkData({
                              <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 leading-relaxed font-semibold">
                                {r.uraian_laporan || detailModal.item?.uraian_pekerjaan || '-'}
                              </td>
+
+                             {/* --- TAMPILKAN BOBOT DI BARIS MODAL --- */}
+                             <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">
+                               {detailModal.item?.is_manual ? '-' : `${bobotMaksimalModal.toFixed(2)}%`}
+                             </td>
+
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
                                {isEditing ? (
                                  <input type="number" step="any" className="w-full text-center border border-blue-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none" value={inlineEditData.volume} onChange={(e)=>setInlineEditData({...inlineEditData, volume: e.target.value})} />
                                ) : (
-                                 /* MEMBUANG ANGKA NOL DI BELAKANG KOMA DENGAN GETSAFEFLOAT */
                                  <span className="font-mono font-bold">{getSafeFloat(r.volume_laporan)} {detailModal.item?.satuan || ''}</span>
                                )}
                              </td>
