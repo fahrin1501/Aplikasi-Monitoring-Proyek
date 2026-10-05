@@ -13,6 +13,7 @@ export default function ScheduleWorkData({
   const [inlineEditData, setInlineEditData] = useState({ volume: '', persentase: '' });
   const [isSavingInline, setIsSavingInline] = useState(false);
 
+  // Fungsi ini sangat berguna untuk membuang angka nol (.0000) yang tidak perlu dari database
   const getSafeFloat = (val) => {
     if (val === null || val === undefined) return 0;
     const parsed = parseFloat(val);
@@ -76,7 +77,7 @@ export default function ScheduleWorkData({
     }
   };
 
-  const extraCols = isEditMode && canCreateData ? 4 : 3; // +1 Untuk kolom Bobot (%)
+  const extraCols = isEditMode && canCreateData ? 4 : 3;
 
   return (
     <>
@@ -96,11 +97,8 @@ export default function ScheduleWorkData({
               <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
                 <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan (Realisasi Aktual)</th>
-                
-                {/* --- TAMBAHAN: KOLOM BOBOT MAKSIMAL --- */}
                 <th className="p-3 w-[70px] text-center border-r border-slate-200 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Bobot</th>
-                {/* -------------------------------------- */}
-
+                
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
                     <div className="flex flex-col items-center justify-center h-full gap-1.5">
@@ -156,7 +154,6 @@ export default function ScheduleWorkData({
                       </tr>
                       
                       {safeItems.map(item => {
-                        // --- PERHITUNGAN BOBOT OTOMATIS BERDASARKAN TOTAL RAB ---
                         const bobotStandar = item.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0);
                         const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
 
@@ -166,8 +163,6 @@ export default function ScheduleWorkData({
                             <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
                               <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                             </td>
-                            
-                            {/* --- TAMPILKAN BOBOT DI SINI --- */}
                             <td className="p-2.5 text-center font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-700/60 bg-blue-50/30 dark:bg-blue-900/10">
                               {item.is_manual ? '-' : `${bobotStandar.toFixed(2)}%`}
                             </td>
@@ -209,7 +204,6 @@ export default function ScheduleWorkData({
 
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
               <tr className="bg-emerald-50 dark:bg-emerald-500/5 border-t-2 border-emerald-200 dark:border-emerald-500/20">
-                {/* --- RENTANGKAN COLSPAN AGAR FOOTER RAPI KARENA ADA TAMBAHAN KOLOM BOBOT --- */}
                 <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] border-r border-emerald-200 dark:border-emerald-500/20 sticky left-0 z-40 bg-emerald-50 dark:bg-emerald-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   Total Aktual / Realisasi
                 </td>
@@ -232,7 +226,6 @@ export default function ScheduleWorkData({
               </tr>
 
               <tr className="bg-blue-50 dark:bg-blue-500/5 border-t border-blue-200 dark:border-blue-500/20">
-                {/* --- RENTANGKAN COLSPAN AGAR FOOTER RAPI KARENA ADA TAMBAHAN KOLOM BOBOT --- */}
                 <td colSpan="3" className="p-3 text-right font-extrabold text-blue-600 dark:text-blue-400 uppercase text-[10px] border-r border-blue-200 dark:border-blue-500/20 sticky left-0 z-40 bg-blue-50 dark:bg-blue-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   Target Kumulatif Mingguan
                 </td>
@@ -279,7 +272,6 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
-      {/* --- MODAL EDIT MINGGUAN & RINCIAN AKTIVITAS --- */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
@@ -322,7 +314,8 @@ export default function ScheduleWorkData({
                                {isEditing ? (
                                  <input type="number" step="any" className="w-full text-center border border-blue-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none" value={inlineEditData.volume} onChange={(e)=>setInlineEditData({...inlineEditData, volume: e.target.value})} />
                                ) : (
-                                 <span className="font-mono font-bold">{r.volume_laporan} {detailModal.item?.satuan || ''}</span>
+                                 /* MEMBUANG ANGKA NOL DI BELAKANG KOMA DENGAN GETSAFEFLOAT */
+                                 <span className="font-mono font-bold">{getSafeFloat(r.volume_laporan)} {detailModal.item?.satuan || ''}</span>
                                )}
                              </td>
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
