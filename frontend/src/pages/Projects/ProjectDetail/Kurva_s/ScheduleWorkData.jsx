@@ -76,7 +76,7 @@ export default function ScheduleWorkData({
     }
   };
 
-  const extraCols = isEditMode && canCreateData ? 3 : 2; 
+  const extraCols = isEditMode && canCreateData ? 4 : 3; // +1 Untuk kolom Bobot (%)
 
   return (
     <>
@@ -96,8 +96,11 @@ export default function ScheduleWorkData({
               <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="p-3 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
                 <th className="p-3 w-[300px] border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan (Realisasi Aktual)</th>
-                <th className="p-3 w-[60px] text-center border-r border-slate-200 dark:border-slate-700/60">Bobot</th>
                 
+                {/* --- TAMBAHAN: KOLOM BOBOT MAKSIMAL --- */}
+                <th className="p-3 w-[70px] text-center border-r border-slate-200 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Bobot</th>
+                {/* -------------------------------------- */}
+
                 {weeksArray.map(w => (
                   <th key={w} className="p-2 w-[80px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
                     <div className="flex flex-col items-center justify-center h-full gap-1.5">
@@ -132,7 +135,7 @@ export default function ScheduleWorkData({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/30 text-slate-700 dark:text-slate-300">
               {safeRabData.length === 0 ? (
                 <tr>
-                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 5 : 4)} className="p-12 text-center bg-white dark:bg-slate-800/40">
+                  <td colSpan={weeksArray.length + (isEditMode && canCreateData ? 6 : 5)} className="p-12 text-center bg-white dark:bg-slate-800/40">
                     <div className="flex flex-col items-center justify-center max-w-md mx-auto border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8">
                       <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Belum Ada Realisasi Pekerjaan</h4>
@@ -153,6 +156,7 @@ export default function ScheduleWorkData({
                       </tr>
                       
                       {safeItems.map(item => {
+                        // --- PERHITUNGAN BOBOT OTOMATIS BERDASARKAN TOTAL RAB ---
                         const bobotStandar = item.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0);
                         const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
 
@@ -162,7 +166,9 @@ export default function ScheduleWorkData({
                             <td className="p-2.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700/60 sticky left-[80px] z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-slate-50 dark:group-hover:bg-slate-700">
                               <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                             </td>
-                            <td className="p-2.5 text-center font-mono text-[10px] font-bold text-slate-500 border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/30 dark:bg-slate-900/20">
+                            
+                            {/* --- TAMPILKAN BOBOT DI SINI --- */}
+                            <td className="p-2.5 text-center font-mono text-[11px] font-extrabold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-700/60 bg-blue-50/30 dark:bg-blue-900/10">
                               {item.is_manual ? '-' : `${bobotStandar.toFixed(2)}%`}
                             </td>
 
@@ -203,6 +209,7 @@ export default function ScheduleWorkData({
 
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
               <tr className="bg-emerald-50 dark:bg-emerald-500/5 border-t-2 border-emerald-200 dark:border-emerald-500/20">
+                {/* --- RENTANGKAN COLSPAN AGAR FOOTER RAPI KARENA ADA TAMBAHAN KOLOM BOBOT --- */}
                 <td colSpan="3" className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] border-r border-emerald-200 dark:border-emerald-500/20 sticky left-0 z-40 bg-emerald-50 dark:bg-emerald-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   Total Aktual / Realisasi
                 </td>
@@ -225,6 +232,7 @@ export default function ScheduleWorkData({
               </tr>
 
               <tr className="bg-blue-50 dark:bg-blue-500/5 border-t border-blue-200 dark:border-blue-500/20">
+                {/* --- RENTANGKAN COLSPAN AGAR FOOTER RAPI KARENA ADA TAMBAHAN KOLOM BOBOT --- */}
                 <td colSpan="3" className="p-3 text-right font-extrabold text-blue-600 dark:text-blue-400 uppercase text-[10px] border-r border-blue-200 dark:border-blue-500/20 sticky left-0 z-40 bg-blue-50 dark:bg-blue-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   Target Kumulatif Mingguan
                 </td>
@@ -271,6 +279,7 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
+      {/* --- MODAL EDIT MINGGUAN & RINCIAN AKTIVITAS --- */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
