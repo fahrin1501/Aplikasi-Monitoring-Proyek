@@ -11,27 +11,28 @@ const formatKoordTampil = (staString) => {
   return staString;
 };
 
+const formatCleanNumber = (val) => {
+  if (val === null || val === undefined || val === '') return 0;
+  return parseFloat(val);
+};
+
 export default function KegiatanGeografis({ 
   isEditMode, reportData, editForm, setEditForm, 
   rabOptions, isLoadingRab, mingguKe, 
   optionsMingguIni, optionsMingguLain, unscheduledRabOptions,
-  grandTotalRab // TERIMA TOTAL RAB DARI INDUK
+  grandTotalRab, cumulativeActuals // Menerima data Kumulatif
 }) {
 
-  // --- FUNGSI MENGHITUNG PERSENTASE OTOMATIS SAAT EDIT ---
   const calculatePercentage = (volume, rabItem) => {
     if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
-    
     const volNum = parseFloat(volume);
     if (isNaN(volNum) || volNum <= 0) return '';
-    
     const targetVolume = parseFloat(rabItem.volume);
     if (isNaN(targetVolume) || targetVolume <= 0) return '';
 
     const bobotItem = (parseFloat(rabItem.total_harga) / grandTotalRab) * 100;
     const progress = (volNum / targetVolume) * bobotItem;
-    
-    return progress.toFixed(4);
+    return progress.toFixed(4); 
   };
 
   const handleKegiatanSelectEdit = (index, selectedOption) => {
@@ -50,7 +51,6 @@ export default function KegiatanGeografis({
         newK[index].uraian = selectedRab.uraian;
         newK[index].satuan = selectedRab.satuan || '';
         
-        // Hitung ulang jika volume sudah ada
         if (newK[index].volume) {
           newK[index].persentase = calculatePercentage(newK[index].volume, selectedRab);
         }
@@ -59,7 +59,6 @@ export default function KegiatanGeografis({
     setEditForm({...editForm, activities: newK});
   };
 
-  // --- FUNGSI UPDATE VOLUME SAAT DIKETIK DI MODE EDIT ---
   const handleVolumeChangeEdit = (index, value) => {
     const newK = [...editForm.activities];
     newK[index].volume = value;
@@ -196,11 +195,38 @@ export default function KegiatanGeografis({
                 </div>
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
+
+                  {/* --- UI INFORMASI SISA VOLUME DAN BOBOT --- */}
+                  {item.rab_item_id && grandTotalRab > 0 && (() => {
+                      const foundRab = rabOptions.find(r => r.id.toString() === item.rab_item_id.toString());
+                      if (!foundRab) return null;
+                      
+                      const targetVol = parseFloat(foundRab.volume || 0);
+                      const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
+                      
+                      const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
+                      const accumVol = targetBobot > 0 ? (accumBobot / targetBobot) * targetVol : 0;
+                      
+                      const sisaVol = Math.max(0, targetVol - accumVol);
+                      const sisaBobot = Math.max(0, targetBobot - accumBobot);
+
+                      return (
+                          <div className="mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-lg flex flex-wrap items-center justify-between gap-2 text-[10px] shadow-sm">
+                              <div className="flex items-center gap-1.5">
+                                  <Target className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span className="font-bold text-indigo-700 dark:text-indigo-400">Target RAB: {formatCleanNumber(targetVol)} {foundRab.satuan} ({targetBobot.toFixed(2)}%)</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-rose-600 dark:text-rose-400">Sisa Tersedia: {formatCleanNumber(sisaVol.toFixed(4))} {foundRab.satuan} ({sisaBobot.toFixed(2)}%)</span>
+                              </div>
+                          </div>
+                      );
+                  })()}
+                  {/* ------------------------------------------- */}
+
                   <div className="grid grid-cols-12 gap-2 w-full items-end">
                     <div className="col-span-5">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
-                      
-                      {/* --- INPUT VOLUME TERHUBUNG KE RUMUS OTOMATIS --- */}
                       <input 
                         type="number" 
                         step="any" 
@@ -210,7 +236,6 @@ export default function KegiatanGeografis({
                         onChange={(e) => handleVolumeChangeEdit(index, e.target.value)} 
                         className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" 
                       />
-
                     </div>
                     <div className="col-span-3">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
@@ -218,8 +243,6 @@ export default function KegiatanGeografis({
                     </div>
                     <div className="col-span-4 relative group">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
-                      
-                      {/* --- INPUT PERSEN DIKUNCI JIKA DARI RAB --- */}
                       <input 
                         type="number" 
                         step="any" 
@@ -234,7 +257,6 @@ export default function KegiatanGeografis({
                               Otomatis terhitung
                           </div>
                       )}
-
                     </div>
                   </div>
                 </div>
@@ -256,12 +278,11 @@ export default function KegiatanGeografis({
                     </p>
                   )}
                   <div className="mt-2.5 flex items-center gap-2">
-                    {/* MEMBUANG NOL BERLEBIH PADA TAMPILAN NON-EDIT */}
                     <p className="text-[11px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30">
-                      Vol: {keg.volume ? parseFloat(keg.volume) : 0} {keg.satuan}
+                      Vol: {formatCleanNumber(keg.volume)} {keg.satuan}
                     </p>
                     <p className="text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded border border-blue-200 dark:border-blue-800/30">
-                      Bobot: {keg.persentase ? parseFloat(keg.persentase).toFixed(4) : 0}%
+                      Bobot: {formatCleanNumber(keg.persentase)}%
                     </p>
                   </div>
                 </div>

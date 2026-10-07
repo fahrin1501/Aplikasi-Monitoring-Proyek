@@ -289,7 +289,7 @@ export default function AddLaporan() {
               </div>
             </div>
 
-            {/* KEGIATAN GEOGRAFIS - DI-INJECT GRAND TOTAL RAB */}
+            {/* KEGIATAN GEOGRAFIS - DI-INJECT GRAND TOTAL RAB & KUMULATIF */}
             <KegiatanGeografisAdd 
               kegiatanItems={kegiatanItems} 
               setKegiatanItems={setKegiatanItems} 
@@ -298,7 +298,8 @@ export default function AddLaporan() {
               optionsMingguIni={optionsMingguIni} 
               optionsMingguLain={optionsMingguLain} 
               unscheduledRabOptions={unscheduledRabOptions}
-              grandTotalRab={scheduleData?.grand_total_rab} // INI PENYAMBUNG LOGIKA PRESENTASE OTOMATISNYA!
+              grandTotalRab={scheduleData?.grand_total_rab} 
+              cumulativeActuals={scheduleData?.cumulative_actual} // <--- TAMBAHKAN BARIS INI
             />
 
             {/* PERSONIL & ALAT */}

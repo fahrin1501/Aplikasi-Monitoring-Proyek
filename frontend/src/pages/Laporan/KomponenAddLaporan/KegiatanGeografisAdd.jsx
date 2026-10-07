@@ -1,11 +1,17 @@
 import React from 'react';
 import Select from 'react-select';
-import { ListTodo, Plus, Trash2, MapPin, Loader2 } from 'lucide-react';
+import { ListTodo, Plus, Trash2, MapPin, Loader2, Target } from 'lucide-react';
+
+// Fungsi untuk merapikan angka
+const formatCleanNumber = (val) => {
+  if (val === null || val === undefined || val === '') return 0;
+  return parseFloat(val);
+};
 
 export default function KegiatanGeografisAdd({ 
   kegiatanItems, setKegiatanItems, rabOptions, isLoadingRab, 
   optionsMingguIni, optionsMingguLain, unscheduledRabOptions,
-  grandTotalRab // KITA BUTUH TOTAL RAB PROYEK UNTUK RUMUS
+  grandTotalRab, cumulativeActuals // Menerima data Kumulatif dari Backend
 }) {
 
   const formatGroup = (label, options) => ({
@@ -22,26 +28,15 @@ export default function KegiatanGeografisAdd({
   if (unscheduledRabOptions?.length > 0) selectOptions.push(formatGroup('PEKERJAAN DI LUAR JADWAL (RAB)', unscheduledRabOptions));
   selectOptions.push({ label: 'LAINNYA', options: [{ value: 'manual', label: '+ Pekerjaan Manual / Baru' }] });
 
-  // 1. FUNGSI UNTUK MENGHITUNG PERSENTASE OTOMATIS
   const calculatePercentage = (volume, rabItem) => {
-    // Jika tidak ada data item RAB, volume kosong, atau Grand Total RAB tidak ada, set 0
     if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
-    
-    // Pastikan volume valid
     const volNum = parseFloat(volume);
     if (isNaN(volNum) || volNum <= 0) return '';
-    
-    // Pastikan volume RAB (target) valid
     const targetVolume = parseFloat(rabItem.volume);
     if (isNaN(targetVolume) || targetVolume <= 0) return '';
 
-    // RUMUS: (Harga Total Item / Grand Total Proyek * 100) -> Dapatkan Bobot Item
     const bobotItem = (parseFloat(rabItem.total_harga) / grandTotalRab) * 100;
-    
-    // RUMUS: (Volume Harian / Volume Target) * Bobot Item
     const progress = (volNum / targetVolume) * bobotItem;
-    
-    // Kembalikan angka dengan 4 desimal (agar presisi)
     return progress.toFixed(4);
   };
 
@@ -53,15 +48,13 @@ export default function KegiatanGeografisAdd({
       newK[index].rab_item_id = null; 
       newK[index].uraian = ''; 
       newK[index].satuan = '';
-      newK[index].persentase = ''; // Reset persen jika manual
+      newK[index].persentase = ''; 
     } else {
       const selectedRab = rabOptions.find(r => r.id.toString() === val.toString());
       if (selectedRab) {
         newK[index].rab_item_id = selectedRab.id;
         newK[index].uraian = selectedRab.uraian_pekerjaan || selectedRab.uraian;
         newK[index].satuan = selectedRab.satuan || '';
-        
-        // Coba hitung langsung jika volume sudah terisi saat item diubah
         if (newK[index].volume) {
             newK[index].persentase = calculatePercentage(newK[index].volume, selectedRab);
         }
@@ -70,17 +63,13 @@ export default function KegiatanGeografisAdd({
     setKegiatanItems(newK);
   };
 
-  // 2. FUNGSI HANDLE PERUBAHAN VOLUME
   const handleVolumeChange = (index, value) => {
       const newK = [...kegiatanItems];
       newK[index].volume = value;
-
-      // Jika ada rab_item_id, hitung otomatis persentasenya
       if (newK[index].rab_item_id) {
           const selectedRab = rabOptions.find(r => r.id.toString() === newK[index].rab_item_id.toString());
           newK[index].persentase = calculatePercentage(value, selectedRab);
       }
-
       setKegiatanItems(newK);
   };
 
@@ -164,6 +153,35 @@ export default function KegiatanGeografisAdd({
               </div>
 
               <div className="col-span-12 bg-white dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col justify-center shadow-sm relative z-0">
+                
+                {/* --- UI INFORMASI SISA VOLUME DAN BOBOT --- */}
+                {item.rab_item_id && grandTotalRab > 0 && (() => {
+                    const foundRab = rabOptions.find(r => r.id.toString() === item.rab_item_id.toString());
+                    if (!foundRab) return null;
+                    
+                    const targetVol = parseFloat(foundRab.volume || 0);
+                    const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
+                    
+                    const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
+                    const accumVol = targetBobot > 0 ? (accumBobot / targetBobot) * targetVol : 0;
+                    
+                    const sisaVol = Math.max(0, targetVol - accumVol);
+                    const sisaBobot = Math.max(0, targetBobot - accumBobot);
+
+                    return (
+                        <div className="mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-lg flex flex-wrap items-center justify-between gap-2 text-[10px] shadow-sm">
+                            <div className="flex items-center gap-1.5">
+                                <Target className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="font-bold text-indigo-700 dark:text-indigo-400">Target RAB: {formatCleanNumber(targetVol)} {foundRab.satuan} ({targetBobot.toFixed(2)}%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-rose-600 dark:text-rose-400">Sisa Tersedia: {formatCleanNumber(sisaVol.toFixed(4))} {foundRab.satuan} ({sisaBobot.toFixed(2)}%)</span>
+                            </div>
+                        </div>
+                    );
+                })()}
+                {/* ------------------------------------------- */}
+
                 <div className="grid grid-cols-12 gap-2 w-full items-end">
                   <div className="col-span-5">
                     <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
@@ -189,7 +207,7 @@ export default function KegiatanGeografisAdd({
                       value={item.persentase} 
                       onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} 
                       className={`w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent' : 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-600'}`} 
-                      readOnly={!!item.rab_item_id} // Kunci input jika dari RAB agar tidak diubah manual
+                      readOnly={!!item.rab_item_id}
                     />
                     {item.rab_item_id && (
                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">

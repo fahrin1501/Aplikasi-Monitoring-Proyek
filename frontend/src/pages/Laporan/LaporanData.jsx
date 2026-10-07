@@ -487,12 +487,13 @@ export default function LaporanData() {
       </div>
 
       <div className="w-full">
-        {/* MENGIRIMKAN GRAND TOTAL RAB KE KEGIATAN GEOGRAFIS */}
+        {/* MENGIRIMKAN GRAND TOTAL RAB & KUMULATIF KE KEGIATAN GEOGRAFIS */}
         <KegiatanGeografis 
           isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
           rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
           optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
           grandTotalRab={scheduleData?.grand_total_rab} 
+          cumulativeActuals={scheduleData?.cumulative_actual} // <--- TAMBAHKAN BARIS INI
         />
       </div>
 
