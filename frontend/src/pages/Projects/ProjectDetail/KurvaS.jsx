@@ -5,7 +5,7 @@ import api from '../../../api';
 import { 
   TrendingUp, ArrowLeft, Info, FileSpreadsheet, Compass, 
   Download, CheckCircle2, AlertTriangle, Loader2, Filter, X,
-  CalendarDays, Edit3, Save, ListPlus
+  CalendarDays, Edit3, Save, ListPlus, Target, Plus, Trash2, Calendar
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -55,6 +55,61 @@ export default function KurvaS({ selectedProject }) {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportModal, setExportModal] = useState({ show: false, type: '' });
+
+  // =========================================================================
+  // STATE & FUNGSI YANG HILANG: UNTUK INISIALISASI PROYEK BARU
+  // =========================================================================
+  const [isSavingInitial, setIsSavingInitial] = useState(false);
+  const [weeksForm, setWeeksForm] = useState([{ 
+    id: Date.now(), minggu_ke: 1, bulan: 1, tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' 
+  }]);
+
+  const handleInitialWeekChange = (id, field, value) => {
+    setWeeksForm(weeksForm.map(w => w.id === id ? { ...w, [field]: value } : w));
+  };
+
+  const handleAddInitialWeek = () => {
+    const lastWeek = weeksForm[weeksForm.length - 1];
+    setWeeksForm([...weeksForm, { 
+      id: Date.now(), 
+      minggu_ke: parseInt(lastWeek.minggu_ke) + 1, 
+      bulan: lastWeek.bulan, 
+      tanggal_mulai: '', 
+      tanggal_selesai: '', 
+      target_kumulatif: '' 
+    }]);
+  };
+
+  const handleRemoveInitialWeek = (id) => {
+    setWeeksForm(weeksForm.filter(w => w.id !== id));
+  };
+
+  const handleSaveInitialSchedule = async () => {
+    if (weeksForm.some(w => !w.tanggal_mulai || !w.tanggal_selesai || !w.target_kumulatif)) {
+      return alert("Mohon lengkapi Tanggal Mulai, Tanggal Selesai, dan Target Kumulatif pada semua minggu.");
+    }
+    
+    setIsSavingInitial(true);
+    try {
+      const payload = weeksForm.map(w => ({
+        minggu_ke: w.minggu_ke,
+        bulan: w.bulan,
+        tanggal_awal: w.tanggal_mulai,
+        tanggal_akhir: w.tanggal_selesai,
+        target_kumulatif: parseFloat(w.target_kumulatif.toString().replace(',', '.')) || 0
+      }));
+
+      await api.post(`/projects/${projectId}/schedules`, { full_sync: true, weeks: payload });
+      alert("Jadwal Pertama Berhasil Disimpan!");
+      fetchSchedule(); // Refresh data
+    } catch (error) {
+      alert("Gagal menyimpan jadwal.");
+    } finally {
+      setIsSavingInitial(false);
+    }
+  };
+  // =========================================================================
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -493,6 +548,7 @@ export default function KurvaS({ selectedProject }) {
             <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full shrink-0"><AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div>
             <div><h3 className="font-bold text-amber-800 dark:text-amber-400 text-sm mb-1">Time Schedule Belum Dibuat</h3><p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">Grafik Kurva S dan Matriks belum bisa ditampilkan. Silakan atur <strong>Jadwal Minggu Pertama</strong> di bawah ini untuk memulai.</p></div>
           </div>
+          
           <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-5 md:p-6 shadow-sm">
             <h3 className="text-lg font-extrabold text-blue-600 dark:text-blue-500 flex items-center gap-2 mb-6"><CalendarDays className="w-5 h-5"/> Setup Jadwal Pertama</h3>
             <div className="space-y-4">
