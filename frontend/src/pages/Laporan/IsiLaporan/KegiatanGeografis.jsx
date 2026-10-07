@@ -1,6 +1,6 @@
 import React from 'react';
 import Select from 'react-select';
-import { ListTodo, Plus, Trash2, MapPin, CheckCircle2, Target, Loader2 } from 'lucide-react';
+import { ListTodo, Plus, Trash2, MapPin, Loader2 } from 'lucide-react';
 
 const formatKoordTampil = (staString) => {
   if (!staString) return null;
@@ -20,7 +20,7 @@ export default function KegiatanGeografis({
   isEditMode, reportData, editForm, setEditForm, 
   rabOptions, isLoadingRab, mingguKe, 
   optionsMingguIni, optionsMingguLain, unscheduledRabOptions,
-  grandTotalRab, cumulativeActuals // Menerima data Kumulatif
+  grandTotalRab, cumulativeActuals 
 }) {
 
   const calculatePercentage = (volume, rabItem) => {
@@ -115,9 +115,27 @@ export default function KegiatanGeografis({
         <div className="space-y-4 mt-2">
            {editForm.activities.map((item, index) => {
               let currentVal = null;
+              let sisaVolInfo = null;
+              let sisaBobotInfo = null;
+
               if (item.rab_item_id) {
                 const foundRab = rabOptions.find(r => r.id.toString() === item.rab_item_id.toString());
-                if (foundRab) currentVal = { value: item.rab_item_id.toString(), label: `${foundRab.uraian_pekerjaan || foundRab.uraian} (${foundRab.kategori || foundRab.kategori_nama})` };
+                if (foundRab) {
+                    currentVal = { value: item.rab_item_id.toString(), label: `${foundRab.uraian_pekerjaan || foundRab.uraian} (${foundRab.kategori || foundRab.kategori_nama})` };
+                    
+                    if (grandTotalRab > 0) {
+                        const targetVol = parseFloat(foundRab.volume || 0);
+                        const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
+                        const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
+                        const accumVol = targetBobot > 0 ? (accumBobot / targetBobot) * targetVol : 0;
+                        
+                        const sisaVol = Math.max(0, targetVol - accumVol);
+                        const sisaBobot = Math.max(0, targetBobot - accumBobot);
+
+                        sisaVolInfo = `${formatCleanNumber(sisaVol.toFixed(4))} ${foundRab.satuan}`;
+                        sisaBobotInfo = `${sisaBobot.toFixed(2)}%`;
+                    }
+                }
               } else if (item.rab_item_id === null && item.uraian) {
                 currentVal = { value: 'manual', label: '+ Pekerjaan Tambah/Kurang (Input Manual)' };
               }
@@ -195,38 +213,18 @@ export default function KegiatanGeografis({
                 </div>
                 
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
-
-                  {/* --- UI INFORMASI SISA VOLUME DAN BOBOT --- */}
-                  {item.rab_item_id && grandTotalRab > 0 && (() => {
-                      const foundRab = rabOptions.find(r => r.id.toString() === item.rab_item_id.toString());
-                      if (!foundRab) return null;
-                      
-                      const targetVol = parseFloat(foundRab.volume || 0);
-                      const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
-                      
-                      const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
-                      const accumVol = targetBobot > 0 ? (accumBobot / targetBobot) * targetVol : 0;
-                      
-                      const sisaVol = Math.max(0, targetVol - accumVol);
-                      const sisaBobot = Math.max(0, targetBobot - accumBobot);
-
-                      return (
-                          <div className="mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-lg flex flex-wrap items-center justify-between gap-2 text-[10px] shadow-sm">
-                              <div className="flex items-center gap-1.5">
-                                  <Target className="w-3.5 h-3.5 text-indigo-500" />
-                                  <span className="font-bold text-indigo-700 dark:text-indigo-400">Target RAB: {formatCleanNumber(targetVol)} {foundRab.satuan} ({targetBobot.toFixed(2)}%)</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-rose-600 dark:text-rose-400">Sisa Tersedia: {formatCleanNumber(sisaVol.toFixed(4))} {foundRab.satuan} ({sisaBobot.toFixed(2)}%)</span>
-                              </div>
-                          </div>
-                      );
-                  })()}
-                  {/* ------------------------------------------- */}
-
-                  <div className="grid grid-cols-12 gap-2 w-full items-end">
-                    <div className="col-span-5">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Volume <span className="text-rose-500">*</span></label>
+                  <div className="grid grid-cols-12 gap-3 w-full items-end">
+                    
+                    {/* --- KOLOM VOLUME & LABEL SISA --- */}
+                    <div className="col-span-12 sm:col-span-5">
+                      <div className="flex justify-between items-end mb-2">
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Volume <span className="text-rose-500">*</span></label>
+                        {sisaVolInfo && (
+                          <span className="text-[9px] font-bold text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-500/20">
+                            Sisa: {sisaVolInfo}
+                          </span>
+                        )}
+                      </div>
                       <input 
                         type="number" 
                         step="any" 
@@ -237,12 +235,24 @@ export default function KegiatanGeografis({
                         className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" 
                       />
                     </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Sat</label>
+
+                    <div className="col-span-12 sm:col-span-3">
+                      <div className="flex justify-between items-end mb-2">
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block text-center w-full">Sat</label>
+                      </div>
                       <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...editForm.activities]; newK[index].satuan = e.target.value; setEditForm({...editForm, activities: newK}); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
                     </div>
-                    <div className="col-span-4 relative group">
-                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block text-center">Persen (%)</label>
+
+                    {/* --- KOLOM PERSEN & LABEL SISA --- */}
+                    <div className="col-span-12 sm:col-span-4 relative group">
+                      <div className="flex justify-between items-end mb-2">
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Persen %</label>
+                        {sisaBobotInfo && (
+                          <span className="text-[9px] font-bold text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-500/20">
+                            Sisa: {sisaBobotInfo}
+                          </span>
+                        )}
+                      </div>
                       <input 
                         type="number" 
                         step="any" 
