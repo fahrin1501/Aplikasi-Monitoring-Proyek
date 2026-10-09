@@ -11,144 +11,68 @@ import {
   Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
 
+// CACHE MEMORI: Data langsung muncul instan (0 detik) saat kembali ke Dashboard
+let cachedDashboard = null;
+
 export default function DashboardUtama() {
   const navigate = useNavigate();
   
-  // --- STATE MANAJEMEN ---
-  const [isLoading, setIsLoading] = useState(true);
-  const [kpiData, setKpiData] = useState({ totalProyek: 0, nilaiKontrak: '0', rataDeviasi: '0.00', proyekKritis: 0 });
+  // Ambil dari memori atau sessionStorage duluan agar tidak ada layar loading
+  const [dashboardData, setDashboardData] = useState(() => {
+    if (cachedDashboard) return cachedDashboard;
+    try {
+      const saved = sessionStorage.getItem('cached_dashboard_summary');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
 
-  useEffect(() => {
-      document.title = "Prisma Group - Dashboard";
-    }, []);
-  
-  const [chartProgressData, setChartProgressData] = useState([]);
-  const [proyekAktif, setProyekAktif] = useState([]);
-  const [laporanTerbaru, setLaporanTerbaru] = useState([]);
+  // Loading hanya aktif jika benar-benar baru pertama kali buka aplikasi
+  const [isLoading, setIsLoading] = useState(() => !dashboardData);
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
+    document.title = "Prisma Group - Dashboard";
     const userDataStr = localStorage.getItem('user_data');
     if (userDataStr) {
       try {
         const user = JSON.parse(userDataStr);
         setUserRole(user.role || 'Tamu');
-      } catch (error) {
-        console.error("Gagal membaca data user:", error);
-      }
+      } catch (error) {}
     }
   }, []);
 
-  // BEDAH HAK AKSES BERDASARKAN ROLE:
-  // 1. Hak Membuat Data (Hanya Admin, TL, Pengawas)
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
-  
-  // 2. Hak Melihat Keuangan / Pagu (Semua kecuali Pengawas & Tamu)
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
-  
-  // 3. Hak Melihat Informasi Sensitif / Negatif (Deviasi & Kritis) (Semua kecuali Tamu)
   const isGuest = userRole === 'Tamu';
 
-  // --- FETCH & KALKULASI DATA REAL-TIME ---
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [projRes, repRes] = await Promise.all([
-          api.get('/projects'),
-          api.get('/daily-reports')
-        ]);
-
-        const projects = projRes.data?.data || projRes.data || [];
-        const reports = repRes.data?.data || [];
-
-        // 1. Hitung KPI Dasar
-        const totalProyek = projects.length;
-        const nilaiKontrak = projects.reduce((sum, p) => sum + Number(p.nilai_kontrak || 0), 0);
-
-        // 2. Susun 5 Laporan Terbaru
-        const sortedReports = reports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
-        const formattedReports = sortedReports.map(r => ({
-          id: r.id,
-          pengawas: r.pengawas,
-          proyek: r.project?.nama_proyek || 'Proyek Dihapus',
-          tanggal: r.tanggal,
-          jumlahKegiatan: r.activities?.length || 0, // Menggunakan Jumlah Kegiatan sebagai ganti Cuaca
-          status: r.status === 'approved' ? 'Verified' : 'Pending',
-          originalData: r
-        }));
-
-        // 3. Analisis Mendalam 5 Proyek Terbaru untuk Grafik & Tabel
-        const topProjects = projects.slice(0, 5);
-        const schedulePromises = topProjects.map(p => api.get(`/projects/${p.id}/schedules`).catch(() => null));
-        const scheduleResponses = await Promise.all(schedulePromises);
-
-        let totalDeviasiSemua = 0;
-        let countKritis = 0;
-        const chartArr = [];
-        const tableArr = [];
-
-        topProjects.forEach((p, index) => {
-          const sRes = scheduleResponses[index];
-          if (sRes && sRes.data?.data) {
-            const sData = sRes.data.data;
-            
-            const totalBobotRencana = sData.schedules?.reduce((sum, s) => sum + parseFloat(s.bobot_rencana), 0) || 0;
-            const totalBobotRealisasi = sData.realizations?.reduce((sum, r) => sum + parseFloat(r.bobot_realisasi), 0) || 0;
-            
-            const deviasi = totalBobotRealisasi - totalBobotRencana;
-            totalDeviasiSemua += deviasi;
-
-            let status = 'On Track';
-            if (deviasi < -5) { status = 'Kritis'; countKritis++; }
-            else if (deviasi < 0) { status = 'Terlambat'; }
-            if (totalBobotRencana === 0) status = 'Belum Mulai';
-
-            chartArr.push({
-              name: p.nama_proyek,
-              plan: Number(totalBobotRencana.toFixed(2)),
-              actual: Number(totalBobotRealisasi.toFixed(2)),
-              deviasi: Number(deviasi.toFixed(2))
-            });
-
-            tableArr.push({
-              id: p.id,
-              nama: p.nama_proyek,
-              progress: Number(totalBobotRealisasi.toFixed(2)),
-              deviasi: deviasi > 0 ? `+${deviasi.toFixed(2)}` : deviasi.toFixed(2),
-              status: status,
-              numDev: deviasi
-            });
-          } else {
-            chartArr.push({ name: p.nama_proyek, plan: 0, actual: 0, deviasi: 0 });
-            tableArr.push({ id: p.id, nama: p.nama_proyek, progress: 0, deviasi: '0.00', status: 'Belum Mulai', numDev: 0 });
-          }
-        });
-
-        // 4. Hitung Rata-Rata Deviasi Portofolio
-        const rataDeviasi = topProjects.length > 0 ? (totalDeviasiSemua / topProjects.length) : 0;
-
-        setKpiData({
-          totalProyek,
-          nilaiKontrak: new Intl.NumberFormat('id-ID').format(nilaiKontrak),
-          rataDeviasi: rataDeviasi > 0 ? `+${rataDeviasi.toFixed(2)}` : rataDeviasi.toFixed(2),
-          proyekKritis: countKritis
-        });
-        
-        setChartProgressData(chartArr);
-        setProyekAktif(tableArr);
-        setLaporanTerbaru(formattedReports);
-
-      } catch(error) {
-        console.error("Gagal load data dashboard:", error);
-      } finally {
-        setIsLoading(false);
+  // Ambil data terbaru dari backend (jika cache ada, update berjalan diam-diam di background)
+  const fetchDashboardData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    try {
+      const res = await api.get('/dashboard/summary');
+      const data = res.data?.data;
+      if (data) {
+        setDashboardData(data);
+        cachedDashboard = data;
+        try { sessionStorage.setItem('cached_dashboard_summary', JSON.stringify(data)); } catch {}
       }
-    };
+    } catch (error) {
+      console.error("Gagal load data dashboard:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchDashboardData();
+  useEffect(() => {
+    const hasCache = !!dashboardData;
+    fetchDashboardData(hasCache);
   }, []);
+
+  const kpiData = dashboardData?.kpi || { totalProyek: 0, nilaiKontrak: '0', rataDeviasi: '0.00', proyekKritis: 0 };
+  const chartProgressData = dashboardData?.chartProgressData || [];
+  const proyekAktif = dashboardData?.proyekAktif || [];
+  const laporanTerbaru = dashboardData?.laporanTerbaru || [];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -158,8 +82,6 @@ export default function DashboardUtama() {
           <div className="space-y-1">
             <p className="text-blue-600 dark:text-blue-400">Target Rencana: <span className="font-mono font-bold">{payload[0].value}%</span></p>
             <p className="text-emerald-600 dark:text-emerald-400">Realisasi Aktual: <span className="font-mono font-bold">{payload[1].value}%</span></p>
-            
-            {/* SEMBUNYIKAN INFO DEVIASI (BISA NEGATIF) DARI TAMU */}
             {!isGuest && (
               <p className={`pt-1 border-t border-slate-100 dark:border-slate-700/50 mt-1 ${payload[0].payload.deviasi < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 Deviasi Progres: <span className="font-mono font-bold">{payload[0].payload.deviasi > 0 ? '+' : ''}{payload[0].payload.deviasi}%</span>
@@ -172,31 +94,29 @@ export default function DashboardUtama() {
     return null;
   };
 
-  if (isLoading) {
+  // Hanya tampil saat pertama kali membuka web dan belum ada data cache sama sekali
+  if (isLoading && !dashboardData) {
     return (
-      <div className="flex flex-col items-center justify-center p-20 w-full h-[60vh] bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+      <div className="flex flex-col items-center justify-center p-20 w-full h-[60vh] bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm animate-fade-in">
         <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
-        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Menyinkronkan Data Server...</p>
-        <p className="text-xs text-slate-400 mt-1">Mengalkulasi progress fisik dan status proyek.</p>
+        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Menyinkronkan Dashboard...</p>
       </div>
     );
   }
 
-  // Dinamis grid class untuk KPI Cards berdasarkan akses
   const visibleKpiCount = 1 + (canViewFinance ? 1 : 0) + (!isGuest ? 2 : 0);
   const gridClass = visibleKpiCount === 4 ? 'lg:grid-cols-4' : visibleKpiCount === 3 ? 'lg:grid-cols-3' : visibleKpiCount === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-1';
 
   return (
-    <div className="w-full space-y-6 pb-20 relative">
+    <div className="w-full space-y-6 pb-20 relative animate-fade-in">
       
-      {/* --- HEADER DASHBOARD --- */}
+      {/* HEADER DASHBOARD */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-       <div>
+        <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide">Executive Dashboard</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Ringkasan portofolio pengawasan, progress fisik, dan laporan harian</p>
         </div>
         
-        {/* TAMPILKAN TOMBOL ACTION HANYA JIKA ROLE PUNYA AKSES */}
         {canCreateData && (
           <div className="flex gap-2 w-full sm:w-auto">
             <button 
@@ -215,16 +135,15 @@ export default function DashboardUtama() {
         )}
       </div>
 
-      {/* --- KPI CARDS (Dinamis sesuai hak akses) --- */}
+      {/* KPI CARDS */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridClass} gap-4`}>
         
-        {/* Card 1: Total Proyek (Semua Bisa Lihat) */}
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-amber-500/50 transition-colors">
           <div className="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
             <Building2 className="w-16 h-16 text-amber-500" />
           </div>
           <div className="relative z-10">
-            <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">Proyek Di Kelola</span>
+            <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">Proyek Dikelola</span>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-3xl font-extrabold text-slate-800 dark:text-white">{kpiData.totalProyek}</span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-500/20">Data Aktif</span>
@@ -232,9 +151,8 @@ export default function DashboardUtama() {
           </div>
         </div>
 
-        {/* Card 2: Nilai Kontrak (Sembunyikan dari Pengawas & Tamu) */}
         {canViewFinance && (
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors animate-fade-in">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
             <div className="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
               <DollarSign className="w-16 h-16 text-emerald-500" />
             </div>
@@ -248,9 +166,8 @@ export default function DashboardUtama() {
           </div>
         )}
 
-        {/* Card 3: Rata-rata Deviasi (Sembunyikan dari Tamu) */}
         {!isGuest && (
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-blue-500/50 transition-colors animate-fade-in">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-blue-500/50 transition-colors">
             <div className="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
               <Activity className="w-16 h-16 text-blue-500" />
             </div>
@@ -268,9 +185,8 @@ export default function DashboardUtama() {
           </div>
         )}
 
-        {/* Card 4: Proyek Kritis (Sembunyikan dari Tamu) */}
         {!isGuest && (
-          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-rose-500/50 transition-colors animate-fade-in">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-5 rounded-2xl shadow-sm relative overflow-hidden group hover:border-rose-500/50 transition-colors">
             <div className="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
               <AlertTriangle className="w-16 h-16 text-rose-500" />
             </div>
@@ -291,10 +207,10 @@ export default function DashboardUtama() {
         )}
       </div>
 
-      {/* --- MAIN CONTENT AREA (Chart & Lists) --- */}
+      {/* GRAFIK & FEED LAPORAN */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* KIRI: GRAFIK PROGRESS PORTOFOLIO */}
+        {/* KIRI: GRAFIK PROGRESS */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 md:p-5 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
             <div>
@@ -329,7 +245,7 @@ export default function DashboardUtama() {
           </div>
         </div>
 
-        {/* KANAN: FEED LAPORAN HARIAN TERKINI */}
+        {/* KANAN: FEED LAPORAN HARIAN */}
         <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 md:p-5 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
             <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -352,10 +268,8 @@ export default function DashboardUtama() {
                   <div className="text-[10px] text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mb-2 font-medium">
                     <MapPin className="w-3 h-3 shrink-0 text-rose-500" /> <span className="truncate">{lap.proyek}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-500">
+                  <div className="flex items-center justify-between text-[9px] text-slate-500">
                     <span className="flex items-center gap-1 font-medium"><Calendar className="w-3 h-3 text-blue-500" /> {lap.tanggal}</span>
-                    
-                    {/* INFO JUMLAH KEGIATAN */}
                     <span className="bg-slate-100 dark:bg-slate-900/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-semibold flex items-center gap-1">
                       <ListTodo className="w-3 h-3 text-amber-500" /> {lap.jumlahKegiatan} Kegiatan
                     </span>
@@ -373,7 +287,7 @@ export default function DashboardUtama() {
 
       </div>
 
-      {/* --- TABEL STATUS PROYEK AKTIF --- */}
+      {/* TABEL STATUS PROYEK AKTIF */}
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 md:p-5 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -384,7 +298,7 @@ export default function DashboardUtama() {
           </span>
         </div>
 
-        {/* Tampilan Mobile: Kartu Bersusun */}
+        {/* Mobile: Kartu */}
         <div className="block sm:hidden p-4 space-y-4">
           {proyekAktif.length === 0 ? <p className="text-center text-xs text-slate-500 italic py-4">Belum ada proyek.</p> : proyekAktif.map((proyek) => {
             const isKritis = !isGuest && (proyek.status === 'Kritis' || proyek.status === 'Terlambat');
@@ -401,7 +315,6 @@ export default function DashboardUtama() {
                     <span className={`font-mono font-bold ${isBelumMulai ? 'text-slate-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{proyek.progress}%</span>
                   </div>
                   
-                  {/* SEMBUNYIKAN DEVIASI DARI TAMU */}
                   {!isGuest && (
                     <div className="flex flex-col items-center">
                       <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold mb-0.5">Deviasi</span>
@@ -411,12 +324,11 @@ export default function DashboardUtama() {
                     </div>
                   )}
 
-                  {/* SEMBUNYIKAN STATUS DARI TAMU */}
                   {!isGuest && (
                     <div className="flex flex-col items-end">
                       <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 font-bold">Status</span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${isBelumMulai ? 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600' : isKritis ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'}`}>
-                        {isKritis ? <AlertTriangle className="w-3 h-3" /> : isBelumMulai ? <Clock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                        {isKritis ? <AlertTriangle className="w-3.5 h-3.5" /> : isBelumMulai ? <Clock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                         {proyek.status}
                       </span>
                     </div>
@@ -427,15 +339,13 @@ export default function DashboardUtama() {
           })}
         </div>
 
-        {/* Tampilan Desktop: Tabel Standard */}
+        {/* Desktop: Tabel */}
         <div className="hidden sm:block overflow-x-auto">
           <table className={`w-full text-left border-collapse table-fixed ${isGuest ? 'min-w-[500px]' : 'min-w-[800px]'}`}>
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className={`p-4 ${isGuest ? 'w-[60%]' : 'w-[40%]'}`}>Nama Proyek</th>
                 <th className="p-4 text-center w-[20%]">Progress (Actual)</th>
-                
-                {/* SEMBUNYIKAN KOLOM DEVIASI & STATUS DARI TAMU */}
                 {!isGuest && (
                   <>
                     <th className="p-4 text-center w-[20%]">Deviasi Akhir</th>
@@ -459,8 +369,6 @@ export default function DashboardUtama() {
                         <span className={`font-mono font-bold ${isBelumMulai ? 'text-slate-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{proyek.progress}%</span>
                       </div>
                     </td>
-
-                    {/* SEMBUNYIKAN ISI DEVIASI & STATUS DARI TAMU */}
                     {!isGuest && (
                       <>
                         <td className="p-4 text-center">
