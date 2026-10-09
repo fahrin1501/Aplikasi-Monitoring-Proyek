@@ -324,25 +324,12 @@ class ProjectScheduleController extends Controller
     {
         try {
             $exportData = $this->prepareExportData($projectId, $request);
-
-            $imagePath = null;
-            if ($request->has('chart_image') && !empty($request->chart_image)) {
-                $imageParts = explode(";base64,", $request->chart_image);
-                if (count($imageParts) === 2) {
-                    $decoded = base64_decode($imageParts[1]);
-                    // Gunakan temp directory sistem agar aman dari batasan storage Railway
-                    $tempFilePath = sys_get_temp_dir() . '/chart_' . time() . '_' . uniqid() . '.jpg';
-                    if (file_put_contents($tempFilePath, $decoded) !== false) {
-                        $imagePath = $tempFilePath;
-                    }
-                }
-            }
-
             $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
-            $export = new KurvaExport($exportData, $imagePath);
 
+            $export = new KurvaExport($exportData);
             return Excel::download($export, "KurvaS_Matriks_{$safeName}.xlsx");
         } catch (Throwable $e) {
+            \Log::error("Error Export Excel: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal export Excel: ' . $e->getMessage() . ' di baris ' . $e->getLine()
