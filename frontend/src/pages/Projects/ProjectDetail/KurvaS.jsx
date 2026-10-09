@@ -518,34 +518,38 @@ export default function KurvaS({ selectedProject }) {
           </div>
         </div>
 
-        {/* CONTAINER KEDUA BOKS (SIMETRIS & RESPONSIVE) */}
+        {/* CONTAINER KEDUA BOKS */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           
-          {/* BOKS KIRI: KONTROL AKSI & EKSPOR */}
+          {/* BOKS KIRI: KONTROL AKSI & EKSPOR (DENGAN WARNA MASING-MASING) */}
           <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all shrink-0">
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
                 <button 
                   disabled={isLoading || isScheduleEmpty} 
                   onClick={() => setShowFilterPopup(!showFilterPopup)} 
-                  className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  className={`flex items-center justify-center gap-1.5 px-2 sm:px-2.5 h-7 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-purple-50 dark:bg-purple-500/10 border-purple-300 dark:border-purple-500/30 text-purple-600 dark:text-purple-400' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-600 dark:hover:text-purple-400'}`}
                 >
-                  <Filter className="w-3.5 h-3.5 shrink-0" /> 
+                  <Filter className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" /> 
                   <span>Filter</span>
                 </button>
                 {showFilterPopup && (
                   <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Skala Tampilan Sumbu X</h4>
                     <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-4 shadow-inner border border-slate-200 dark:border-slate-700/50">
-                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>{mode}</button>)}
+                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => (
+                        <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                          {mode}
+                        </button>
+                      ))}
                     </div>
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Rentang Waktu (Opsional)</h4>
                     <div className="flex flex-col gap-2.5">
-                      <div className="space-y-1"><label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label><input type="date" min={projectBounds.start} max={endDateFilter || projectBounds.end} value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" /></div>
-                      <div className="space-y-1"><label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label><input type="date" min={startDateFilter || projectBounds.start} max={projectBounds.end} value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner [color-scheme:light_dark]" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-medium text-slate-500">Mulai Tanggal</label><input type="date" min={projectBounds.start} max={endDateFilter || projectBounds.end} value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-inner [color-scheme:light_dark]" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-medium text-slate-500">Sampai Tanggal</label><input type="date" min={startDateFilter || projectBounds.start} max={projectBounds.end} value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-inner [color-scheme:light_dark]" /></div>
                       <div className="flex gap-2 mt-1">
                         {(startDateFilter || endDateFilter) && <button onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs shadow-sm transition-colors">Reset</button>}
-                        <button onClick={() => setShowFilterPopup(false)} className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Tutup</button>
+                        <button onClick={() => setShowFilterPopup(false)} className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-sm transition-colors">Tutup</button>
                       </div>
                     </div>
                   </div>
@@ -554,7 +558,7 @@ export default function KurvaS({ selectedProject }) {
             )}
             
             {canCreateData && isEditMode && (
-              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap">
+              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap">
                 <X className="w-3.5 h-3.5 shrink-0" /> <span>Batal</span>
               </button>
             )}
@@ -563,9 +567,9 @@ export default function KurvaS({ selectedProject }) {
               <button 
                 onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} 
                 disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} 
-                className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}
+                className={`flex items-center justify-center gap-1.5 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400'}`}
               >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : (isEditMode ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Edit3 className="w-3.5 h-3.5 shrink-0" />)} 
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-blue-500" /> : (isEditMode ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-white" /> : <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />)} 
                 <span>{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan' : 'Edit')}</span>
               </button>
             )}
@@ -582,12 +586,14 @@ export default function KurvaS({ selectedProject }) {
             {!isGuest && !isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
-                  {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 shrink-0" />} 
+                {/* EXCEL: HIJAU */}
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                  {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-emerald-500" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />} 
                   <span>Excel</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-danger-50 dark:hover:bg-danger-500/10 text-slate-600 dark:text-slate-300 hover:text-danger-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
-                  {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 text-danger-500 shrink-0" />} 
+                {/* PDF: MERAH */}
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                  {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-rose-500" /> : <Download className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />} 
                   <span>PDF</span>
                 </button>
               </>
@@ -596,16 +602,16 @@ export default function KurvaS({ selectedProject }) {
 
           {/* BOKS KANAN: NAVIGASI TAB MENU */}
           <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 shrink-0">
-            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Data</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>RAB</span>
             </button>
-            <button className="flex items-center justify-center gap-1 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap cursor-default">
+            <button className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap cursor-default">
               <TrendingUp className="w-3.5 h-3.5 shrink-0" /> <span>Kurva Schedule</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Peta GIS</span>
             </button>
           </div>
@@ -615,9 +621,9 @@ export default function KurvaS({ selectedProject }) {
 
       {(filterMode !== 'Mingguan' || startDateFilter || endDateFilter) && !isEditMode && !isScheduleEmpty && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-200 dark:border-blue-500/20 shadow-sm">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold rounded-lg border border-purple-200 dark:border-purple-500/20 shadow-sm">
             Tampilan Grafik: {getActiveFilterLabel()}
-            <button onClick={() => applyFilter('Semua')} className="hover:bg-blue-200 dark:hover:bg-blue-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
+            <button onClick={() => applyFilter('Semua')} className="hover:bg-purple-200 dark:hover:bg-purple-500/30 p-0.5 rounded-full transition-colors ml-1"><X className="w-3 h-3"/></button>
           </span>
         </div>
       )}
@@ -735,7 +741,7 @@ export default function KurvaS({ selectedProject }) {
 
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6"><div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${exportModal.type === 'excel' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-200' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 border border-amber-200'}`}><Download className="w-6 h-6" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Matriks Schedule</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>.</p><div className="flex gap-3"><button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button><button disabled={isExportingExcel || isExportingPdf} onClick={executeExport} className={`flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-2 transition-all ${exportModal.type === 'excel' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'}`}>{isExportingExcel || isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>} Proses</button></div></div>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6"><div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${exportModal.type === 'excel' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-200' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 border border-rose-200'}`}><Download className="w-6 h-6" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Matriks Schedule</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>.</p><div className="flex gap-3"><button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button><button disabled={isExportingExcel || isExportingPdf} onClick={executeExport} className={`flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-2 transition-all ${exportModal.type === 'excel' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}>{isExportingExcel || isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>} Proses</button></div></div>
         </div>
       )}
     </div>
