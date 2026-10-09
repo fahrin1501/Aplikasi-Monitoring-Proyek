@@ -310,7 +310,7 @@ export default function LaporanData() {
     try { await api.delete(`/daily-reports/${reportId}`); alert("Laporan berhasil dihapus permanen."); navigate('/laporan'); } catch (error) { alert("Gagal menghapus laporan."); }
   };
 
-  // FORMAT PEMBERSIH ANGKA NOL (.0000)
+  // Bersihkan format angka nol berlebih (.0000)
   const formatCleanNumber = (val) => {
     if (val === null || val === undefined || val === '') return 0;
     const num = parseFloat(val);
@@ -323,7 +323,6 @@ export default function LaporanData() {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('id-ID', options);
 
-    // MENGGANTI PERSENTASE DENGAN STA DAN MEMBERSIHKAN ANGKA NOL PADA VOLUME
     let pekerjaanText = reportData.activities?.length 
       ? reportData.activities.map((act, idx) => {
           const cleanVolume = formatCleanNumber(act.volume);
@@ -374,98 +373,180 @@ export default function LaporanData() {
   const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
 
   return (
-    <div className="w-full space-y-5 md:space-y-6 relative pb-20 animate-fade-in">
+    <div className="w-full space-y-3.5 pb-2 relative animate-fade-in">
 
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 shrink-0 mb-2">
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
+      `}</style>
+
+      {/* HEADER UTAMA & DUA BOKS KONTROL */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
+        
+        {/* INFORMASI & JUDUL LAPORAN */}
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <button onClick={() => navigate('/laporan')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all cursor-pointer shadow-sm">
-            <ArrowLeft className="w-5 h-5" />
+          <button 
+            onClick={() => navigate('/laporan')} 
+            className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0 cursor-pointer"
+            title="Kembali ke Daftar Laporan"
+          >
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
-                Detail Laporan Harian
-                {isEditMode && <span className="px-2 py-0.5 ml-1 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
-              </h1>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 font-mono font-bold">LAP/{reportData.tanggal.replace(/-/g, '/')}/00{reportData.id}</p>
-              
+            <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
+              <span>Detail Laporan Harian</span>
+              {isEditMode && (
+                <span className="px-2 py-0.5 ml-1 text-[9px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 dark:border-blue-500/30 font-extrabold tracking-wider shadow-sm">
+                  DRAFT MODE
+                </span>
+              )}
+            </h1>
+            <div className="flex items-center flex-wrap gap-1.5 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <span className="font-mono font-bold">LAP/{reportData.tanggal.replace(/-/g, '/')}/00{reportData.id}</span>
+              <span className="text-slate-400">•</span>
+              <span className="truncate font-medium">{reportData.project?.nama_proyek || 'Proyek'}</span>
               {!isEditMode && (
-                displayStatus === 'approved' ? <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Disetujui</span>
-                : displayStatus === 'rejected' ? <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Ditolak</span>
-                : <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-sm">Pending</span>
+                <>
+                  <span className="text-slate-400">•</span>
+                  {displayStatus === 'approved' ? (
+                    <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-1.5 py-0.2 rounded font-bold uppercase tracking-wider shadow-sm">
+                      Disetujui
+                    </span>
+                  ) : displayStatus === 'rejected' ? (
+                    <span className="text-[9px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-1.5 py-0.2 rounded font-bold uppercase tracking-wider shadow-sm">
+                      Ditolak
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-1.5 py-0.2 rounded font-bold uppercase tracking-wider shadow-sm">
+                      Pending
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
 
+        {/* CONTAINER KONTROL: BERTUMPUK DI MOBILE & TABLET, SEJAJAR DI DESKTOP */}
         {!isGuest && (
-          <div className="flex items-center w-full xl:w-auto">
-            <div className="flex flex-wrap items-center justify-start gap-1.5 w-full bg-white dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+            
+            {/* BOKS AKSI: KETINGGIAN h-10 DENGAN TOMBOL h-7 */}
+            <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-30 transition-all shrink-0">
               
               {isEditMode ? (
                 <>
-                  <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-lg transition-all border border-slate-300 dark:border-slate-600 whitespace-nowrap shadow-sm">
-                    <X className="w-3.5 h-3.5" /> <span>Batal</span>
+                  <button 
+                    onClick={toggleEditMode} 
+                    className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0 shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" /> 
+                    <span>Batal</span>
                   </button>
-                  <button onClick={handleSaveChanges} disabled={isSaving} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 whitespace-nowrap">
-                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} <span>Simpan Perubahan</span>
+
+                  <button 
+                    onClick={handleSaveChanges} 
+                    disabled={isSaving} 
+                    className="flex items-center justify-center gap-1.5 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700 text-white shrink-0 disabled:opacity-50"
+                  >
+                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-white" /> : <Save className="w-3.5 h-3.5 shrink-0 text-white" />} 
+                    <span>Simpan Perubahan</span>
                   </button>
                 </>
               ) : (
                 <>
+                  {/* TOMBOL VERIFIKASI / STATUS */}
                   {canVerify && displayStatus === 'pending' ? (
                     <>
-                      <button onClick={handleRejectLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
-                        <X className="w-3.5 h-3.5" /> <span>Tolak Laporan</span>
+                      <button 
+                        onClick={handleRejectLaporan} 
+                        className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-[11px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5 shrink-0" /> 
+                        <span>Tolak</span>
                       </button>
-                      <button onClick={handleVerifyLaporan} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> <span>Verifikasi Laporan</span>
+                      <button 
+                        onClick={handleVerifyLaporan} 
+                        className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] sm:text-[11px] font-bold rounded-lg transition-all shadow-sm whitespace-nowrap shrink-0"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> 
+                        <span>Verifikasi</span>
                       </button>
+                      <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                     </>
                   ) : displayStatus === 'approved' ? (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> <span>Telah Disetujui</span>
+                    <div className="flex items-center justify-center gap-1 h-7 px-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[10px] sm:text-[11px] font-bold rounded-lg cursor-default whitespace-nowrap shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> 
+                      <span>Disetujui</span>
                     </div>
                   ) : displayStatus === 'rejected' ? (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
-                      <X className="w-3.5 h-3.5" /> <span>Telah Ditolak</span>
+                    <div className="flex items-center justify-center gap-1 h-7 px-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[10px] sm:text-[11px] font-bold rounded-lg cursor-default whitespace-nowrap shrink-0">
+                      <X className="w-3.5 h-3.5 shrink-0" /> 
+                      <span>Ditolak</span>
                     </div>
                   ) : (
-                    <div className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold rounded-lg cursor-default whitespace-nowrap">
-                      <Clock className="w-3.5 h-3.5" /> <span>Menunggu Verifikasi</span>
+                    <div className="flex items-center justify-center gap-1 h-7 px-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] sm:text-[11px] font-bold rounded-lg cursor-default whitespace-nowrap shrink-0">
+                      <Clock className="w-3.5 h-3.5 shrink-0" /> 
+                      <span>Pending</span>
                     </div>
                   )}
 
-                  <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-
+                  {/* TOMBOL EDIT & HAPUS (KHUSUS PEMBUAT DATA) */}
                   {canCreateData && (
                     <>
-                      <button onClick={toggleEditMode} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
-                        <Edit3 className="w-3.5 h-3.5" /> <span>Mode Edit Draf</span>
+                      <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+                      <button 
+                        onClick={toggleEditMode} 
+                        className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" /> 
+                        <span>Edit</span>
                       </button>
-                      <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
-                        <Trash2 className="w-3.5 h-3.5" /> <span>Hapus</span>
+                      <button 
+                        onClick={() => setShowDeleteConfirm(true)} 
+                        className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" /> 
+                        <span>Hapus</span>
                       </button>
-                      <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
                     </>
                   )}
-                  
-                  <button onClick={handleCopyText} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] font-bold rounded-lg transition-all whitespace-nowrap">
-                    <Copy className="w-3.5 h-3.5 text-blue-500" /> <span>Copy Text</span>
+
+                  {/* TOMBOL COPY (UNGU) */}
+                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+                  <button 
+                    onClick={handleCopyText} 
+                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" /> 
+                    <span>Copy</span>
                   </button>
 
-                  <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
-                    {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} 
-                    <span>{isExportingExcel ? 'Memproses...' : 'Export Excel'}</span>
+                  {/* TOMBOL EXCEL (HIJAU) */}
+                  <button 
+                    onClick={handleExportExcel} 
+                    disabled={isExportingExcel} 
+                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap shrink-0"
+                  >
+                    {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500 shrink-0" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />} 
+                    <span>Excel</span>
                   </button>
-                  <button onClick={handleExportPdf} disabled={isExportingPdf} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2 px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
-                    {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 
-                    <span>{isExportingPdf ? 'Memproses...' : 'Export PDF'}</span>
+
+                  {/* TOMBOL PDF (MERAH) */}
+                  <button 
+                    onClick={handleExportPdf} 
+                    disabled={isExportingPdf} 
+                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all disabled:opacity-50 whitespace-nowrap shrink-0"
+                  >
+                    {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500 shrink-0" /> : <Download className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />} 
+                    <span>PDF</span>
                   </button>
                 </>
               )}
+
             </div>
           </div>
         )}
