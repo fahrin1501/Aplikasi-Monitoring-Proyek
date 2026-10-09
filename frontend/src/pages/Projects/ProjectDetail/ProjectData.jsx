@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import api from '../../../api'; 
 import { 
   Calendar, MapPin, DollarSign, HardHat, 
@@ -21,32 +21,34 @@ export default function ProjectData() {
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [project, setProject] = useState(initialProject);
   const projectId = project?.id || id;
+  const projectData = project; // Alias untuk konsistensi penamaan
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // State Progres Fisik S-Curve (Ditangkap dari Backend)
+  // State Progres Fisik S-Curve
   const [progressData, setProgressData] = useState({ plan: 0, actual: 0, deviasi: 0 });
 
-  // State Edit Mode Utama (Inline)
+  // State Edit Mode Utama
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const [isSavingMain, setIsSavingMain] = useState(false);
+  const isSaving = isSavingMain; // Alias
 
   // State Foto Banner
   const [fotoSampul, setFotoSampul] = useState(null);
   const [newFotoPreview, setNewFotoPreview] = useState(null);
   const [removeFoto, setRemoveFoto] = useState(false); 
 
-  // State Personel Modal (Tambah/Edit)
+  // State Personel Modal
   const [showPersonnelModal, setShowPersonnelModal] = useState(false);
   const [personnelForm, setPersonnelForm] = useState({ id: null, nama: '', peran: '' });
   const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
 
-  // State Konfirmasi Hapus Modal (Universal)
+  // State Konfirmasi Hapus Modal
   const [deleteConfig, setDeleteConfig] = useState({ show: false, type: '', id: null, name: '' });
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  // Hak Akses (RBAC)
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
@@ -60,11 +62,12 @@ export default function ProjectData() {
   }, []);
 
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
+  const canEditData = canCreateData;
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const canExportData = ['Administrator', 'Direktur'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- FETCH DATA UTAMA (SANGAT CEPAT KARENA PROGRESS SUDAH DI-INJECT BACKEND) ---
+  // Fetch Data Proyek
   const fetchProjectDetail = async () => {
     setIsLoading(true);
     try {
@@ -74,7 +77,6 @@ export default function ProjectData() {
       setProject(data);
       setEditFormData(data);
 
-      // LANGSUNG TANGKAP DARI BACKEND
       setProgressData({ 
         plan: parseFloat(data.progress_plan) || 0, 
         actual: parseFloat(data.progress_actual) || 0, 
@@ -92,30 +94,17 @@ export default function ProjectData() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
 
-  // --- ROUTING URL FILE ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
-
-  const getImageUrl = (filename) => {
-    if (!filename) return null;
-    if (filename.startsWith('http')) return filename; 
-    return `${BASE_URL}/storage/foto_proyek/${filename}`; 
-  };
 
   const getDocUrl = (path) => {
     if (!path) return '#';
     if (path.startsWith('http')) return path;
     return `${BASE_URL}/${path.replace(/^\//, '')}`;
   };
-  // ------------------------------------------------------
 
   const formatDateForInput = (val) => val ? String(val).substring(0, 10) : '';
 
   const handleMainChange = (e) => setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
-
-  const handleFotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) { setFotoSampul(file); setNewFotoPreview(URL.createObjectURL(file)); setRemoveFoto(false); }
-  };
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -152,6 +141,8 @@ export default function ProjectData() {
   };
 
   const cancelEditMode = () => { setEditFormData(project); setIsEditMode(false); setFotoSampul(null); setNewFotoPreview(null); setRemoveFoto(false); };
+  const cancelEdit = cancelEditMode;
+  const handleSaveProject = toggleEditMode;
 
   const openPersonnelModal = (person = null) => {
     if (person) setPersonnelForm({ id: person.id, nama: person.nama, peran: person.peran });
@@ -182,7 +173,6 @@ export default function ProjectData() {
     } catch (error) { alert("Gagal upload dokumen."); }
   };
 
-  const confirmDeleteProject = () => setDeleteConfig({ show: true, type: 'project', id: projectId, name: project.nama_proyek });
   const confirmDeletePersonnel = (personId, personName) => setDeleteConfig({ show: true, type: 'personnel', id: personId, name: personName });
   const confirmDeleteDocument = (docId, docName) => setDeleteConfig({ show: true, type: 'document', id: docId, name: docName });
 
@@ -215,32 +205,27 @@ export default function ProjectData() {
     } catch (error) { alert("Gagal export PDF."); }
   };
 
-  // Kalkulasi Indikator Progres
+  // Indikator Progres
   const progressPlan = progressData.plan.toFixed(2); 
   const progressReal = progressData.actual.toFixed(2);
   const rawDeviasi = progressData.deviasi;
   const deviasi = rawDeviasi > 0 ? `+${rawDeviasi.toFixed(2)}` : rawDeviasi.toFixed(2);
   
-  // Karena backend sudah memberikan status, kita langsung gunakan
   const calculatedStatus = project?.status || 'Persiapan';
   const displayStatus = (isGuest && (calculatedStatus === 'Kritis' || calculatedStatus === 'Terlambat')) ? 'Berjalan' : calculatedStatus;
   const isActuallyDelayed = calculatedStatus === 'Kritis' || calculatedStatus === 'Terlambat';
 
   return (
-    <div className="w-full space-y-5 relative pb-20">
+    <div className="w-full space-y-3.5 pb-2 relative">
       
-      {/* Kustomisasi Scrollbar Global untuk halaman ini */}
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* ========================================== */}
-      {/* 1. HEADER NAVIGASI (Selalu Tampil)           */}
-      {/* ========================================== */}
       {/* HEADER UTAMA & DUA BOKS KONTROL */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
         
@@ -257,32 +242,32 @@ export default function ProjectData() {
             </h1>
             
             <div className="flex items-center flex-wrap gap-1 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-              <span className="truncate font-medium">{projectData?.nama_proyek || 'Memuat Data...'}</span>
+              <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
               <span className="text-slate-400">•</span>
               <span className="truncate">
-                SPK: {projectData?.kode_kontrak || projectData?.nomor_kontrak_kontraktor || '-'}
+                SPK: {project?.kode_kontrak || project?.nomor_kontrak_kontraktor || '-'}
               </span>
               <span className="text-slate-400">•</span>
-              <span className={`px-1.5 py-0.2 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
-                {projectData?.kategori || 'Belum Ditentukan'}
+              <span className={`px-1.5 py-0.2 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>
+                {project?.kategori || 'Belum Ditentukan'}
               </span>
             </div>
           </div>
         </div>
 
         {/* CONTAINER KONTROL: BERTUMPUK DI MOBILE & TABLET, SEJAJAR DI DESKTOP */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           
-          {/* BOKS KIRI: KONTROL AKSI (EDIT: BIRU, BATAL, SIMPAN) */}
-          {canEditData && (
-            <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all w-full lg:w-auto">
-              {isEditMode ? (
+          {/* BOKS KIRI: KONTROL AKSI (EDIT: BIRU, BATAL, SIMPAN, EXCEL: HIJAU, PDF: MERAH) */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-30 transition-all shrink-0">
+            {canEditData && (
+              isEditMode ? (
                 <>
                   <button 
                     type="button"
                     onClick={cancelEdit} 
                     disabled={isSaving || isLoading} 
-                    className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <X className="w-3.5 h-3.5 shrink-0" /> 
                     <span>Batal</span>
@@ -292,7 +277,7 @@ export default function ProjectData() {
                     type="button"
                     onClick={handleSaveProject} 
                     disabled={isSaving || isLoading} 
-                    className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700 text-white shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700 text-white shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSaving ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-white" />
@@ -307,21 +292,44 @@ export default function ProjectData() {
                   type="button"
                   onClick={() => setIsEditMode(true)} 
                   disabled={isLoading} 
-                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" /> 
                   <span>Edit Data</span>
                 </button>
-              )}
-            </div>
-          )}
+              )
+            )}
+
+            {!isEditMode && canExportData && (
+              <>
+                <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
+                <button 
+                  type="button"
+                  onClick={handleExportExcel}
+                  disabled={isLoading}
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                  <span>Excel</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleExportPDF}
+                  disabled={isLoading}
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
+                  <span>PDF</span>
+                </button>
+              </>
+            )}
+          </div>
 
           {/* BOKS KANAN: NAVIGASI TAB MENU (TAB DATA AKTIF ORANYE AMBER) */}
-          <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 w-full lg:w-auto">
-            {/* TAB DATA UTAMA (AKTIF) */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 shrink-0">
             <button 
               type="button"
-              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-default"
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-default"
             >
               <Info className="w-3.5 h-3.5 shrink-0" /> 
               <span>Data</span>
@@ -331,8 +339,8 @@ export default function ProjectData() {
               <>
                 <button 
                   type="button"
-                  onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} 
-                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+                  onClick={() => navigate(`/projects/${id}/rab`, { state: project })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
                   <span>RAB</span>
@@ -340,8 +348,8 @@ export default function ProjectData() {
 
                 <button 
                   type="button"
-                  onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} 
-                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+                  onClick={() => navigate(`/projects/${id}/kurva-s`, { state: project })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
                 >
                   <TrendingUp className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
                   <span>Kurva Schedule</span>
@@ -351,8 +359,8 @@ export default function ProjectData() {
 
             <button 
               type="button"
-              onClick={() => navigate(`/projects/${id}/peta-gis`, { state: projectData })} 
-              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+              onClick={() => navigate(`/projects/${id}/peta-gis`, { state: project })} 
+              className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
             >
               <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
               <span>Peta GIS</span>
@@ -362,9 +370,7 @@ export default function ProjectData() {
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 2. LOADING STATE VS KONTEN UTAMA             */}
-      {/* ========================================== */}
+      {/* LOADING STATE VS KONTEN UTAMA */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
@@ -408,7 +414,7 @@ export default function ProjectData() {
             </div>
           </div>
 
-          {/* Section 2: Data Kontrak & Administrasi (Baris 1) */}
+          {/* Section 2: Data Kontrak & Administrasi */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className={`bg-white dark:bg-slate-800/60 border p-4 md:p-5 rounded-2xl space-y-4 relative shadow-sm transition-all ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
               <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
@@ -483,7 +489,7 @@ export default function ProjectData() {
             </div>
           </div>
 
-          {/* Section 3: Stakeholders & Personel Lapangan (Baris 2) */}
+          {/* Section 3: Stakeholders & Personel Lapangan */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className={`bg-white dark:bg-slate-800/60 border p-4 md:p-5 rounded-2xl space-y-4 relative shadow-sm transition-all flex flex-col ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
               <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-3">
@@ -545,7 +551,7 @@ export default function ProjectData() {
             </div>
           </div>
 
-          {/* Section 4: Dokumen Administrasi & Deskripsi (Baris 3) */}
+          {/* Section 4: Dokumen Administrasi & Deskripsi */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className={`bg-white dark:bg-slate-800/60 border p-4 md:p-5 rounded-2xl space-y-4 relative shadow-sm transition-all flex flex-col ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
               <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3 gap-2">
@@ -604,9 +610,7 @@ export default function ProjectData() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: TAMBAH / EDIT PERSONEL               */}
-      {/* ========================================== */}
+      {/* MODAL PERSONEL */}
       {showPersonnelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -640,9 +644,7 @@ export default function ProjectData() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODAL: KONFIRMASI HAPUS (UNIVERSAL)          */}
-      {/* ========================================== */}
+      {/* MODAL KONFIRMASI HAPUS */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6" onClick={e => e.stopPropagation()}>
