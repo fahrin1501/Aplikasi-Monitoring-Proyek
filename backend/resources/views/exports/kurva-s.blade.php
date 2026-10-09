@@ -3,39 +3,40 @@
 @endphp
 
 @if(!empty($isExcel))
-    {{-- ========================================================================= --}}
-    {{-- KHUSUS EXCEL: 1 TABEL TUNGGAL MURNI DATA & HEADER                        --}}
-    {{-- ========================================================================= --}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Kurva S &amp; Matriks Proyek</title>
+</head>
+<body>
     <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px;">
-        <!-- KOP PROYEK -->
-        <tr>
-            <th colspan="{{ count($localWeeks) + 4 }}" style="text-align: center; font-size: 14px; font-weight: bold; height: 35px; border: none;">
-                KURVA S & MATRIKS WAKTU REALISASI PROYEK
-            </th>
-        </tr>
-        <tr>
-            <th colspan="{{ count($localWeeks) + 4 }}" style="text-align: center; font-size: 11px; font-weight: normal; color: #475569; height: 25px; border: none;">
-                {{ $project->nama_proyek ?? 'PROYEK' }}
-            </th>
-        </tr>
-        <tr>
-            <td style="font-weight: bold; width: 120px; border: none;">Lokasi</td>
-            <td colspan="2" style="border: none;">: {{ $project->lokasi ?? '-' }}</td>
-            <td style="font-weight: bold; border: none;">Tahun Anggaran</td>
-            <td colspan="{{ max(1, count($localWeeks)) }}" style="border: none;">: {{ $project->tahun_anggaran ?? '-' }}</td>
-        </tr>
-        <tr>
-            <td style="font-weight: bold; border: none;">No. Kontrak / SPK</td>
-            <td colspan="2" style="border: none;">: {{ $project->kode_kontrak ?? '-' }}</td>
-            <td style="font-weight: bold; border: none;">Total Nilai RAB</td>
-            <td colspan="{{ max(1, count($localWeeks)) }}" style="border: none;">: Rp {{ number_format($grandTotalRAB ?? 0, 0, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td colspan="{{ count($localWeeks) + 4 }}" style="height: 12px; border: none;"></td>
-        </tr>
-
-        <!-- HEADER MATRIKS -->
         <thead>
+            <tr>
+                <th colspan="{{ count($localWeeks) + 4 }}" style="text-align: center; font-size: 14px; font-weight: bold; height: 35px;">
+                    KURVA S &amp; MATRIKS WAKTU REALISASI PROYEK
+                </th>
+            </tr>
+            <tr>
+                <th colspan="{{ count($localWeeks) + 4 }}" style="text-align: center; font-size: 11px; font-weight: normal; color: #475569; height: 25px;">
+                    {{ $project->nama_proyek ?? 'PROYEK' }}
+                </th>
+            </tr>
+            <tr>
+                <th style="font-weight: bold; width: 120px; text-align: left;">Lokasi</th>
+                <th colspan="2" style="font-weight: normal; text-align: left;">: {{ $project->lokasi ?? '-' }}</th>
+                <th style="font-weight: bold; text-align: left;">Tahun Anggaran</th>
+                <th colspan="{{ max(1, count($localWeeks)) }}" style="font-weight: normal; text-align: left;">: {{ $project->tahun_anggaran ?? '-' }}</th>
+            </tr>
+            <tr>
+                <th style="font-weight: bold; text-align: left;">No. Kontrak / SPK</th>
+                <th colspan="2" style="font-weight: normal; text-align: left;">: {{ $project->kode_kontrak ?? '-' }}</th>
+                <th style="font-weight: bold; text-align: left;">Total Nilai RAB</th>
+                <th colspan="{{ max(1, count($localWeeks)) }}" style="font-weight: normal; text-align: left;">: Rp {{ number_format($grandTotalRAB ?? 0, 0, ',', '.') }}</th>
+            </tr>
+            <tr>
+                <th colspan="{{ count($localWeeks) + 4 }}" style="height: 15px;"></th>
+            </tr>
             <tr bgcolor="#f1f5f9">
                 <th style="width: 70px; text-align: center; font-weight: bold;">Kode</th>
                 <th style="width: 280px; text-align: left; font-weight: bold;">Uraian Pekerjaan</th>
@@ -46,8 +47,6 @@
                 <th style="width: 80px; text-align: right; font-weight: bold; color: #047857;">Kumulatif</th>
             </tr>
         </thead>
-
-        <!-- DATA ITEM & KATEGORI -->
         <tbody>
             @foreach($rabData as $cat)
                 <tr bgcolor="#e2e8f0">
@@ -83,8 +82,6 @@
                 @endforeach
             @endforeach
         </tbody>
-
-        <!-- FOOTER TOTAL & TARGET -->
         <tfoot>
             <tr bgcolor="#ecfdf5">
                 <td colspan="3" align="right" style="font-weight: bold; color: #047857;">TOTAL REALISASI / AKTUAL (%)</td>
@@ -106,10 +103,9 @@
             </tr>
         </tfoot>
     </table>
+</body>
+</html>
 @else
-    {{-- ========================================================================= --}}
-    {{-- KHUSUS PDF: DENGAN GRAFIK KURVA S DAN SPLIT TABEL PER 10 MINGGU          --}}
-    {{-- ========================================================================= --}}
     @php
         $weeksCollection = collect($localWeeks);
         $weekChunks = $weeksCollection->chunk(10);
@@ -118,7 +114,7 @@
     <html lang="id">
     <head>
         <meta charset="UTF-8">
-        <title>Kurva S & Matriks Proyek</title>
+        <title>Kurva S &amp; Matriks Proyek</title>
         <style>
             @page {
                 size: a4 landscape;
@@ -150,7 +146,7 @@
     <body>
         <table border="0" class="info-table">
             <tr>
-                <td colspan="6" class="header-title">KURVA S & MATRIKS WAKTU REALISASI PROYEK</td>
+                <td colspan="6" class="header-title">KURVA S &amp; MATRIKS WAKTU REALISASI PROYEK</td>
             </tr>
             <tr>
                 <td colspan="6" class="header-sub">{{ $project->nama_proyek ?? 'PROYEK' }}</td>

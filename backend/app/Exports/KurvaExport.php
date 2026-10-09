@@ -15,7 +15,7 @@ class KurvaExport implements FromView, WithStyles, WithEvents
 {
     protected $data;
 
-    public function __construct(array $data)
+    public function __construct(array $data, ?string $imagePath = null)
     {
         $this->data = $data;
     }
@@ -29,14 +29,12 @@ class KurvaExport implements FromView, WithStyles, WithEvents
 
     public function styles(Worksheet $sheet)
     {
-        // Lebar Kolom Utama
-        $sheet->getColumnDimension('A')->setWidth(14); // Kode
-        $sheet->getColumnDimension('B')->setWidth(48); // Uraian Pekerjaan
-        $sheet->getColumnDimension('C')->setWidth(12); // Bobot (%)
+        $sheet->getColumnDimension('A')->setWidth(14);
+        $sheet->getColumnDimension('B')->setWidth(48);
+        $sheet->getColumnDimension('C')->setWidth(12);
 
-        // Lebar Kolom Mingguan Dinamis (M-1 dst)
         $totalWeeks = isset($this->data['localWeeks']) ? count($this->data['localWeeks']) : 0;
-        $colIndex = 4; // Dimulai dari D
+        $colIndex = 4;
 
         for ($i = 0; $i < $totalWeeks; $i++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
@@ -44,7 +42,6 @@ class KurvaExport implements FromView, WithStyles, WithEvents
             $colIndex++;
         }
 
-        // Kolom Kumulatif Aktual (Terakhir)
         $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
         $sheet->getColumnDimension($lastColLetter)->setWidth(16);
 

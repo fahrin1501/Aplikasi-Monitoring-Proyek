@@ -326,7 +326,6 @@ class ProjectScheduleController extends Controller
             $exportData = $this->prepareExportData($projectId, $request);
             $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
 
-            // Langsung ekspor tabel data murni tanpa gambar
             $export = new KurvaExport($exportData);
             return Excel::download($export, "KurvaS_Matriks_{$safeName}.xlsx");
         } catch (Throwable $e) {
