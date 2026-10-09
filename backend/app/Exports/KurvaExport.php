@@ -29,14 +29,14 @@ class KurvaExport implements FromView, WithStyles, WithEvents
 
     public function styles(Worksheet $sheet)
     {
-        // Lebar kolom A, B, C
+        // Lebar Kolom Utama
         $sheet->getColumnDimension('A')->setWidth(14); // Kode
         $sheet->getColumnDimension('B')->setWidth(48); // Uraian Pekerjaan
         $sheet->getColumnDimension('C')->setWidth(12); // Bobot (%)
 
-        // Lebar kolom mingguan dinamis mulai dari kolom D
+        // Lebar Kolom Mingguan Dinamis (M-1 dst)
         $totalWeeks = isset($this->data['localWeeks']) ? count($this->data['localWeeks']) : 0;
-        $colIndex = 4;
+        $colIndex = 4; // Dimulai dari D
 
         for ($i = 0; $i < $totalWeeks; $i++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);

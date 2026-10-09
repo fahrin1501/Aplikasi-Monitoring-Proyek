@@ -4,10 +4,10 @@
 
 @if(!empty($isExcel))
     {{-- ========================================================================= --}}
-    {{-- 1. STRUKTUR KHUSUS EXCEL: 1 TABEL TUNGGAL (AGAR TIDAK ERROR/CRASH)         --}}
+    {{-- KHUSUS EXCEL: 1 TABEL TUNGGAL MURNI DATA & HEADER                        --}}
     {{-- ========================================================================= --}}
     <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px;">
-        <!-- KOP LAPORAN -->
+        <!-- KOP PROYEK -->
         <tr>
             <th colspan="{{ count($localWeeks) + 4 }}" style="text-align: center; font-size: 14px; font-weight: bold; height: 35px; border: none;">
                 KURVA S & MATRIKS WAKTU REALISASI PROYEK
@@ -31,7 +31,7 @@
             <td colspan="{{ max(1, count($localWeeks)) }}" style="border: none;">: Rp {{ number_format($grandTotalRAB ?? 0, 0, ',', '.') }}</td>
         </tr>
         <tr>
-            <td colspan="{{ count($localWeeks) + 4 }}" style="height: 15px; border: none;"></td>
+            <td colspan="{{ count($localWeeks) + 4 }}" style="height: 12px; border: none;"></td>
         </tr>
 
         <!-- HEADER MATRIKS -->
@@ -47,7 +47,7 @@
             </tr>
         </thead>
 
-        <!-- DATA MATRIKS -->
+        <!-- DATA ITEM & KATEGORI -->
         <tbody>
             @foreach($rabData as $cat)
                 <tr bgcolor="#e2e8f0">
@@ -84,7 +84,7 @@
             @endforeach
         </tbody>
 
-        <!-- FOOTER MATRIKS -->
+        <!-- FOOTER TOTAL & TARGET -->
         <tfoot>
             <tr bgcolor="#ecfdf5">
                 <td colspan="3" align="right" style="font-weight: bold; color: #047857;">TOTAL REALISASI / AKTUAL (%)</td>
@@ -108,7 +108,7 @@
     </table>
 @else
     {{-- ========================================================================= --}}
-    {{-- 2. STRUKTUR KHUSUS PDF: DENGAN CHUNK 10 MINGGU & GRAFIK KURVA S             --}}
+    {{-- KHUSUS PDF: DENGAN GRAFIK KURVA S DAN SPLIT TABEL PER 10 MINGGU          --}}
     {{-- ========================================================================= --}}
     @php
         $weeksCollection = collect($localWeeks);
@@ -148,7 +148,6 @@
         </style>
     </head>
     <body>
-        {{-- KOP LAPORAN --}}
         <table border="0" class="info-table">
             <tr>
                 <td colspan="6" class="header-title">KURVA S & MATRIKS WAKTU REALISASI PROYEK</td>
@@ -170,14 +169,12 @@
             </tr>
         </table>
 
-        {{-- GAMBAR GRAFIK (HALAMAN 1) --}}
         @if(!empty($chartImageBase64))
             <div class="chart-box">
                 <img src="{{ $chartImageBase64 }}" class="chart-img" alt="Grafik Kurva S">
             </div>
         @endif
 
-        {{-- TABEL MATRIKS PER 10 MINGGU --}}
         @foreach($weekChunks as $chunkIndex => $weeksChunk)
             @if($chunkIndex > 0 && $chunkIndex % 2 == 1)
                 <div class="page-break"></div>

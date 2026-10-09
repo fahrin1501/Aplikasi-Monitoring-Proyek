@@ -326,10 +326,11 @@ class ProjectScheduleController extends Controller
             $exportData = $this->prepareExportData($projectId, $request);
             $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
 
+            // Langsung ekspor tabel data murni tanpa gambar
             $export = new KurvaExport($exportData);
             return Excel::download($export, "KurvaS_Matriks_{$safeName}.xlsx");
         } catch (Throwable $e) {
-            \Log::error("Error Export Excel: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
+            \Log::error("Gagal Export Excel: " . $e->getMessage() . " di " . $e->getFile() . ":" . $e->getLine());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal export Excel: ' . $e->getMessage() . ' di baris ' . $e->getLine()

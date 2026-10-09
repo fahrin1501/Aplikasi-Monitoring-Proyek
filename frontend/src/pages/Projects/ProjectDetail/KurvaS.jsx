@@ -439,27 +439,55 @@ export default function KurvaS({ selectedProject }) {
 
   const executeExport = async () => {
     const type = exportModal.type;
-    setExportModal({ show: false, type: '' }); 
-    const chartElement = document.getElementById('chart-area'); 
-    if (!chartElement) return alert("Area grafik tidak ditemukan!");
-    if(type === 'excel') setIsExportingExcel(true); else setIsExportingPdf(true);
+    setExportModal({ show: false, type: '' });
+    
+    if (type === 'excel') {
+      setIsExportingExcel(true);
+    } else {
+      setIsExportingPdf(true);
+    }
 
     try {
-      const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
-      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+      let base64Image = null;
+
+      // HANYA JALANKAN HTML2CANVAS JIKA EKSPOR PDF
+      if (type === 'pdf') {
+        const chartElement = document.getElementById('chart-area');
+        if (!chartElement) return alert("Area grafik tidak ditemukan!");
+        const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
+        base64Image = canvas.toDataURL('image/jpeg', 0.8);
+      }
+
       const response = await api.post(`/projects/${projectId}/export-kurva/${type}`, {
-        chart_image: base64Image, start_date: startDateFilter, end_date: endDateFilter, view_mode: filterMode.toLowerCase()
+        chart_image: base64Image, // Null untuk Excel
+        start_date: startDateFilter,
+        end_date: endDateFilter,
+        view_mode: filterMode.toLowerCase()
       }, { responseType: 'blob' });
 
       const safeLabel = getActiveFilterLabel().replace(/[^a-zA-Z0-9]/g, '_');
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a'); link.href = url;
+      const link = document.createElement('a');
+      link.href = url;
       link.setAttribute('download', `Kurva_S_${safeLabel}_${type === 'excel' ? 'Lengkap.xlsx' : 'Lengkap.pdf'}`);
-      document.body.appendChild(link); link.click(); link.remove();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (error) {
-      alert(`Gagal mengunduh ${type}. Internal Server Error.`);
+      if (error.response && error.response.data instanceof Blob) {
+        const errText = await error.response.data.text();
+        try {
+          const jsonErr = JSON.parse(errText);
+          alert(`Gagal mengunduh ${type}: ${jsonErr.message || errText}`);
+        } catch {
+          alert(`Gagal mengunduh ${type}: ${errText}`);
+        }
+      } else {
+        alert(`Gagal mengunduh ${type}. ${error.message || 'Internal Server Error.'}`);
+      }
     } finally {
-      setIsExportingExcel(false); setIsExportingPdf(false);
+      setIsExportingExcel(false);
+      setIsExportingPdf(false);
     }
   };
 
