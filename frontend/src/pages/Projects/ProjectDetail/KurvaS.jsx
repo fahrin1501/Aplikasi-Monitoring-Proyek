@@ -586,7 +586,7 @@ export default function KurvaS({ selectedProject }) {
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 shrink-0" />} 
                   <span>Excel</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-danger-50 dark:hover:bg-danger-500/10 text-slate-600 dark:text-slate-300 hover:text-danger-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 text-danger-500 shrink-0" />} 
                   <span>PDF</span>
                 </button>
