@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import api from '../../../api'; 
 import { 
-  ArrowLeft, Calendar, MapPin, DollarSign, HardHat, 
+  Calendar, MapPin, DollarSign, HardHat, 
   UserCheck, Compass, FileText, TrendingUp, FileSpreadsheet, Info, 
   Clock, Download, Users, CheckCircle2, Activity, 
   AlertTriangle, Edit3, Trash2, UploadCloud, Plus, Loader2, FileSignature, X, Camera
@@ -331,14 +331,6 @@ export default function ProjectData() {
         
         {/* INFORMASI, FOTO SAMPUL & JUDUL PROYEK */}
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link 
-            to="/projects" 
-            className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
-            title="Kembali ke Daftar Proyek"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-
           {/* FOTO SAMPUL / BANNER PROYEK DI SEBELAH KIRI DATA UTAMA */}
           <div className="relative group shrink-0 mt-0.5 lg:mt-0">
             <input 
