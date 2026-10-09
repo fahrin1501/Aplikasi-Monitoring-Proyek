@@ -295,7 +295,7 @@ export default function ProjectData() {
                   className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" /> 
-                  <span>Edit Data</span>
+                  <span>Edit</span>
                 </button>
               )
             )}
