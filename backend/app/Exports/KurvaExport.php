@@ -19,7 +19,6 @@ class KurvaExport implements FromView, WithDrawings, WithStyles, WithEvents
     protected $data;
     protected $imagePath;
 
-    // Konstruktor menerima 2 parameter dari ProjectScheduleController
     public function __construct(array $data, ?string $imagePath = null)
     {
         $this->data = $data;
@@ -42,27 +41,25 @@ class KurvaExport implements FromView, WithDrawings, WithStyles, WithEvents
                 $drawing->setName('Grafik Kurva S');
                 $drawing->setDescription('Grafik Realisasi vs Rencana');
                 $drawing->setPath($this->imagePath);
-                $drawing->setHeight(260);
+                $drawing->setHeight(250);
                 $drawing->setCoordinates('B4');
-                $drawing->setOffsetX(15);
+                $drawing->setOffsetX(10);
                 $drawings[] = $drawing;
             }
         } catch (Throwable $e) {
-            // Jika gambar gagal diproses, abaikan agar ekspor Excel tetap berhasil
+            // Abaikan jika gambar gagal dimuat agar file Excel tetap terunduh
         }
         return $drawings;
     }
 
     public function styles(Worksheet $sheet)
     {
-        // Lebar kolom utama
-        $sheet->getColumnDimension('A')->setWidth(14); // Kode
-        $sheet->getColumnDimension('B')->setWidth(48); // Uraian Pekerjaan
-        $sheet->getColumnDimension('C')->setWidth(12); // Bobot (%)
+        $sheet->getColumnDimension('A')->setWidth(14);
+        $sheet->getColumnDimension('B')->setWidth(48);
+        $sheet->getColumnDimension('C')->setWidth(12);
 
-        // Lebar dinamis untuk kolom mingguan
         $totalWeeks = isset($this->data['localWeeks']) ? count($this->data['localWeeks']) : 0;
-        $colIndex = 4; // Kolom D
+        $colIndex = 4;
 
         for ($i = 0; $i < $totalWeeks; $i++) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
@@ -70,7 +67,6 @@ class KurvaExport implements FromView, WithDrawings, WithStyles, WithEvents
             $colIndex++;
         }
 
-        // Kolom Kumulatif Aktual (paling kanan)
         $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
         $sheet->getColumnDimension($lastColLetter)->setWidth(16);
 
@@ -82,7 +78,6 @@ class KurvaExport implements FromView, WithDrawings, WithStyles, WithEvents
         return [
             AfterSheet::class => function(AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-
                 $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A3);
                 $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
                 $sheet->getPageSetup()->setFitToWidth(1);
