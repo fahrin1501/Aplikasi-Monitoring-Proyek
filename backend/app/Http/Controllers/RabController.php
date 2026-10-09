@@ -4,21 +4,28 @@ namespace App\Http\Controllers;
 
 use App\Models\RabCategory;
 use App\Models\RabItem;
-use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\RabExport;
 use App\Models\DailyReport;
 use App\Models\Project;
-use Illuminate\Support\Facades\DB; // WAJIB IMPORT DB
+use App\Services\RabService;
+use App\Exports\RabExport;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 
 class RabController extends Controller
 {
+    protected $rabService;
+
+    public function __construct(RabService $rabService)
+    {
+        $this->rabService = $rabService;
+    }
+
     public function index($projectId)
     {
-        $rabData = RabCategory::with('items')
-            ->where('project_id', $projectId)
-            ->get();
+        $rabData = $this->rabService->getRabWithProgress($projectId);
 
         return response()->json([
             'status' => 'success',
@@ -36,6 +43,8 @@ class RabController extends Controller
             'nama_kategori' => $request->nama_kategori
         ]);
 
+        RabService::clearCache($projectId);
+
         return response()->json(['status' => 'success', 'data' => $category]);
     }
 
@@ -49,12 +58,19 @@ class RabController extends Controller
             'nama_kategori' => $request->nama_kategori
         ]);
 
+        RabService::clearCache($category->project_id);
+
         return response()->json(['status' => 'success', 'message' => 'Kategori berhasil diupdate.']);
     }
 
     public function destroyCategory($id)
     {
-        RabCategory::findOrFail($id)->delete();
+        $category = RabCategory::findOrFail($id);
+        $projectId = $category->project_id;
+        $category->delete();
+
+        RabService::clearCache($projectId);
+
         return response()->json(['status' => 'success', 'message' => 'Kategori dihapus.']);
     }
 
@@ -69,6 +85,7 @@ class RabController extends Controller
             'harga_satuan' => 'nullable|numeric',
         ]);
 
+        $category = RabCategory::findOrFail($categoryId);
         $validated['rab_category_id'] = $categoryId;
         $isSubheader = filter_var($request->is_subheader, FILTER_VALIDATE_BOOLEAN);
 
@@ -81,6 +98,8 @@ class RabController extends Controller
         }
 
         $item = RabItem::create($validated);
+        RabService::clearCache($category->project_id);
+
         return response()->json(['status' => 'success', 'data' => $item]);
     }
 
@@ -107,87 +126,102 @@ class RabController extends Controller
         $item = RabItem::findOrFail($id);
         $item->update($validated);
 
+        $category = RabCategory::find($item->rab_category_id);
+        if ($category) {
+            RabService::clearCache($category->project_id);
+        }
+
         return response()->json(['status' => 'success', 'message' => 'Diupdate.']);
     }
 
     public function destroyItem($id)
     {
-        RabItem::findOrFail($id)->delete();
+        $item = RabItem::findOrFail($id);
+        $category = RabCategory::find($item->rab_category_id);
+        $projectId = $category?->project_id;
+        $item->delete();
+
+        if ($projectId) {
+            RabService::clearCache($projectId);
+        }
+
         return response()->json(['status' => 'success', 'message' => 'Item pekerjaan dihapus.']);
     }
 
     public function exportRabData($id)
     {
-        $project = Project::findOrFail($id);
-        $rabs = \App\Models\RabCategory::with('items')->where('project_id', $id)->get();
-        $reports = DailyReport::with('activities')->where('project_id', $id)->where('status', 'approved')->get();
+        return Cache::remember(RabService::getSummaryCacheKey($id), RabService::TTL, function () use ($id) {
+            $project = Project::findOrFail($id);
+            $rabs = RabCategory::with('items')->where('project_id', $id)->get();
+            $reports = DailyReport::with('activities')->where('project_id', $id)->where('status', 'approved')->get();
 
-        $realisasiMap = [];
-        foreach ($reports as $report) {
-            foreach ($report->activities as $act) {
-                if ($act->rab_item_id) {
-                    if (!isset($realisasiMap[$act->rab_item_id])) {
-                        $realisasiMap[$act->rab_item_id] = [
-                            'vol' => 0,
-                            'persen_kumulatif' => 0,
-                            'has_persen' => false
-                        ];
-                    }
+            $realisasiMap = [];
+            foreach ($reports as $report) {
+                foreach ($report->activities as $act) {
+                    if ($act->rab_item_id) {
+                        if (!isset($realisasiMap[$act->rab_item_id])) {
+                            $realisasiMap[$act->rab_item_id] = [
+                                'vol' => 0,
+                                'persen_kumulatif' => 0,
+                                'has_persen' => false
+                            ];
+                        }
 
-                    $realisasiMap[$act->rab_item_id]['vol'] += (float)$act->volume;
+                        $realisasiMap[$act->rab_item_id]['vol'] += (float)$act->volume;
 
-                    if (!is_null($act->persentase)) {
-                        $realisasiMap[$act->rab_item_id]['persen_kumulatif'] += (float)$act->persentase;
-                        $realisasiMap[$act->rab_item_id]['has_persen'] = true;
+                        if (!is_null($act->persentase)) {
+                            $realisasiMap[$act->rab_item_id]['persen_kumulatif'] += (float)$act->persentase;
+                            $realisasiMap[$act->rab_item_id]['has_persen'] = true;
+                        }
                     }
                 }
             }
-        }
 
-        $grandTotalRencana = 0;
-        $grandTotalRealisasi = 0;
+            $grandTotalRencana = 0;
+            $grandTotalRealisasi = 0;
 
-        foreach ($rabs as $divisi) {
-            $divRencana = 0;
-            $divRealisasi = 0;
-            foreach ($divisi->items as $item) {
-                if (!$item->is_subheader) {
-                    $item->actualVol = $realisasiMap[$item->id]['vol'] ?? 0;
+            foreach ($rabs as $divisi) {
+                $divRencana = 0;
+                $divRealisasi = 0;
+                foreach ($divisi->items as $item) {
+                    if (!$item->is_subheader) {
+                        $item->actualVol = $realisasiMap[$item->id]['vol'] ?? 0;
 
-                    $hasPersen = $realisasiMap[$item->id]['has_persen'] ?? false;
+                        $hasPersen = $realisasiMap[$item->id]['has_persen'] ?? false;
 
-                    if ($hasPersen) {
-                        $persenData = $realisasiMap[$item->id]['persen_kumulatif'] ?? 0;
-                        $item->actualTotal = ($persenData / 100) * $item->total_harga;
-                    } else {
-                        $item->actualTotal = $item->actualVol * $item->harga_satuan;
+                        if ($hasPersen) {
+                            $persenData = $realisasiMap[$item->id]['persen_kumulatif'] ?? 0;
+                            $item->actualTotal = ($persenData / 100) * $item->total_harga;
+                        } else {
+                            $item->actualTotal = $item->actualVol * $item->harga_satuan;
+                        }
+
+                        $item->rencanaTotalPPN = $item->total_harga + ($item->total_harga * 0.11);
+                        $item->actualTotalPPN = $item->actualTotal + ($item->actualTotal * 0.11);
+
+                        $divRencana += $item->total_harga;
+                        $divRealisasi += $item->actualTotal;
                     }
-
-                    $item->rencanaTotalPPN = $item->total_harga + ($item->total_harga * 0.11);
-                    $item->actualTotalPPN = $item->actualTotal + ($item->actualTotal * 0.11);
-
-                    $divRencana += $item->total_harga;
-                    $divRealisasi += $item->actualTotal;
                 }
+                $divisi->totalRencana = $divRencana;
+                $divisi->totalRealisasi = $divRealisasi;
+
+                $divisi->totalRencanaPPN = $divRencana + ($divRencana * 0.11);
+                $divisi->totalRealisasiPPN = $divRealisasi + ($divRealisasi * 0.11);
+
+                $grandTotalRencana += $divRencana;
+                $grandTotalRealisasi += $divRealisasi;
             }
-            $divisi->totalRencana = $divRencana;
-            $divisi->totalRealisasi = $divRealisasi;
 
-            $divisi->totalRencanaPPN = $divRencana + ($divRencana * 0.11);
-            $divisi->totalRealisasiPPN = $divRealisasi + ($divRealisasi * 0.11);
+            $grandTotalRencanaPPN = $grandTotalRencana + ($grandTotalRencana * 0.11);
+            $grandTotalRealisasiPPN = $grandTotalRealisasi + ($grandTotalRealisasi * 0.11);
 
-            $grandTotalRencana += $divRencana;
-            $grandTotalRealisasi += $divRealisasi;
-        }
-
-        $grandTotalRencanaPPN = $grandTotalRencana + ($grandTotalRencana * 0.11);
-        $grandTotalRealisasiPPN = $grandTotalRealisasi + ($grandTotalRealisasi * 0.11);
-
-        return compact(
-            'project', 'rabs',
-            'grandTotalRencana', 'grandTotalRealisasi',
-            'grandTotalRencanaPPN', 'grandTotalRealisasiPPN'
-        );
+            return compact(
+                'project', 'rabs',
+                'grandTotalRencana', 'grandTotalRealisasi',
+                'grandTotalRencanaPPN', 'grandTotalRealisasiPPN'
+            );
+        });
     }
 
     public function exportRabPdf($id)
@@ -212,9 +246,6 @@ class RabController extends Controller
         return Excel::download(new RabExport($data), $fileName);
     }
 
-    // =========================================================================
-    // OPTIMASI: Transaksi Database & Bulk Insert untuk Kecepatan Ekstrem
-    // =========================================================================
     public function importRAB(Request $request, $projectId)
     {
         $request->validate(['file' => 'required|mimes:xlsx,xls']);
@@ -223,10 +254,10 @@ class RabController extends Controller
             $sheets = Excel::toArray(new \stdClass(), $request->file('file'));
             $rows = $sheets[0];
 
-            DB::beginTransaction(); // 1. BUKA PINTU TRANSAKSI (Mencegah Auto-Commit per baris)
+            DB::beginTransaction();
 
             $currentCategory = null;
-            $itemsToInsert = [];    // 2. KUMPULKAN DATA KE ARRAY
+            $itemsToInsert = [];
             $now = now();
 
             for ($i = 2; $i < count($rows); $i++) {
@@ -252,14 +283,12 @@ class RabController extends Controller
                     continue;
                 }
 
-                // Ganti Kategori (Divisi)
                 if (str_starts_with(strtoupper($uraian), 'DIVISI') || str_starts_with(strtoupper($uraian), 'DEVISI')) {
-                    // Jika ada tumpukan item sebelumnya, simpan dulu (Bulk Insert)
                     if (!empty($itemsToInsert)) {
                         foreach (array_chunk($itemsToInsert, 500) as $chunk) {
                             RabItem::insert($chunk);
                         }
-                        $itemsToInsert = []; // Kosongkan keranjang
+                        $itemsToInsert = [];
                     }
 
                     $currentCategory = RabCategory::create([
@@ -278,7 +307,6 @@ class RabController extends Controller
                     ]);
                 }
 
-                // Masukkan ke Keranjang Array (Belum menyentuh Database)
                 if (empty($satuan)) {
                     $itemsToInsert[] = [
                         'rab_category_id' => $currentCategory->id,
@@ -311,19 +339,20 @@ class RabController extends Controller
                 }
             }
 
-            // 3. Simpan Sisa Keranjang Terakhir (Bulk Insert)
             if (!empty($itemsToInsert)) {
                 foreach (array_chunk($itemsToInsert, 500) as $chunk) {
                     RabItem::insert($chunk);
                 }
             }
 
-            DB::commit(); // 4. TUTUP DAN SIMPAN SELURUH DATA KE MYSQL SEKALI JALAN
+            DB::commit();
+
+            RabService::clearCache($projectId);
 
             return response()->json(['status' => 'success', 'message' => 'Data RAB berhasil diimpor dengan sangat cepat.']);
 
         } catch (\Exception $e) {
-            DB::rollBack(); // Batalkan semua jika ada error
+            DB::rollBack();
             return response()->json(['status' => 'error', 'message' => 'Gagal mengimpor RAB: ' . $e->getMessage()], 500);
         }
     }

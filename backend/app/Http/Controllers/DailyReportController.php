@@ -10,14 +10,16 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\DailyReportExport;
-use App\Services\ProjectProgressService; // IMPORT SERVICE BARU
+use App\Services\ProjectProgressService;
+use App\Services\ProjectCacheService;
+use App\Services\RabService;
 use Exception;
+use Throwable;
 
 class DailyReportController extends Controller
 {
     private $progressService;
 
-    // Masukkan Service ke dalam Controller (Dependency Injection)
     public function __construct(ProjectProgressService $progressService)
     {
         $this->progressService = $progressService;
@@ -114,16 +116,13 @@ class DailyReportController extends Controller
             $personil = json_decode($request->personil, true) ?? [];
             $peralatan = json_decode($request->peralatan, true) ?? [];
 
-            // AMBIL TOTAL RAB PROYEK UNTUK PERHITUNGAN OTOMATIS
             $totalProjectValue = $this->progressService->calculateTotalProjectValue($projectId);
 
             foreach ($kegiatan as $item) {
                 if (!empty($item['uraian'])) {
-
                     $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
                     $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
 
-                    // LOGIKA PERHITUNGAN OTOMATIS JIKA ADA ITEM RAB
                     if (!empty($item['rab_item_id']) && $volume > 0) {
                         $persentase = $this->progressService->calculateItemProgress(
                             $item['rab_item_id'],
@@ -139,7 +138,7 @@ class DailyReportController extends Controller
                         'sta_akhir' => $item['sta_akhir'] ?? null,
                         'volume' => $volume,
                         'satuan' => !empty($item['satuan']) ? $item['satuan'] : null,
-                        'persentase' => $persentase, // Disimpan otomatis
+                        'persentase' => $persentase,
                     ]);
                 }
             }
@@ -176,6 +175,10 @@ class DailyReportController extends Controller
             $this->syncProjectStatus($projectId);
 
             DB::commit();
+
+            // Bersihkan Cache RAB & Kurva S
+            RabService::clearCache($projectId);
+
             return response()->json(['status' => 'success', 'message' => 'Laporan Harian Berhasil Disimpan!']);
 
         } catch (Exception $e) {
@@ -212,7 +215,6 @@ class DailyReportController extends Controller
                         $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
                         $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
 
-                        // HITUNG ULANG OTOMATIS SAAT UPDATE
                         if (!empty($item['rab_item_id']) && $volume > 0) {
                             $persentase = $this->progressService->calculateItemProgress(
                                 $item['rab_item_id'],
@@ -258,6 +260,10 @@ class DailyReportController extends Controller
             $this->syncProjectStatus($report->project_id);
 
             DB::commit();
+
+            // Bersihkan Cache RAB & Kurva S
+            RabService::clearCache($report->project_id);
+
             return response()->json(['status' => 'success', 'message' => 'Laporan berhasil diperbarui dan status kembali Pending.']);
         } catch (Exception $e) {
             DB::rollBack();
@@ -265,9 +271,6 @@ class DailyReportController extends Controller
         }
     }
 
-    // ================================================================
-    // INLINE EDIT (Matriks S-Curve) - Sekarang otomatis hitung persentase
-    // ================================================================
     public function quickUpdateActivity(Request $request, $id)
     {
         try {
@@ -277,7 +280,6 @@ class DailyReportController extends Controller
 
             $persentase = $request->persentase;
 
-            // Jika ada volume yang dikirim, hitung otomatis persentasenya
             if ($request->has('volume') && $activity->rab_item_id) {
                 $totalProjectValue = $this->progressService->calculateTotalProjectValue($report->project_id);
                 $persentase = $this->progressService->calculateItemProgress(
@@ -289,7 +291,7 @@ class DailyReportController extends Controller
 
             $activity->update([
                 'volume' => $request->volume,
-                'persentase' => $persentase // Update dengan data otomatis
+                'persentase' => $persentase
             ]);
 
             if ($report) {
@@ -297,6 +299,12 @@ class DailyReportController extends Controller
             }
 
             DB::commit();
+
+            // Bersihkan Cache jika ada report terkait
+            if ($report) {
+                RabService::clearCache($report->project_id);
+            }
+
             return response()->json(['status' => 'success', 'message' => 'Data realisasi berhasil diperbarui']);
         } catch (Exception $e) {
             DB::rollBack();
@@ -359,6 +367,10 @@ class DailyReportController extends Controller
             $this->syncProjectStatus($projectId);
 
             DB::commit();
+
+            // Bersihkan Cache
+            RabService::clearCache($projectId);
+
             return response()->json(['status' => 'success', 'message' => 'Laporan berhasil dihapus secara permanen']);
         } catch (Exception $e) {
             DB::rollBack();
@@ -372,6 +384,10 @@ class DailyReportController extends Controller
             $report = DailyReport::findOrFail($id);
             $report->update(['status' => 'approved', 'verified_at' => now()]);
             $this->syncProjectStatus($report->project_id);
+
+            // Bersihkan Cache agar angka realisasi baru segera muncul di Kurva S & RAB
+            RabService::clearCache($report->project_id);
+
             return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan berhasil disetujui & diverifikasi!']);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Gagal verifikasi laporan: ' . $e->getMessage()], 500);
@@ -384,6 +400,10 @@ class DailyReportController extends Controller
             $report = DailyReport::findOrFail($id);
             $report->update(['status' => 'rejected', 'verified_at' => null]);
             $this->syncProjectStatus($report->project_id);
+
+            // Bersihkan Cache
+            RabService::clearCache($report->project_id);
+
             return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan dikembalikan (Ditolak)!']);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'Gagal menolak laporan: ' . $e->getMessage()], 500);
@@ -392,18 +412,37 @@ class DailyReportController extends Controller
 
     public function exportPdf($id)
     {
-        $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
-        $pdf = Pdf::loadView('exports.laporan-harian', compact('report'))->setPaper('a4', 'portrait');
-        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
-        $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.pdf';
-        return $pdf->download($fileName);
+        try {
+            $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
+            $pdf = Pdf::loadView('exports.laporan-harian', [
+                'report' => $report,
+                'isExcel' => false,
+            ])->setPaper('a4', 'portrait');
+            $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
+            $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.pdf';
+            return $pdf->download($fileName);
+        } catch (Throwable $e) {
+            \Log::error("Gagal export PDF Laporan: " . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal export PDF: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function exportExcel($id)
     {
-        $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
-        $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
-        $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.xlsx';
-        return Excel::download(new DailyReportExport($report), $fileName);
+        try {
+            $report = DailyReport::with(['project', 'activities', 'personnels', 'equipments'])->findOrFail($id);
+            $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $report->project->nama_proyek ?? 'Proyek');
+            $fileName = 'Laporan_Harian_' . $report->tanggal . '_' . $safeName . '.xlsx';
+            return Excel::download(new DailyReportExport($report), $fileName);
+        } catch (Throwable $e) {
+            \Log::error("Gagal export Excel Laporan: " . $e->getMessage() . " di " . $e->getFile() . ":" . $e->getLine());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal export Excel: ' . $e->getMessage() . ' di baris ' . $e->getLine()
+            ], 500);
+        }
     }
 }

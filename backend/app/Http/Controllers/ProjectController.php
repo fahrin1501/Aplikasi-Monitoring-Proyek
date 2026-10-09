@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectDocument;
+use App\Services\ProjectCacheService;
+use App\Services\RabService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProjectDetailExport;
@@ -16,24 +19,20 @@ use Illuminate\Support\Str;
 
 class ProjectController extends Controller
 {
-    // ========================================================================
-    // ENGINE OPTIMASI (ANTI N+1 QUERY)
-    // Menghitung progress 1000 proyek hanya dengan 4 Query Database (Super Cepat)
-    // ========================================================================
     private function injectProgressToCollection($projects)
     {
         if ($projects->isEmpty()) return $projects;
 
         $projectIds = $projects->pluck('id')->toArray();
 
-        // 1. Ambil Target Plan Tertinggi per Proyek (1 Query)
+        // 1. Ambil Target Plan Tertinggi per Proyek
         $plans = DB::table('project_schedules')
             ->whereIn('project_id', $projectIds)
             ->select('project_id', DB::raw('MAX(target_kumulatif) as max_plan'))
             ->groupBy('project_id')
             ->pluck('max_plan', 'project_id');
 
-        // 2. Ambil Grand Total RAB per Proyek (1 Query)
+        // 2. Ambil Grand Total RAB per Proyek
         $rabs = DB::table('rab_items')
             ->join('rab_categories', 'rab_items.rab_category_id', '=', 'rab_categories.id')
             ->whereIn('rab_categories.project_id', $projectIds)
@@ -42,7 +41,7 @@ class ProjectController extends Controller
             ->groupBy('rab_categories.project_id')
             ->pluck('total_rab', 'project_id');
 
-        // 3. Ambil Total Realisasi (Uang) per Proyek (1 Query)
+        // 3. Ambil Total Realisasi (Uang) per Proyek
         $actuals = DB::table('daily_report_activities')
             ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
             ->join('rab_items', 'daily_report_activities.rab_item_id', '=', 'rab_items.id')
@@ -55,7 +54,7 @@ class ProjectController extends Controller
             ->groupBy('daily_reports.project_id')
             ->pluck('total_realisasi', 'project_id');
 
-        // 4. Suntikkan (Inject) data ke masing-masing proyek di memori RAM (0 Query)
+        // 4. Suntikkan kalkulasi ke tiap proyek di RAM
         return $projects->map(function ($project) use ($plans, $rabs, $actuals) {
             $plan = $plans[$project->id] ?? 0;
             $totalRab = $rabs[$project->id] ?? 0;
@@ -68,7 +67,6 @@ class ProjectController extends Controller
             $project->progress_actual = round((float) $actual, 2);
             $project->deviasi = round((float) $deviasi, 2);
 
-            // Status Otomatis
             if ($project->status !== 'Selesai') {
                 if ($plan == 0 && $actual == 0) $project->status = 'Belum Mulai';
                 else if ($deviasi < -5) $project->status = 'Kritis';
@@ -82,31 +80,49 @@ class ProjectController extends Controller
 
     public function index()
     {
-        $projects = Project::orderBy('created_at', 'desc')->get();
-        $optimizedProjects = $this->injectProgressToCollection($projects);
+        // Cache daftar seluruh proyek selama 24 jam (instant response)
+        $optimizedProjects = Cache::remember('all_projects_list_cache', ProjectCacheService::TTL, function () {
+            $projects = Project::orderBy('created_at', 'desc')->get();
+            return $this->injectProgressToCollection($projects);
+        });
 
         return response()->json($optimizedProjects);
     }
 
     public function show($id)
     {
-        $project = Project::with(['personnels', 'documents', 'gisDocuments'])->findOrFail($id);
-        $optimizedProject = $this->injectProgressToCollection(collect([$project]))->first();
+        // Cache detail proyek spesifik
+        $optimizedProject = ProjectCacheService::rememberProjectDetail($id, function () use ($id) {
+            $project = Project::with(['personnels', 'documents', 'gisDocuments'])->findOrFail($id);
+            return $this->injectProgressToCollection(collect([$project]))->first();
+        });
 
         return response()->json($optimizedProject);
     }
 
     public function getActiveForReport()
     {
-        $projects = Project::whereNotIn('status', ['Selesai', 'Selesai 100%', 'Batal'])->get();
+        $cachedActive = Cache::remember('active_projects_for_report', ProjectCacheService::TTL, function () {
+            $projects = Project::whereNotIn('status', ['Selesai', 'Selesai 100%', 'Batal'])->get();
 
-        $validProjects = $projects->filter(function ($project) {
-            return DB::table('project_schedules')->where('project_id', $project->id)->exists();
-        })->values();
+            $validProjects = $projects->filter(function ($project) {
+                return DB::table('project_schedules')->where('project_id', $project->id)->exists();
+            })->values();
 
-        $optimizedProjects = $this->injectProgressToCollection($validProjects);
+            return $this->injectProgressToCollection($validProjects);
+        });
 
-        return response()->json(['status' => 'success', 'data' => $optimizedProjects]);
+        return response()->json(['status' => 'success', 'data' => $cachedActive]);
+    }
+
+    private function clearGlobalProjectCache($projectId = null)
+    {
+        Cache::forget('all_projects_list_cache');
+        Cache::forget('active_projects_for_report');
+        if ($projectId) {
+            ProjectCacheService::clearProjectCache($projectId);
+            RabService::clearCache($projectId);
+        }
     }
 
     public function store(Request $request)
@@ -158,6 +174,8 @@ class ProjectController extends Controller
                 ]);
             }
         }
+
+        $this->clearGlobalProjectCache($project->id);
 
         return response()->json([
             'status' => 'success',
@@ -219,6 +237,8 @@ class ProjectController extends Controller
 
         $project->update($validated);
 
+        $this->clearGlobalProjectCache($project->id);
+
         return response()->json([
             'status' => 'success',
             'message' => 'Data master proyek berhasil diperbarui!',
@@ -233,6 +253,8 @@ class ProjectController extends Controller
             Storage::disk('public')->delete('foto_proyek/' . $project->foto_sampul);
         }
         $project->delete();
+
+        $this->clearGlobalProjectCache($id);
 
         return response()->json([
             'status' => 'success',
@@ -349,6 +371,8 @@ class ProjectController extends Controller
             if ($berhasilImport === 0) {
                 return response()->json(['status' => 'error', 'message' => 'Format file tidak dikenali atau kolom "Nama Proyek" kosong.'], 400);
             }
+
+            $this->clearGlobalProjectCache();
 
             return response()->json(['status' => 'success', 'message' => "Hebat! $berhasilImport proyek berhasil diimpor."]);
 
