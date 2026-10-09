@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import api from '../../../api'; 
 import { 
-  Compass, ArrowLeft, Info, FileSpreadsheet, TrendingUp, 
+  Compass, Info, FileSpreadsheet, TrendingUp, 
   Navigation, Globe, Map as MapIcon, 
-  CheckCircle2, FileText, Download, Edit3, Save, X, Loader2, AlertTriangle, Trash2, UploadCloud, MapPin, Eye, EyeOff, Crosshair
+  CheckCircle2, FileText, Download, Edit3, X, Loader2, AlertTriangle, Trash2, UploadCloud, MapPin, Eye, EyeOff, Crosshair
 } from 'lucide-react';
 
 import { MapContainer, TileLayer, Rectangle, Polygon, Polyline, Tooltip, useMap, Marker } from 'react-leaflet';
@@ -38,7 +38,7 @@ function MapEffectController({ bounds, focusBounds }) {
   return null;
 }
 
-// Helper untuk membaca format "-3.300230, 114.595202" menjadi array [lat, long]
+// Helper untuk membaca format koordinat
 const parseCoord = (coordString) => {
   if (!coordString || typeof coordString !== 'string') return null;
   const parts = coordString.split(',').map(n => parseFloat(n.trim()));
@@ -53,11 +53,10 @@ export default function PetaGIS() {
   const location = useLocation();
   const { id } = useParams();
 
-    useEffect(() => {
+  useEffect(() => {
     document.title = "Prisma Group - Peta GIS";
   }, []);
 
-  // Gunakan state dari router agar UI langsung memiliki data dasar tanpa menunggu loading
   const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
   const [projectData, setProjectData] = useState(initialProject);
 
@@ -77,7 +76,6 @@ export default function PetaGIS() {
   const [focusBounds, setFocusBounds] = useState(null);
   const [hideMainProject, setHideMainProject] = useState(false);
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
@@ -93,7 +91,6 @@ export default function PetaGIS() {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- FETCH DATA ---
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
@@ -142,7 +139,6 @@ export default function PetaGIS() {
 
   useEffect(() => { fetchAllData(); }, [id]);
 
-  // --- ROUTING URL FILE ---
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
   const getDocUrl = (path) => {
     if (!path) return '#';
@@ -221,7 +217,6 @@ export default function PetaGIS() {
     } catch (error) { alert(`Gagal menghapus data.`); }
   };
 
-  // --- LOGIKA POLYGON & ROTASI KOTAK AREA ---
   const toggleReportVisibility = (index) => {
     const newHidden = new Set(hiddenReports);
     if (newHidden.has(index)) newHidden.delete(index);
@@ -240,7 +235,7 @@ export default function PetaGIS() {
 
   const createRotatedBox = (lat1, lon1, lat2, lon2) => {
     const l1 = parseFloat(lat1), ln1 = parseFloat(lon1), l2 = parseFloat(lat2), ln2 = parseFloat(lon2);
-    const dLat = l2 - l1, dLng = ln2 - ln1;
+    const dLat = l2 - l1, dLng = lon2 - ln1;
     const length = Math.sqrt(dLat * dLat + dLng * dLng);
 
     if (length === 0) return [[l1 - 0.0001, ln1 - 0.0001], [l1 + 0.0001, ln1 - 0.0001], [l1 + 0.0001, ln1 + 0.0001], [l1 - 0.0001, ln1 + 0.0001]];
@@ -293,79 +288,113 @@ export default function PetaGIS() {
   const wilayahAdministrasi = projectData?.lokasi_wilayah || projectData?.lokasi || projectData?.lokasi_proyek || '-';
 
   return (
-    <div className="w-full space-y-5 pb-20 relative">
-
-      {/* Kustomisasi Scrollbar */}
+    <div className="w-full space-y-3.5 pb-2 relative">
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* ========================================== */}
-      {/* 1. HEADER NAVIGASI (Selalu Tampil)           */}
-      {/* ========================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
+      {/* HEADER UTAMA & DUA BOKS KONTROL */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${id}/data`} state={projectData} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-start lg:items-center gap-1.5 flex-wrap">
+            <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Peta & Informasi Spasial (GIS)</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
+              {isEditMode && (
+                <span className="px-2 py-0.5 ml-1 text-[9px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 dark:border-blue-500/30 font-extrabold tracking-wider shadow-sm">
+                  DRAFT MODE
+                </span>
+              )}
             </h1>
             
-            <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <div className="flex items-center flex-wrap gap-1 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
               <span className="truncate font-medium">{projectData?.nama_proyek || 'Memuat Data...'}</span>
-              <span className="text-slate-400 mx-0.5">•</span>
+              <span className="text-slate-400">•</span>
               <span className="truncate" title={`Kns: ${projectData?.kode_kontrak || '-'} | Knt: ${projectData?.nomor_kontrak_kontraktor || '-'}`}>
                 SPK: {projectData?.kode_kontrak || projectData?.nomor_kontrak_kontraktor || '-'}
               </span>
-              <span className="text-slate-400 mx-0.5">•</span>
-              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
+              <span className="text-slate-400">•</span>
+              <span className={`px-1.5 py-0.2 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
                 {projectData?.kategori || 'Belum Ditentukan'}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+        {/* CONTAINER KEDUA BOKS */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           
-          {/* ACTION BUTTONS: Tetap ada, disabled saat loading */}
+          {/* BOKS KIRI: KONTROL AKSI (EDIT: BIRU, BATAL, SIMPAN) */}
           {canCreateData && (!isGisEmpty || isLoading) && (
-            <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
+            <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-30 transition-all shrink-0">
               {isEditMode && (
-                <button onClick={cancelEdit} disabled={isSaving || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                  <X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal
+                <button 
+                  onClick={cancelEdit} 
+                  disabled={isSaving || isLoading} 
+                  className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" /> 
+                  <span>Batal</span>
                 </button>
               )}
-              <button onClick={isEditMode ? handleSaveGIS : () => setIsEditMode(true)} disabled={isSaving || isLoading} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}>
-                {isSaving ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
-                <span className="hidden lg:inline">{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Draf')}</span>
+              <button 
+                onClick={isEditMode ? handleSaveGIS : () => setIsEditMode(true)} 
+                disabled={isSaving || isLoading} 
+                className={`flex items-center justify-center gap-1.5 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400'}`}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-blue-500" />
+                ) : isEditMode ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-white" />
+                ) : (
+                  <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                )} 
+                <span>{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan' : 'Edit')}</span>
               </button>
             </div>
           )}
 
-          {/* TAB NAVIGASI MODUL UTAMA */}
-          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
-            <button onClick={() => navigate(`/projects/${id}/data`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Info className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Data Utama</span></button>
+          {/* BOKS KANAN: NAVIGASI TAB MENU */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 shrink-0">
+            <button 
+              onClick={() => navigate(`/projects/${id}/data`, { state: projectData })} 
+              className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap"
+            >
+              <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+              <span>Data</span>
+            </button>
             {!isGuest && (
               <>
-                <button onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
-                <button onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S & Schedule</span></button>
+                <button 
+                  onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+                  <span>RAB</span>
+                </button>
+                <button 
+                  onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+                  <span>Kurva Schedule</span>
+                </button>
               </>
             )}
-            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Peta GIS</span></button>
+            <button 
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap cursor-default"
+            >
+              <Compass className="w-3.5 h-3.5 shrink-0" /> 
+              <span>Peta GIS</span>
+            </button>
           </div>
+
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 2. LOADING STATE VS KONTEN UTAMA             */}
-      {/* ========================================== */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
@@ -423,7 +452,7 @@ export default function PetaGIS() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 animate-fade-in">
           
-          {/* --- LEFT SECTION: MAP CONTAINER --- */}
+          {/* LEFT SECTION: MAP CONTAINER */}
           <div className={`lg:col-span-8 bg-slate-100 dark:bg-slate-900 border rounded-2xl overflow-hidden flex flex-col shadow-sm relative min-h-[500px] lg:min-h-[700px] transition-all z-0 ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
             <div className="px-4 py-3 bg-white dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between shrink-0 z-10 absolute top-0 w-full shadow-sm backdrop-blur-sm">
               <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5"><MapIcon className="w-4 h-4 text-amber-500" /> PETA LOKASI SATELIT</span>
@@ -473,7 +502,7 @@ export default function PetaGIS() {
             </div>
           </div>
 
-          {/* --- RIGHT SECTION: INFO & CRUD --- */}
+          {/* RIGHT SECTION: INFO & CRUD */}
           <div className="lg:col-span-4 flex flex-col gap-4">
             
             <div className={`bg-white dark:bg-slate-800/60 border rounded-2xl p-4 md:p-5 space-y-4 shadow-sm transition-all ${isEditMode ? 'border-blue-400/60 dark:border-blue-500/50 ring-2 ring-blue-500/10' : 'border-slate-200 dark:border-slate-700/60'}`}>
@@ -570,7 +599,7 @@ export default function PetaGIS() {
                           <p className={`text-[9px] font-bold ${isHidden ? 'text-slate-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{rep.tanggal}</p>
                           <div className="flex items-center gap-1">
                             <button onClick={() => triggerFocusReport(rep.latA, rep.lonA, rep.latB, rep.lonB)} className={`p-1.5 rounded-md transition-colors border border-transparent ${isHidden ? 'text-slate-300' : 'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:border-blue-200 dark:hover:border-blue-800'}`} disabled={isHidden} title="Highlight Area Laporan"><Crosshair className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => toggleReportVisibility(idx)} className={`p-1.5 rounded-md transition-colors border border-transparent ${isHidden ? 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600' : 'text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-200 dark:hover:border-emerald-800'}`} title={isHidden ? "Tampilkan di Peta" : "Sembunyikan dari Peta"}>{isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
+                            <button onClick={() => toggleReportVisibility(idx)} className={`p-1.5 rounded-md transition-colors border border-transparent ${isHidden ? 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600' : 'text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-200 dark:border-emerald-800'}`} title={isHidden ? "Tampilkan di Peta" : "Sembunyikan dari Peta"}>{isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
                           </div>
                         </div>
                         <h4 className="font-bold text-slate-700 dark:text-slate-200 text-[11px] leading-relaxed line-clamp-2 mb-2 pr-6">{rep.uraian}</h4>
@@ -590,9 +619,7 @@ export default function PetaGIS() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* 3. MODAL (Di luar conditional rendering)     */}
-      {/* ========================================== */}
+      {/* MODAL KONFIRMASI HAPUS */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
