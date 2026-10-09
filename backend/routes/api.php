@@ -10,6 +10,7 @@ use App\Http\Controllers\ProjectGisController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\ProjectScheduleController;
 use App\Http\Controllers\CompanyProfileController;
+use App\Http\Controllers\DashboardController; // Import Controller Dashboard
 
 Route::get('/test-koneksi', function () {
     return response()->json(['status' => 'success']);
@@ -36,6 +37,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) { return $request->user(); });
+
+    // --- DASHBOARD UTAMA (RINGKASAN & KPI) ---
+    Route::get('/dashboard/summary', [DashboardController::class, 'index']);
 
     // --- MANAJEMEN PROYEK & LAPORAN ---
     Route::get('/projects', [ProjectController::class, 'index']);

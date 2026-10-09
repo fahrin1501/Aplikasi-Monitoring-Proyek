@@ -67,9 +67,11 @@ class DailyReportController extends Controller
     public function index()
     {
         try {
-            $reports = DailyReport::with(['project', 'activities', 'personnels', 'equipments', 'attachments'])
-                        ->orderBy('tanggal', 'desc')
-                        ->get();
+            $reports = \Illuminate\Support\Facades\Cache::remember('all_daily_reports_list_cache', \App\Services\ProjectCacheService::TTL, function () {
+                return DailyReport::with(['project', 'activities', 'personnels', 'equipments', 'attachments'])
+                            ->orderBy('tanggal', 'desc')
+                            ->get();
+            });
             return response()->json(['status' => 'success', 'data' => $reports]);
         } catch (Exception $e) {
             return response()->json(['status' => 'error', 'message' => 'System Crash: ' . $e->getMessage()], 500);

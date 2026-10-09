@@ -7,31 +7,48 @@ import {
   Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2, FileBox, Info
 } from 'lucide-react';
 
+// CACHE MEMORI: Data laporan langsung muncul instan pas buka tab
+let cachedLaporan = null;
+
 export default function LaporanList() {
   const navigate = useNavigate();
   
-  // --- STATE MANAJEMEN ---
-  const [laporanList, setLaporanList] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Baca cache memori atau sessionStorage duluan biar langsung render dalam 0ms
+  const [laporanList, setLaporanList] = useState(() => {
+    if (cachedLaporan && cachedLaporan.length > 0) return cachedLaporan;
+    try {
+      const saved = sessionStorage.getItem('cached_laporan_list');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [isLoading, setIsLoading] = useState(() => {
+    if (cachedLaporan && cachedLaporan.length > 0) return false;
+    try {
+      const saved = sessionStorage.getItem('cached_laporan_list');
+      return !(saved && JSON.parse(saved).length > 0);
+    } catch { return true; }
+  });
+
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     document.title = "Prisma Group - Daftar Laporan";
   }, []);
   
-  // --- SEARCH & FILTER ---
+  // SEARCH & FILTER
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [filters, setFilters] = useState({ status: 'Semua', startDate: '', endDate: '' });
   const filterRef = useRef(null);
 
-  // --- EDIT & BATCH DELETE MODE ---
+  // EDIT & BATCH DELETE MODE
   const [isEditMode, setIsEditMode] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState({ show: false, id: null, name: '' });
   const [stagedDeletions, setStagedDeletions] = useState([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  // HAK AKSES
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
@@ -44,13 +61,11 @@ export default function LaporanList() {
     }
   }, []);
 
-  // Definisi Hak Akses
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // --- FETCH DATA DARI LARAVEL ---
-  const fetchLaporan = async () => {
-    setIsLoading(true);
+  const fetchLaporan = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setErrorMsg('');
     try {
       const response = await api.get('/daily-reports');
@@ -78,6 +93,8 @@ export default function LaporanList() {
       });
       
       setLaporanList(formattedData);
+      cachedLaporan = formattedData;
+      try { sessionStorage.setItem('cached_laporan_list', JSON.stringify(formattedData)); } catch {}
     } catch (error) {
       console.error("Error fetching laporan:", error);
       setErrorMsg('Gagal memuat data laporan harian. Pastikan server terhubung.');
@@ -87,7 +104,16 @@ export default function LaporanList() {
   };
 
   useEffect(() => {
-    fetchLaporan();
+    const hasCache = (cachedLaporan && cachedLaporan.length > 0) || (() => {
+      try {
+        const saved = sessionStorage.getItem('cached_laporan_list');
+        return saved && JSON.parse(saved).length > 0;
+      } catch { return false; }
+    })();
+
+    // Ambil data terbaru diam-diam di background
+    fetchLaporan(hasCache);
+
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) setShowFilter(false);
     };
@@ -95,7 +121,6 @@ export default function LaporanList() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- BATCH DELETE LOGIC (MODE EDIT DRAF) ---
   const confirmDelete = (e, id, name) => {
     e.stopPropagation();
     setDeleteConfig({ show: true, id, name });
@@ -116,12 +141,14 @@ export default function LaporanList() {
     try {
       await Promise.all(stagedDeletions.map(id => api.delete(`/daily-reports/${id}`)));
       setStagedDeletions([]); 
-      await fetchLaporan(); 
+      cachedLaporan = null;
+      try { sessionStorage.removeItem('cached_laporan_list'); } catch {}
+      await fetchLaporan(false); 
       setIsEditMode(false); 
     } catch (error) {
       alert('Beberapa laporan gagal dihapus. Pastikan koneksi server stabil.');
       setStagedDeletions([]);
-      await fetchLaporan();
+      await fetchLaporan(false);
       setIsEditMode(false);
     } finally {
       setIsSavingEdit(false);
@@ -137,7 +164,6 @@ export default function LaporanList() {
     return arrayData.reduce((total, item) => total + (Number(item.jumlah) || 0), 0);
   };
 
-  // --- LOGIKA FILTER DINAMIS ---
   const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
   const clearFilter = (key) => {
     if (key === 'tanggal') {
@@ -169,7 +195,6 @@ export default function LaporanList() {
 
   const visibleLaporan = filteredLaporan.filter(l => !stagedDeletions.includes(l.id));
 
-  // --- FUNGSI PEWARNAAN STATUS KONSISTEN ---
   const getStatusStyles = (status) => {
     if (status === 'approved') return "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30";
     if (status === 'rejected') return "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30";
@@ -192,7 +217,6 @@ export default function LaporanList() {
   return (
     <div className="space-y-6 w-full relative pb-20">
       
-      {/* GLOBAL STYLE SCROLLBAR UNTUK KONSISTENSI */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -201,35 +225,32 @@ export default function LaporanList() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* --- TOP ACTION BAR --- */}
+      {/* TOP ACTION BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          {/* Typografi disamakan dengan ProjectList */}
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Laporan
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian Anda.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian kamu.</p>
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
-          {/* Search Input */}
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text" 
               placeholder="Cari laporan..." 
               value={searchQuery} 
-              disabled={isLoading}
+              disabled={isLoading && laporanList.length === 0}
               onChange={(e) => setSearchQuery(e.target.value)} 
               className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
             />
           </div>
 
-          {/* Filter Dropdown Pop-up */}
           <div className="relative" ref={filterRef}>
             <button 
-              disabled={isLoading}
+              disabled={isLoading && laporanList.length === 0}
               onClick={() => setShowFilter(!showFilter)} 
               className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
             >
@@ -241,7 +262,6 @@ export default function LaporanList() {
                 <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-700/60 pb-2">Filter Laporan</h4>
                 
                 <div className="space-y-4">
-                  {/* TAG FILTER: STATUS */}
                   <div>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Status Laporan</label>
                     <div className="flex flex-wrap gap-2">
@@ -264,7 +284,6 @@ export default function LaporanList() {
                     </div>
                   </div>
 
-                  {/* FILTER RENTANG TANGGAL */}
                   <div>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Rentang Tanggal</label>
                     <div className="flex items-center gap-2">
@@ -292,7 +311,6 @@ export default function LaporanList() {
             )}
           </div>
 
-          {/* TAMPILKAN TOMBOL AKSI HANYA JIKA PUNYA HAK AKSES CREATE */}
           {canCreateData && (
             <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
               {isEditMode ? (
@@ -306,12 +324,12 @@ export default function LaporanList() {
                   </button>
                 </>
               ) : (
-                <button onClick={() => setIsEditMode(true)} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Edit3 className="w-4 h-4" /> Mode Edit
+                <button onClick={() => setIsEditMode(true)} disabled={isLoading && laporanList.length === 0} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Edit3 className="w-4 h-4" />Edit
                 </button>
               )}
 
-              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || (isLoading && laporanList.length === 0)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4" /> <span>Buat Laporan</span>
               </button>
             </div>
@@ -319,7 +337,7 @@ export default function LaporanList() {
         </div>
       </div>
 
-      {/* --- TAGS FILTER AKTIF --- */}
+      {/* TAGS FILTER AKTIF */}
       {(filters.status !== 'Semua' || filters.startDate || filters.endDate) && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           {filters.status !== 'Semua' && (
@@ -337,35 +355,31 @@ export default function LaporanList() {
         </div>
       )}
 
-      {/* ERROR MESSAGE */}
       {errorMsg && (
         <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
           <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
         </div>
       )}
 
-      {isLoading ? (
+      {/* KONTEN TABEL */}
+      {isLoading && laporanList.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data laporan...</p>
         </div>
       ) : (
         <>
-          {/* ========================================== */}
-          {/* TAMPILAN MOBILE: KUMPULAN KARTU (Diselaraskan dengan ProjectList) */}
-          {/* ========================================== */}
+          {/* TAMPILAN MOBILE */}
           <div className="block md:hidden space-y-4">
             {visibleLaporan.length > 0 ? (
               visibleLaporan.map((laporan) => {
                 const totalPersonil = hitungTotal(laporan.personil);
                 const totalAlat = hitungTotal(laporan.peralatan);
-
                 const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
 
                 return (
                   <div key={laporan.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
                     <div className="flex items-start gap-3">
-                      {/* Icon Avatar Box yang selaras dengan ProjectList */}
                       <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                         <FileSpreadsheet className="w-6 h-6 text-amber-500" />
                         {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>}
@@ -419,7 +433,6 @@ export default function LaporanList() {
                       </div>
                     </div>
 
-                    {/* Action buttons selaras dengan ProjectList */}
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
                       {isEditMode ? (
                         <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
@@ -437,14 +450,12 @@ export default function LaporanList() {
             ) : (
               <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm">
                 <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data nggak ditemukan.</p>
               </div>
             )}
           </div>
 
-          {/* ========================================== */}
-          {/* TAMPILAN DESKTOP: TABEL STANDAR (Diselaraskan dengan ProjectList) */}
-          {/* ========================================== */}
+          {/* TAMPILAN DESKTOP */}
           <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
@@ -461,7 +472,6 @@ export default function LaporanList() {
                     visibleLaporan.map((laporan) => {
                       const totalPersonil = hitungTotal(laporan.personil);
                       const totalAlat = hitungTotal(laporan.peralatan);
-
                       const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
 
                       return (
@@ -513,7 +523,6 @@ export default function LaporanList() {
                               </div>
                             </div>
                             
-                            {/* Gabungkan elemen Personil & Alat di Desktop agar tampilan tabel proporsional */}
                             <div className="grid grid-cols-2 gap-2 mt-2">
                               <div className="bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800/30 flex flex-col justify-center items-center text-center">
                                 <span className="text-[8px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Personil</span>
@@ -546,8 +555,8 @@ export default function LaporanList() {
                     <tr>
                       <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
                         <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
-                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau tidak cocok dengan filter pencarian.</p>
+                        <p className="text-sm font-medium">Data nggak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau nggak cocok sama filter pencarian.</p>
                       </td>
                     </tr>
                   )}
@@ -558,7 +567,7 @@ export default function LaporanList() {
         </>
       )}
 
-      {/* --- INFO LEGEND (FOOTER) --- */}
+      {/* INFO LEGEND FOOTER */}
       <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
         <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Status Laporan:</span>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -568,7 +577,7 @@ export default function LaporanList() {
         </div>
       </div>
 
-      {/* --- MODAL KONFIRMASI DRAFT HAPUS --- */}
+      {/* MODAL KONFIRMASI DRAFT HAPUS */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -577,7 +586,7 @@ export default function LaporanList() {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Anda akan menandai laporan <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
+              Kamu bakal nandain laporan <strong>{deleteConfig.name}</strong> buat dihapus. Tekan "Eksekusi Hapus" kalo udah selesai milih.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>

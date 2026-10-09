@@ -8,36 +8,53 @@ import {
   UploadCloud, FileSpreadsheet
 } from 'lucide-react';
 
+// CACHE MEMORI: Biar data langsung nongol instan pas pindah menu
+let cachedProjects = null;
+
 export default function ProjectList() {
   const navigate = useNavigate();
   
-  // --- STATE MANAJEMEN ---
-  const [projects, setProjects] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Ambil dari cache memori atau sessionStorage duluan biar nggak nunggu loading
+  const [projects, setProjects] = useState(() => {
+    if (cachedProjects && cachedProjects.length > 0) return cachedProjects;
+    try {
+      const saved = sessionStorage.getItem('cached_projects_list');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [isLoading, setIsLoading] = useState(() => {
+    if (cachedProjects && cachedProjects.length > 0) return false;
+    try {
+      const saved = sessionStorage.getItem('cached_projects_list');
+      return !(saved && JSON.parse(saved).length > 0);
+    } catch { return true; }
+  });
+
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-      document.title = "Prisma Group - Daftar Proyek";
-    }, []);
+    document.title = "Prisma Group - Daftar Proyek";
+  }, []);
   
-  // --- SEARCH & FILTER ---
+  // SEARCH & FILTER
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [filters, setFilters] = useState({ status: 'Semua', kategori: 'Semua', sumber_dana: 'Semua' });
   const filterRef = useRef(null);
 
-  // --- EDIT & BATCH DELETE MODE ---
+  // EDIT & BATCH DELETE MODE
   const [isEditMode, setIsEditMode] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState({ show: false, id: null, name: '' });
   const [stagedDeletions, setStagedDeletions] = useState([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // --- IMPORT EXCEL MODE ---
+  // IMPORT EXCEL MODE
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
-  // --- LOGIKA ROLE (HAK AKSES / RBAC) ---
+  // HAK AKSES
   const [userRole, setUserRole] = useState('Tamu');
 
   useEffect(() => {
@@ -54,13 +71,16 @@ export default function ProjectList() {
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  const fetchProjects = async () => {
-    setIsLoading(true);
+  const fetchProjects = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setErrorMsg('');
     try {
       const response = await api.get('/projects');
       const dataProyek = response.data?.data || response.data || [];
-      setProjects(Array.isArray(dataProyek) ? dataProyek : []);
+      const safeData = Array.isArray(dataProyek) ? dataProyek : [];
+      setProjects(safeData);
+      cachedProjects = safeData;
+      try { sessionStorage.setItem('cached_projects_list', JSON.stringify(safeData)); } catch {}
     } catch (error) {
       setErrorMsg('Gagal memuat data proyek. Pastikan server terhubung.');
     } finally {
@@ -69,7 +89,16 @@ export default function ProjectList() {
   };
 
   useEffect(() => {
-    fetchProjects();
+    const hasCache = (cachedProjects && cachedProjects.length > 0) || (() => {
+      try {
+        const saved = sessionStorage.getItem('cached_projects_list');
+        return saved && JSON.parse(saved).length > 0;
+      } catch { return false; }
+    })();
+
+    // Kalo cache udah ada, ambil data terbaru diam-diam di background
+    fetchProjects(hasCache);
+
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
         setShowFilter(false);
@@ -99,12 +128,14 @@ export default function ProjectList() {
     try {
       await Promise.all(stagedDeletions.map(id => api.delete(`/projects/${id}`)));
       setStagedDeletions([]); 
-      await fetchProjects(); 
+      cachedProjects = null;
+      try { sessionStorage.removeItem('cached_projects_list'); } catch {}
+      await fetchProjects(false); 
       setIsEditMode(false); 
     } catch (error) {
-      alert('Beberapa proyek gagal dihapus. Pastikan tidak ada data laporan yang masih terikat.');
+      alert('Beberapa proyek gagal dihapus. Pastikan nggak ada data laporan yang masih terikat.');
       setStagedDeletions([]);
-      await fetchProjects();
+      await fetchProjects(false);
       setIsEditMode(false);
     } finally {
       setIsSavingEdit(false);
@@ -130,7 +161,9 @@ export default function ProjectList() {
       alert('Data proyek berhasil di-import!');
       setShowImportModal(false);
       setImportFile(null);
-      fetchProjects(); 
+      cachedProjects = null;
+      try { sessionStorage.removeItem('cached_projects_list'); } catch {}
+      fetchProjects(false); 
     } catch (error) {
       const serverMsg = error.response?.data?.message || 'Gagal mengimpor file. Periksa koneksi atau format data.';
       alert(`Gagal Import: ${serverMsg}`);
@@ -190,13 +223,13 @@ export default function ProjectList() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* --- TOP ACTION BAR --- */}
+      {/* TOP ACTION BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Project
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi Anda.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi kamu.</p>
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
@@ -207,14 +240,14 @@ export default function ProjectList() {
               type="text" 
               placeholder="Cari proyek..." 
               value={searchQuery} 
-              disabled={isLoading}
+              disabled={isLoading && projects.length === 0}
               onChange={(e) => setSearchQuery(e.target.value)} 
               className="w-full md:w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-800 dark:text-white pl-9 pr-4 py-2.5 md:py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
             />
           </div>
 
           <div className="relative" ref={filterRef}>
-            <button disabled={isLoading} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+            <button disabled={isLoading && projects.length === 0} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
               <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
             </button>
 
@@ -269,14 +302,14 @@ export default function ProjectList() {
                   </button>
                 </>
               ) : (
-                <button disabled={isLoading} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50">
-                  <Edit3 className="w-4 h-4" /> Mode Edit
+                <button disabled={isLoading && projects.length === 0} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50">
+                  <Edit3 className="w-4 h-4" />Edit
                 </button>
               )}
-              <button disabled={isLoading || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <button disabled={(isLoading && projects.length === 0) || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
               </button>
-              <button disabled={isLoading || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <button disabled={(isLoading && projects.length === 0) || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
               </button>
             </div>
@@ -284,7 +317,7 @@ export default function ProjectList() {
         </div>
       </div>
 
-      {/* --- TAGS FILTER AKTIF --- */}
+      {/* TAGS FILTER AKTIF */}
       {(filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua') && (
         <div className="flex flex-wrap gap-2 animate-fade-in -mt-2">
           {filters.status !== 'Semua' && (
@@ -314,15 +347,15 @@ export default function ProjectList() {
         </div>
       )}
 
-      {/* --- KONTEN TABEL & LOADING --- */}
-      {isLoading ? (
+      {/* KONTEN TABEL */}
+      {isLoading && projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memuat data proyek...</p>
         </div>
       ) : (
         <>
-          {/* TAMPILAN MOBILE: Desain Card */}
+          {/* TAMPILAN MOBILE */}
           <div className="block md:hidden space-y-4">
             {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
               const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
@@ -356,7 +389,6 @@ export default function ProjectList() {
                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {proj.tanggal_mulai || '?'} - {proj.tanggal_selesai || '?'}</span>
                   </div>
                   
-                  {/* Bagian Progress */}
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/30 flex flex-col justify-center items-center text-center">
                       <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-0.5 tracking-wider">Plan</span>
@@ -382,7 +414,6 @@ export default function ProjectList() {
                          <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
                            <Info className="w-4 h-4 shrink-0" /> Data
                          </button>
-                         {/* PENYESUAIAN RUTING BUKA JADWAL KE /schedules/ID/data */}
                          <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
                            <CalendarDays className="w-4 h-4 shrink-0" /> Jadwal
                          </button>
@@ -394,12 +425,12 @@ export default function ProjectList() {
             }) : (
               <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
                 <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data nggak ditemukan.</p>
               </div>
             )}
           </div>
 
-          {/* TAMPILAN DESKTOP: Styling dan Backdrop blur */}
+          {/* TAMPILAN DESKTOP */}
           <div className="hidden md:block bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg backdrop-blur-sm animate-fade-in">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
@@ -485,7 +516,6 @@ export default function ProjectList() {
                                <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
                                  <Info className="w-3.5 h-3.5" /> Buka Data
                                </button>
-                               {/* PENYESUAIAN RUTING BUKA JADWAL KE /schedules/ID/data */}
                                <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
                                  <CalendarDays className="w-3.5 h-3.5" /> Buka Jadwal
                                </button>
@@ -498,8 +528,8 @@ export default function ProjectList() {
                     <tr>
                       <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
                         <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
-                        <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau tidak cocok dengan filter pencarian.</p>
+                        <p className="text-sm font-medium">Data nggak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau nggak cocok sama filter pencarian.</p>
                       </td>
                     </tr>
                   )}
@@ -510,7 +540,7 @@ export default function ProjectList() {
         </>
       )}
 
-      {/* --- INFO LEGEND (FOOTER) --- */}
+      {/* INFO LEGEND FOOTER */}
       <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm mt-2">
         <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Keterangan & Aksi:</span>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -521,7 +551,7 @@ export default function ProjectList() {
         </div>
       </div>
 
-      {/* --- MODAL KONFIRMASI DRAFT HAPUS (Tidak dirubah logikanya) --- */}
+      {/* MODAL KONFIRMASI DRAFT HAPUS */}
       {deleteConfig.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700">
@@ -530,7 +560,7 @@ export default function ProjectList() {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Proyek?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Anda akan menandai proyek <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
+              Kamu bakal nandain proyek <strong>{deleteConfig.name}</strong> buat dihapus. Tekan "Eksekusi Hapus" kalo udah selesai milih.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
@@ -542,7 +572,7 @@ export default function ProjectList() {
         </div>
       )}
 
-      {/* --- MODAL IMPORT EXCEL (Tidak dirubah logikanya) --- */}
+      {/* MODAL IMPORT EXCEL */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">

@@ -7,10 +7,12 @@ use App\Models\RabItem;
 use App\Models\Project;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Services\ProjectCacheService;
+use App\Services\DashboardService;
 
 class RabService
 {
-    const TTL = 86400; // Cache 24 jam (dibersihkan otomatis saat ada update)
+    const TTL = 86400; // Cache 24 jam
 
     /**
      * Key cache untuk data RAB proyek
@@ -84,7 +86,7 @@ class RabService
     }
 
     /**
-     * Hitung ringkasan total nilai rencana vs realisasi (untuk Ekspor & Analisis)
+     * Hitung ringkasan total nilai rencana vs realisasi
      */
     public function calculateSummary($projectId)
     {
@@ -127,14 +129,16 @@ class RabService
     }
 
     /**
-     * Hapus cache RAB saat ada penambahan/perubahan item atau laporan diverifikasi
+     * Hapus semua cache terkait saat ada perubahan data
      */
     public static function clearCache($projectId)
     {
         Cache::forget(self::getCacheKey($projectId));
         Cache::forget(self::getSummaryCacheKey($projectId));
+        Cache::forget('all_daily_reports_list_cache');
 
-        // Hapus juga cache Kurva S karena angka realisasinya saling berkaitan
+        // Hapus cache Kurva S dan Dashboard
         ProjectCacheService::clearProjectCache($projectId);
+        DashboardService::clearCache();
     }
 }
