@@ -76,8 +76,8 @@ export default function LaporanData() {
                  id: item.id, 
                  uraian: item.uraian_pekerjaan, 
                  satuan: item.satuan, 
-                 volume: item.volume, // Untuk rumus otomatis
-                 total_harga: item.total_harga, // Untuk rumus otomatis
+                 volume: item.volume,
+                 total_harga: item.total_harga,
                  kategori_nama: kategori.nama_kategori 
                });
              }
@@ -310,13 +310,31 @@ export default function LaporanData() {
     try { await api.delete(`/daily-reports/${reportId}`); alert("Laporan berhasil dihapus permanen."); navigate('/laporan'); } catch (error) { alert("Gagal menghapus laporan."); }
   };
 
+  // FORMAT PEMBERSIH ANGKA NOL (.0000)
+  const formatCleanNumber = (val) => {
+    if (val === null || val === undefined || val === '') return 0;
+    const num = parseFloat(val);
+    return isNaN(num) ? val : num;
+  };
+
   const handleCopyText = () => {
     if (!reportData) return;
     const dateObj = new Date(reportData.tanggal);
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('id-ID', options);
 
-    let pekerjaanText = reportData.activities?.length ? reportData.activities.map((act, idx) => `${idx + 1}. ${act.uraian} (${act.volume} ${act.satuan}) ${act.persentase ? `[${Number(act.persentase)}%]` : ''}`).join('\n') : "1. Tidak Ada Pekerjaan";
+    // MENGGANTI PERSENTASE DENGAN STA DAN MEMBERSIHKAN ANGKA NOL PADA VOLUME
+    let pekerjaanText = reportData.activities?.length 
+      ? reportData.activities.map((act, idx) => {
+          const cleanVolume = formatCleanNumber(act.volume);
+          const satuan = act.satuan ? ` ${act.satuan}` : '';
+          const staPart = (act.sta_awal || act.sta_akhir)
+            ? ` [STA: ${act.sta_awal || '-'} s/d ${act.sta_akhir || '-'}]`
+            : '';
+          return `${idx + 1}. ${act.uraian} (${cleanVolume}${satuan})${staPart}`;
+        }).join('\n') 
+      : "1. Tidak Ada Pekerjaan";
+
     let manpowerText = reportData.personnels?.length ? reportData.personnels.map((p, idx) => `${idx + 1}. ${p.peran} = ${p.jumlah} org`).join('\n') : "1. Tidak Ada Pekerja = -";
     let alatText = reportData.equipments?.length ? reportData.equipments.map((e, idx) => `${idx + 1}. ${e.nama_alat} = ${e.jumlah} Unit`).join('\n') : "1. Tidak Ada Alat = -";
 
@@ -487,13 +505,12 @@ export default function LaporanData() {
       </div>
 
       <div className="w-full">
-        {/* MENGIRIMKAN GRAND TOTAL RAB & KUMULATIF KE KEGIATAN GEOGRAFIS */}
         <KegiatanGeografis 
           isEditMode={isEditMode} reportData={reportData} editForm={editForm} setEditForm={setEditForm}
           rabOptions={rabOptions} isLoadingRab={isLoadingRab} mingguKe={currentMingguKe}
           optionsMingguIni={optionsMingguIni} optionsMingguLain={optionsMingguLain} unscheduledRabOptions={unscheduledRabOptions}
           grandTotalRab={scheduleData?.grand_total_rab} 
-          cumulativeActuals={scheduleData?.cumulative_actual} // <--- TAMBAHKAN BARIS INI
+          cumulativeActuals={scheduleData?.cumulative_actual}
         />
       </div>
 
