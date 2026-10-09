@@ -497,8 +497,8 @@ export default function KurvaS({ selectedProject }) {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* HEADER UTAMA & DUA BOKS KONTROL */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+      {/* HEADER UTAMA & KONTROL CARD BOX (RESPONSIVE TABLET & MOBILE) */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
           <Link to={`/projects/${projectId}/data`} state={project} className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
             <ArrowLeft className="w-4 h-4" />
@@ -518,17 +518,17 @@ export default function KurvaS({ selectedProject }) {
           </div>
         </div>
 
-        {/* CONTAINER KEDUA BOKS (SIMETRIS & RESPONSIVE) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+        {/* CONTAINER KEDUA BOKS: FLEX-WRAP AGAR TIDAK MELAR PADA LAYAR TABLET */}
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
           
           {/* BOKS KIRI: KONTROL AKSI & EKSPOR */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all shrink-0">
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all w-fit max-w-full">
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
                 <button 
                   disabled={isLoading || isScheduleEmpty} 
                   onClick={() => setShowFilterPopup(!showFilterPopup)} 
-                  className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 >
                   <Filter className="w-3.5 h-3.5 shrink-0" /> 
                   <span>Filter</span>
@@ -554,7 +554,7 @@ export default function KurvaS({ selectedProject }) {
             )}
             
             {canCreateData && isEditMode && (
-              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap">
+              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0">
                 <X className="w-3.5 h-3.5 shrink-0" /> <span>Batal</span>
               </button>
             )}
@@ -563,7 +563,7 @@ export default function KurvaS({ selectedProject }) {
               <button 
                 onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} 
                 disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} 
-                className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}
+                className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm shrink-0 ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : (isEditMode ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Edit3 className="w-3.5 h-3.5 shrink-0" />)} 
                 <span>{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan' : 'Edit')}</span>
@@ -573,7 +573,7 @@ export default function KurvaS({ selectedProject }) {
             {canCreateData && isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => openWeekModal()} className="flex items-center justify-center gap-1 h-7 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap">
+                <button onClick={() => openWeekModal()} className="flex items-center justify-center gap-1 h-7 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0">
                   <ListPlus className="w-3.5 h-3.5 shrink-0" /> <span>+ Minggu</span>
                 </button>
               </>
@@ -582,11 +582,11 @@ export default function KurvaS({ selectedProject }) {
             {!isGuest && !isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 shrink-0" />} 
                   <span>Excel</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 text-amber-500 shrink-0" />} 
                   <span>PDF</span>
                 </button>
@@ -594,18 +594,18 @@ export default function KurvaS({ selectedProject }) {
             )}
           </div>
 
-          {/* BOKS KANAN: NAVIGASI TAB MENU */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 shrink-0">
-            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+          {/* BOKS KANAN: NAVIGASI TAB MENU (HUG CONTENT & INTERNAL SCROLL KALAU PERLU) */}
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 w-fit max-w-full">
+            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
               <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Data</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
               <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>RAB</span>
             </button>
-            <button className="flex items-center justify-center gap-1 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap cursor-default">
+            <button className="flex items-center justify-center gap-1 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-default">
               <TrendingUp className="w-3.5 h-3.5 shrink-0" /> <span>Kurva Schedule</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
               <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Peta GIS</span>
             </button>
           </div>
