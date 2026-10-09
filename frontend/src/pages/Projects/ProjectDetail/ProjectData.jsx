@@ -241,97 +241,131 @@ export default function ProjectData() {
       {/* ========================================== */}
       {/* 1. HEADER NAVIGASI (Selalu Tampil)           */}
       {/* ========================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 mb-2">
-        <div className="flex items-start lg:items-center gap-4 shrink-0">
-          <button onClick={() => navigate('/projects')} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0 overflow-hidden group ${isEditMode ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900' : ''}`}>
-            {newFotoPreview ? (
-              <img src={newFotoPreview} alt="Preview" className="w-full h-full object-cover" />
-            ) : (project?.foto_sampul && !removeFoto) ? (
-              <img src={getImageUrl(project.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
-            ) : (
-              <div className="flex items-center justify-center w-full h-full font-extrabold text-slate-400 text-lg">
-                {project?.nama_proyek ? project.nama_proyek.charAt(0).toUpperCase() : <Building2 className="w-5 h-5" />}
-              </div>
-            )}
-
-            {isEditMode && (
-              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 backdrop-blur-sm">
-                <button type="button" onClick={(e) => { e.preventDefault(); document.getElementById('headerFotoInput').click(); }} className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full text-white transition-colors" title="Ganti Foto"><UploadCloud className="w-4 h-4" /></button>
-                {((project?.foto_sampul && !removeFoto) || newFotoPreview) && (
-                  <button type="button" onClick={(e) => { e.preventDefault(); setRemoveFoto(true); setFotoSampul(null); setNewFotoPreview(null); }} className="p-1.5 bg-rose-500/80 hover:bg-rose-500 rounded-full text-white transition-colors" title="Hapus Foto"><Trash2 className="w-4 h-4" /></button>
-                )}
-              </div>
-            )}
-            <input type="file" id="headerFotoInput" className="hidden" accept="image/*" onChange={handleFotoChange} />
-          </div>
-
+      {/* HEADER UTAMA & DUA BOKS KONTROL */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
+        
+        {/* INFORMASI & JUDUL PROYEK */}
+        <div className="flex items-start lg:items-center gap-3 shrink-0">
+          <Link 
+            to="/projects" 
+            className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
+            title="Kembali ke Daftar Proyek"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-start lg:items-center gap-1.5 flex-wrap">
-              <span>Executive Summary Proyek</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 font-extrabold tracking-wider">DRAFT MODE</span>}
-            </h1>
-            <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
-              <span className="text-slate-400 mx-0.5">•</span>              
-              {isEditMode ? (
-                <select name="kategori" value={editFormData.kategori || ''} onChange={handleMainChange} className="bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
-                  <option value="" disabled>Pilih Kategori</option>
-                  <option value="Infrastruktur Jalan & Jembatan">Infrastruktur Jalan & Jembatan</option>
-                  <option value="Gedung & Bangunan Sipil">Gedung & Bangunan Sipil</option>
-                  <option value="Sumber Daya Air & Irigasi">Sumber Daya Air & Irigasi</option>
-                  <option value="Tata Lingkungan & Sanitasi">Tata Lingkungan & Sanitasi</option>
-                  <option value="Preservasi Jalan">Preservasi Jalan</option>
-                  <option value="Belum Ditentukan">Belum Ditentukan</option>
-                </select>
-              ) : (
-                <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>{project?.kategori || 'Belum Ditentukan'}</span>
+            <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
+              <span>Data Utama Proyek</span>
+              {isEditMode && (
+                <span className="px-2 py-0.5 ml-1 text-[9px] bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 rounded-md animate-pulse border border-blue-200 dark:border-blue-500/30 font-extrabold tracking-wider shadow-sm">
+                  DRAFT MODE
+                </span>
               )}
+            </h1>
+            
+            <div className="flex items-center flex-wrap gap-1 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <span className="truncate font-medium">{projectData?.nama_proyek || 'Memuat Data...'}</span>
+              <span className="text-slate-400">•</span>
+              <span className="truncate">
+                SPK: {projectData?.kode_kontrak || projectData?.nomor_kontrak_kontraktor || '-'}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className={`px-1.5 py-0.2 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(projectData?.kategori)}`}>
+                {projectData?.kategori || 'Belum Ditentukan'}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+        {/* CONTAINER KONTROL: BERTUMPUK DI MOBILE & TABLET, SEJAJAR DI DESKTOP */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 w-full lg:w-auto">
           
-          {/* ACTION BUTTONS */}
-          {!isGuest && (
-            <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm transition-all duration-300">
-              {canCreateData && isEditMode && (
-                 <button onClick={cancelEditMode} disabled={isSavingMain || isLoading} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><X className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> Batal</button>
-              )}
-              {canCreateData && (
-                <button onClick={toggleEditMode} disabled={isSavingMain || isLoading} className={`flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-200'}`}>
-                  {isSavingMain ? <Loader2 className="w-4 h-4 lg:w-3.5 lg:h-3.5 animate-spin" /> : (isEditMode ? <CheckCircle2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> : <Edit3 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />)} 
-                  <span className="hidden lg:inline">{isSavingMain ? 'Menyimpan...' : (isEditMode ? 'Simpan Perubahan' : 'Mode Edit Data')}</span>
-                </button>
-              )}
-              {!isEditMode && (
+          {/* BOKS KIRI: KONTROL AKSI (EDIT: BIRU, BATAL, SIMPAN) */}
+          {canEditData && (
+            <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all w-full lg:w-auto">
+              {isEditMode ? (
                 <>
-                  {canCreateData && (
-                    <button onClick={confirmDeleteProject} disabled={isLoading} title="Hapus Proyek" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Hapus</span></button>
-                  )}
-                  {canExportData && (
-                    <>
-                      <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                      <button onClick={handleExportExcel} disabled={isLoading} title="Export Excel" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export Excel</span></button>
-                      <button onClick={handleExportPDF} disabled={isLoading} title="Export PDF" className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"><Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Export PDF</span></button>
-                    </>
-                  )}
+                  <button 
+                    type="button"
+                    onClick={cancelEdit} 
+                    disabled={isSaving || isLoading} 
+                    className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" /> 
+                    <span>Batal</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={handleSaveProject} 
+                    disabled={isSaving || isLoading} 
+                    className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-blue-600 hover:bg-blue-700 text-white shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-white" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-white" />
+                    )} 
+                    <span>{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
+                  </button>
                 </>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => setIsEditMode(true)} 
+                  disabled={isLoading} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" /> 
+                  <span>Edit Data</span>
+                </button>
               )}
             </div>
           )}
 
-          {/* TAB NAVIGASI MODUL UTAMA */}
-          <div className="flex items-center w-full lg:w-auto justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0">
-            <button className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm transition-all cursor-default whitespace-nowrap"><Info className="w-4 h-4 lg:w-3.5 lg:h-3.5" /> <span className="hidden lg:inline">Data Utama</span></button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><FileSpreadsheet className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">RAB</span></button>
-            <button onClick={() => navigate(`/projects/${projectId}/kurva-s`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><TrendingUp className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Kurva S & Schedule</span></button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex-1 lg:flex-none flex justify-center items-center gap-1.5 py-2 lg:py-1.5 lg:px-3 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg transition-all whitespace-nowrap"><Compass className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-amber-500" /> <span className="hidden lg:inline">Peta GIS</span></button>
+          {/* BOKS KANAN: NAVIGASI TAB MENU (TAB DATA AKTIF ORANYE AMBER) */}
+          <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 w-full lg:w-auto">
+            {/* TAB DATA UTAMA (AKTIF) */}
+            <button 
+              type="button"
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-default"
+            >
+              <Info className="w-3.5 h-3.5 shrink-0" /> 
+              <span>Data</span>
+            </button>
+
+            {!isGuest && (
+              <>
+                <button 
+                  type="button"
+                  onClick={() => navigate(`/projects/${id}/rab`, { state: projectData })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+                  <span>RAB</span>
+                </button>
+
+                <button 
+                  type="button"
+                  onClick={() => navigate(`/projects/${id}/kurva-s`, { state: projectData })} 
+                  className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+                  <span>Kurva Schedule</span>
+                </button>
+              </>
+            )}
+
+            <button 
+              type="button"
+              onClick={() => navigate(`/projects/${id}/peta-gis`, { state: projectData })} 
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0"
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" /> 
+              <span>Peta GIS</span>
+            </button>
           </div>
+
         </div>
       </div>
 

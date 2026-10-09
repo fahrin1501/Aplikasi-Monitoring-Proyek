@@ -35,12 +35,6 @@ export default function NavigasiRAB({
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
       {/* HEADER JUDUL & INFO PROYEK */}
       <div className="flex items-start lg:items-center gap-3 shrink-0">
-        <Link 
-          to={`/projects/${id}/data`} 
-          className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
             <span>Rencana Anggaran Biaya (RAB)</span>
