@@ -108,7 +108,7 @@ export default function NavigasiRAB({
                     className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <UploadCloud className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" /> 
-                    <span>Import RAB</span>
+                    <span>Import</span>
                   </button>
                 </>
               )}
