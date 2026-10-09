@@ -56,9 +56,6 @@ export default function KurvaS({ selectedProject }) {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportModal, setExportModal] = useState({ show: false, type: '' });
 
-  // =========================================================================
-  // STATE & FUNGSI INISIALISASI PROYEK BARU
-  // =========================================================================
   const [isSavingInitial, setIsSavingInitial] = useState(false);
   const [weeksForm, setWeeksForm] = useState([{ 
     id: Date.now(), minggu_ke: 1, bulan: 1, tanggal_mulai: '', tanggal_selesai: '', target_kumulatif: '' 
@@ -108,7 +105,6 @@ export default function KurvaS({ selectedProject }) {
       setIsSavingInitial(false);
     }
   };
-  // =========================================================================
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -501,51 +497,47 @@ export default function KurvaS({ selectedProject }) {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
       `}</style>
 
-      {/* HEADER UTAMA */}
+      {/* HEADER UTAMA & DUA BOKS KONTROL */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
         <div className="flex items-start lg:items-center gap-3 shrink-0">
-          <Link to={`/projects/${projectId}/data`} state={project} className="p-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
-            <ArrowLeft className="w-5 h-5" />
+          <Link to={`/projects/${projectId}/data`} state={project} className="p-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 rounded-xl transition-all shadow-sm mt-0.5 lg:mt-0">
+            <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base lg:text-lg font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
+            <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Kurva S & Schedule Proyek</span>
-              {isEditMode && <span className="px-2 py-0.5 ml-2 text-[10px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
+              {isEditMode && <span className="px-2 py-0.5 ml-1 text-[9px] bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-md animate-pulse border border-amber-200 dark:border-amber-500/30 font-extrabold tracking-wider shadow-sm">DRAFT MODE</span>}
             </h1>
-            <div className="flex items-center flex-wrap gap-1.5 mt-1 text-[10px] lg:text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <div className="flex items-center flex-wrap gap-1 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
               <span className="truncate font-medium">{project?.nama_proyek || 'Memuat Data...'}</span>
-              <span className="text-slate-400 mx-0.5">•</span>
-              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>
+              <span className="text-slate-400">•</span>
+              <span className={`px-1.5 py-0.2 rounded border text-[9px] font-extrabold uppercase tracking-wider shadow-sm truncate ${getCategoryStyle(project?.kategori)}`}>
                 {project?.kategori || 'Belum Ditentukan'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* GRUP KONTROL: BERTUMPUK DI MOBILE & TABLET, SEJAJAR DI DESKTOP */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 w-full lg:w-auto">
+        {/* CONTAINER KEDUA BOKS (SIMETRIS & RESPONSIVE) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           
-          {/* CARD BOX KIRI (AKSI, EDIT & EXPORT) */}
-          <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all w-full lg:w-auto">
+          {/* BOKS KIRI: KONTROL AKSI & EKSPOR */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all shrink-0">
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
                 <button 
                   disabled={isLoading || isScheduleEmpty} 
                   onClick={() => setShowFilterPopup(!showFilterPopup)} 
-                  className={`flex items-center justify-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-bold border transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${showFilterPopup || filterMode !== 'Mingguan' || startDateFilter || endDateFilter ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-transparent border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 >
                   <Filter className="w-3.5 h-3.5 shrink-0" /> 
                   <span>Filter</span>
                 </button>
                 {showFilterPopup && (
-                  <div className="absolute left-0 lg:right-0 lg:left-auto top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
+                  <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50 animate-fade-in">
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Skala Tampilan Sumbu X</h4>
                     <div className="flex bg-slate-100 dark:bg-slate-900/60 rounded-xl p-1 mb-4 shadow-inner border border-slate-200 dark:border-slate-700/50">
-                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => (
-                        <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                          {mode}
-                        </button>
-                      ))}
+                      {['Harian', 'Mingguan', 'Bulanan'].map(mode => <button key={mode} onClick={() => setFilterMode(mode)} className={`flex-1 text-[10px] py-1.5 font-bold rounded-lg transition-all ${filterMode === mode ? 'bg-white dark:bg-slate-700 shadow text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>{mode}</button>)}
                     </div>
                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Rentang Waktu (Opsional)</h4>
                     <div className="flex flex-col gap-2.5">
@@ -562,7 +554,7 @@ export default function KurvaS({ selectedProject }) {
             )}
             
             {canCreateData && isEditMode && (
-              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap shrink-0">
+              <button onClick={handleBatalEdit} disabled={isSaving || isLoading} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-600 whitespace-nowrap">
                 <X className="w-3.5 h-3.5 shrink-0" /> <span>Batal</span>
               </button>
             )}
@@ -571,7 +563,7 @@ export default function KurvaS({ selectedProject }) {
               <button 
                 onClick={isEditMode ? () => setSaveModal(true) : () => setIsEditMode(true)} 
                 disabled={isSaving || isLoading || (!isEditMode && Array.isArray(localWeeks) && localWeeks.length === 0)} 
-                className={`flex items-center justify-center gap-1.5 px-2.5 h-7 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm shrink-0 ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}
+                className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-700 dark:text-slate-300'}`}
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : (isEditMode ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Edit3 className="w-3.5 h-3.5 shrink-0" />)} 
                 <span>{isSaving ? 'Menyimpan...' : (isEditMode ? 'Simpan' : 'Edit')}</span>
@@ -581,7 +573,7 @@ export default function KurvaS({ selectedProject }) {
             {canCreateData && isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => openWeekModal()} className="flex items-center justify-center gap-1 h-7 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0">
+                <button onClick={() => openWeekModal()} className="flex items-center justify-center gap-1 h-7 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap">
                   <ListPlus className="w-3.5 h-3.5 shrink-0" /> <span>+ Minggu</span>
                 </button>
               </>
@@ -590,30 +582,30 @@ export default function KurvaS({ selectedProject }) {
             {!isGuest && !isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
+                <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 shrink-0" />} 
                   <span>Excel</span>
                 </button>
-                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
-                  {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 text-amber-500 shrink-0" />} 
+                <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-600 dark:text-slate-300 hover:text-amber-600 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
+                  {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 text-danger-500 shrink-0" />} 
                   <span>PDF</span>
                 </button>
               </>
             )}
           </div>
 
-          {/* CARD BOX KANAN (NAVIGASI TAB MENU) */}
-          <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-slate-800/80 px-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 w-full lg:w-auto">
-            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
+          {/* BOKS KANAN: NAVIGASI TAB MENU */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-0 shrink-0">
+            <button onClick={() => navigate(`/projects/${projectId}/data`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Data</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
+            <button onClick={() => navigate(`/projects/${projectId}/rab`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>RAB</span>
             </button>
-            <button className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-default">
+            <button className="flex items-center justify-center gap-1 h-7 px-2.5 bg-amber-500 text-white dark:text-slate-950 text-[10px] sm:text-[11px] font-bold rounded-lg shadow-sm whitespace-nowrap cursor-default">
               <TrendingUp className="w-3.5 h-3.5 shrink-0" /> <span>Kurva Schedule</span>
             </button>
-            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1.5 h-7 px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium rounded-lg whitespace-nowrap shrink-0">
+            <button onClick={() => navigate(`/projects/${projectId}/peta-gis`, { state: project })} className="flex items-center justify-center gap-1 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
               <Compass className="w-3.5 h-3.5 text-amber-500 shrink-0" /> <span>Peta GIS</span>
             </button>
           </div>
