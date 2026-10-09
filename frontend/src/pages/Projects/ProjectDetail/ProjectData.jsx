@@ -5,8 +5,11 @@ import {
   Calendar, MapPin, DollarSign, HardHat, 
   UserCheck, Compass, FileText, TrendingUp, FileSpreadsheet, Info, 
   Clock, Download, Users, CheckCircle2, Activity, 
-  AlertTriangle, Edit3, Trash2, UploadCloud, Plus, Loader2, FileSignature, X
+  AlertTriangle, Edit3, Trash2, UploadCloud, Plus, Loader2, FileSignature, X, Camera
 } from 'lucide-react';
+
+// CACHE MEMORI: Simpan detail proyek per ID agar langsung muncul instan saat dibuka kembali
+let cachedProjectDetails = {};
 
 export default function ProjectData() {
   const navigate = useNavigate();
@@ -17,25 +20,41 @@ export default function ProjectData() {
     document.title = "Prisma Group - Data Utama";
   }, []);
 
-  // State Data Proyek
-  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
+  // Ambil data awal dari memory cache, sessionStorage, atau router state
+  const getInitialProject = () => {
+    if (cachedProjectDetails[id]) return cachedProjectDetails[id];
+    try {
+      const saved = sessionStorage.getItem(`cached_project_detail_${id}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    if (location.state && location.state.tanggal_mulai) return location.state;
+    return location.state || { id: id, nama_proyek: 'Memuat Data...' };
+  };
+
+  const initialProject = getInitialProject();
   const [project, setProject] = useState(initialProject);
   const projectId = project?.id || id;
-  const projectData = project; // Alias untuk konsistensi penamaan
+  const projectData = project;
 
-  const [isLoading, setIsLoading] = useState(true);
+  // Jika data sudah ada di cache, jangan tampilkan layar loading penuh
+  const hasCachedFullData = Boolean(project && project.tanggal_mulai);
+  const [isLoading, setIsLoading] = useState(!hasCachedFullData);
   const [errorMsg, setErrorMsg] = useState('');
 
   // State Progres Fisik S-Curve
-  const [progressData, setProgressData] = useState({ plan: 0, actual: 0, deviasi: 0 });
+  const [progressData, setProgressData] = useState({ 
+    plan: parseFloat(initialProject?.progress_plan) || 0, 
+    actual: parseFloat(initialProject?.progress_actual) || 0, 
+    deviasi: parseFloat(initialProject?.deviasi) || 0 
+  });
 
   // State Edit Mode Utama
   const [isEditMode, setIsEditMode] = useState(false);
-  const [editFormData, setEditFormData] = useState({});
+  const [editFormData, setEditFormData] = useState(initialProject || {});
   const [isSavingMain, setIsSavingMain] = useState(false);
-  const isSaving = isSavingMain; // Alias
+  const isSaving = isSavingMain;
 
-  // State Foto Banner
+  // State Foto Banner / Sampul Proyek
   const [fotoSampul, setFotoSampul] = useState(null);
   const [newFotoPreview, setNewFotoPreview] = useState(null);
   const [removeFoto, setRemoveFoto] = useState(false); 
@@ -67,34 +86,46 @@ export default function ProjectData() {
   const canExportData = ['Administrator', 'Direktur'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  // Fetch Data Proyek
-  const fetchProjectDetail = async () => {
-    setIsLoading(true);
+  // Fetch Data Proyek (Silent jika cache sudah tersedia)
+  const fetchProjectDetail = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const projRes = await api.get(`/projects/${id}`);
-      const data = projRes.data;
+      const data = projRes.data?.data || projRes.data;
       
       setProject(data);
       setEditFormData(data);
+      cachedProjectDetails[id] = data;
+      try {
+        sessionStorage.setItem(`cached_project_detail_${id}`, JSON.stringify(data));
+      } catch {}
 
       setProgressData({ 
         plan: parseFloat(data.progress_plan) || 0, 
         actual: parseFloat(data.progress_actual) || 0, 
         deviasi: parseFloat(data.deviasi) || 0 
       });
-
     } catch (error) {
-      setErrorMsg('Gagal memuat data proyek.');
+      if (!silent) setErrorMsg('Gagal memuat data proyek.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => { fetchProjectDetail(); }, [id]);
+  useEffect(() => { 
+    const hasData = hasCachedFullData || Boolean(cachedProjectDetails[id]);
+    fetchProjectDetail(hasData); 
+  }, [id]);
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(angka) || 0);
 
   const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api\/?$/, '') : '';
+
+  const getImageUrl = (filename) => {
+    if (!filename) return null;
+    if (filename.startsWith('http')) return filename; 
+    return `${BASE_URL}/storage/foto_proyek/${filename}`; 
+  };
 
   const getDocUrl = (path) => {
     if (!path) return '#';
@@ -105,6 +136,15 @@ export default function ProjectData() {
   const formatDateForInput = (val) => val ? String(val).substring(0, 10) : '';
 
   const handleMainChange = (e) => setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFotoSampul(file);
+      setNewFotoPreview(URL.createObjectURL(file));
+      setRemoveFoto(false);
+    }
+  };
 
   const getCategoryStyle = (kat) => {
     switch (kat) {
@@ -122,7 +162,11 @@ export default function ProjectData() {
       setIsSavingMain(true);
       try {
         const payloadData = { ...editFormData };
-        delete payloadData.personnels; delete payloadData.documents; delete payloadData.created_at; delete payloadData.updated_at; delete payloadData.foto_sampul; 
+        delete payloadData.personnels; 
+        delete payloadData.documents; 
+        delete payloadData.created_at; 
+        delete payloadData.updated_at; 
+        delete payloadData.foto_sampul; 
 
         if (fotoSampul || removeFoto) {
           const formData = new FormData();
@@ -134,13 +178,37 @@ export default function ProjectData() {
         } else {
           await api.put(`/projects/${id}`, payloadData);
         }
-        await fetchProjectDetail(); setIsEditMode(false); setFotoSampul(null); setNewFotoPreview(null); setRemoveFoto(false);
-      } catch (error) { alert("Gagal update proyek."); } 
-      finally { setIsSavingMain(false); }
-    } else { setEditFormData(project); setIsEditMode(true); }
+
+        // Hapus cache lokal agar sinkronisasi data baru langsung terbaca
+        delete cachedProjectDetails[id];
+        try { 
+          sessionStorage.removeItem(`cached_project_detail_${id}`);
+          sessionStorage.removeItem('cached_projects_list');
+        } catch {}
+
+        await fetchProjectDetail(false); 
+        setIsEditMode(false); 
+        setFotoSampul(null); 
+        setNewFotoPreview(null); 
+        setRemoveFoto(false);
+      } catch (error) { 
+        alert("Gagal update proyek."); 
+      } finally { 
+        setIsSavingMain(false); 
+      }
+    } else { 
+      setEditFormData(project); 
+      setIsEditMode(true); 
+    }
   };
 
-  const cancelEditMode = () => { setEditFormData(project); setIsEditMode(false); setFotoSampul(null); setNewFotoPreview(null); setRemoveFoto(false); };
+  const cancelEditMode = () => { 
+    setEditFormData(project); 
+    setIsEditMode(false); 
+    setFotoSampul(null); 
+    setNewFotoPreview(null); 
+    setRemoveFoto(false); 
+  };
   const cancelEdit = cancelEditMode;
   const handleSaveProject = toggleEditMode;
 
@@ -156,9 +224,13 @@ export default function ProjectData() {
     try {
       if (personnelForm.id) await api.put(`/personnels/${personnelForm.id}`, personnelForm);
       else await api.post(`/projects/${id}/personnels`, personnelForm);
-      setShowPersonnelModal(false); fetchProjectDetail(); 
-    } catch (error) { alert("Gagal simpan personel."); } 
-    finally { setIsSavingPersonnel(false); }
+      setShowPersonnelModal(false); 
+      fetchProjectDetail(true); 
+    } catch (error) { 
+      alert("Gagal simpan personel."); 
+    } finally { 
+      setIsSavingPersonnel(false); 
+    }
   };
 
   const handleUploadDocument = async (e) => {
@@ -169,8 +241,11 @@ export default function ProjectData() {
     e.target.value = null;
     try {
       await api.post(`/projects/${id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
-      fetchProjectDetail(); alert("Dokumen berhasil ditambahkan!");
-    } catch (error) { alert("Gagal upload dokumen."); }
+      fetchProjectDetail(true); 
+      alert("Dokumen berhasil ditambahkan!");
+    } catch (error) { 
+      alert("Gagal upload dokumen."); 
+    }
   };
 
   const confirmDeletePersonnel = (personId, personName) => setDeleteConfig({ show: true, type: 'personnel', id: personId, name: personName });
@@ -178,31 +253,56 @@ export default function ProjectData() {
 
   const executeDelete = async () => {
     try {
-      if (deleteConfig.type === 'project') { await api.delete(`/projects/${deleteConfig.id}`); alert("Proyek dihapus."); navigate('/projects'); return; } 
-      else if (deleteConfig.type === 'personnel') await api.delete(`/personnels/${deleteConfig.id}`);
-      else if (deleteConfig.type === 'document') await api.delete(`/documents/${deleteConfig.id}`);
-      setDeleteConfig({ show: false, type: '', id: null, name: '' }); fetchProjectDetail(); 
-    } catch (error) { alert("Gagal menghapus data."); }
+      if (deleteConfig.type === 'project') { 
+        await api.delete(`/projects/${deleteConfig.id}`); 
+        delete cachedProjectDetails[id];
+        try { 
+          sessionStorage.removeItem(`cached_project_detail_${id}`);
+          sessionStorage.removeItem('cached_projects_list');
+        } catch {}
+        alert("Proyek dihapus."); 
+        navigate('/projects'); 
+        return; 
+      } else if (deleteConfig.type === 'personnel') {
+        await api.delete(`/personnels/${deleteConfig.id}`);
+      } else if (deleteConfig.type === 'document') {
+        await api.delete(`/documents/${deleteConfig.id}`);
+      }
+      setDeleteConfig({ show: false, type: '', id: null, name: '' }); 
+      fetchProjectDetail(true); 
+    } catch (error) { 
+      alert("Gagal menghapus data."); 
+    }
   };
 
   const handleExportExcel = async () => {
     try {
       const response = await api.get(`/projects/${projectId}/export/excel`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a'); link.href = url;
+      const link = document.createElement('a'); 
+      link.href = url;
       link.setAttribute('download', `Data_Proyek_${project.nama_proyek.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`); 
-      document.body.appendChild(link); link.click(); link.remove();
-    } catch (error) { alert("Gagal export Excel."); }
+      document.body.appendChild(link); 
+      link.click(); 
+      link.remove();
+    } catch (error) { 
+      alert("Gagal export Excel."); 
+    }
   };
 
   const handleExportPDF = async () => {
     try {
       const response = await api.get(`/projects/${projectId}/export/pdf`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a'); link.href = url;
+      const link = document.createElement('a'); 
+      link.href = url;
       link.setAttribute('download', `Executive_Summary_${project.nama_proyek.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
-      document.body.appendChild(link); link.click(); link.remove();
-    } catch (error) { alert("Gagal export PDF."); }
+      document.body.appendChild(link); 
+      link.click(); 
+      link.remove();
+    } catch (error) { 
+      alert("Gagal export PDF."); 
+    }
   };
 
   // Indikator Progres
@@ -229,8 +329,67 @@ export default function ProjectData() {
       {/* HEADER UTAMA & DUA BOKS KONTROL */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 mb-2">
         
-        {/* INFORMASI & JUDUL PROYEK */}
+        {/* INFORMASI, FOTO SAMPUL & JUDUL PROYEK */}
         <div className="flex items-start lg:items-center gap-3 shrink-0">
+          {/* FOTO SAMPUL / BANNER PROYEK DI SEBELAH KIRI DATA UTAMA */}
+          <div className="relative group shrink-0 mt-0.5 lg:mt-0">
+            <input 
+              type="file" 
+              id="bannerUploadInput" 
+              accept="image/*" 
+              onChange={handleFotoChange} 
+              className="hidden" 
+              disabled={!isEditMode}
+            />
+            
+            <div 
+              onClick={() => {
+                if (isEditMode) {
+                  document.getElementById('bannerUploadInput')?.click();
+                }
+              }}
+              className={`w-11 h-11 lg:w-12 lg:h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 overflow-hidden shadow-sm relative transition-all ${
+                isEditMode ? 'cursor-pointer hover:ring-2 hover:ring-blue-500/50 hover:opacity-90' : ''
+              }`}
+              title={isEditMode ? "Klik untuk ganti foto sampul" : "Foto Sampul Proyek"}
+            >
+              {newFotoPreview ? (
+                <img src={newFotoPreview} alt="Preview" className="w-full h-full object-cover" />
+              ) : (project?.foto_sampul && !removeFoto) ? (
+                <img src={getImageUrl(project.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-base font-extrabold text-amber-500">
+                  {project?.nama_proyek ? project.nama_proyek.charAt(0).toUpperCase() : 'P'}
+                </span>
+              )}
+
+              {/* OVERLAY MODE EDIT */}
+              {isEditMode && (
+                <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-4 h-4 text-white" />
+                  <span className="text-[7px] font-bold mt-0.5">Ubah</span>
+                </div>
+              )}
+            </div>
+
+            {/* TOMBOL HAPUS FOTO SAAT MODE EDIT */}
+            {isEditMode && (newFotoPreview || (project?.foto_sampul && !removeFoto)) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFotoSampul(null);
+                  setNewFotoPreview(null);
+                  setRemoveFoto(true);
+                }}
+                className="absolute -top-1.5 -right-1.5 p-1 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md z-10 transition-transform active:scale-95"
+                title="Hapus Foto Sampul"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+
           <div className="flex-1 min-w-0">
             <h1 className="text-sm lg:text-base font-bold text-slate-800 dark:text-white leading-snug flex items-center gap-1.5 flex-wrap">
               <span>Data Utama Proyek</span>
@@ -291,7 +450,7 @@ export default function ProjectData() {
                 <button 
                   type="button"
                   onClick={() => setIsEditMode(true)} 
-                  disabled={isLoading} 
+                  disabled={isLoading && !hasCachedFullData} 
                   className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap bg-transparent hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" /> 
@@ -306,7 +465,7 @@ export default function ProjectData() {
                 <button 
                   type="button"
                   onClick={handleExportExcel}
-                  disabled={isLoading}
+                  disabled={isLoading && !hasCachedFullData}
                   className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
@@ -315,7 +474,7 @@ export default function ProjectData() {
                 <button 
                   type="button"
                   onClick={handleExportPDF}
-                  disabled={isLoading}
+                  disabled={isLoading && !hasCachedFullData}
                   className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
                 >
                   <Download className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
@@ -371,7 +530,7 @@ export default function ProjectData() {
       </div>
 
       {/* LOADING STATE VS KONTEN UTAMA */}
-      {isLoading ? (
+      {isLoading && !hasCachedFullData ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
