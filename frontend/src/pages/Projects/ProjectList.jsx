@@ -5,16 +5,28 @@ import {
   Search, Plus, Edit3, Trash2, Filter, X, 
   MapPin, Calendar, HardHat, CalendarDays,
   Loader2, AlertTriangle, Info, FileBox, CheckCircle2,
-  UploadCloud, FileSpreadsheet
+  UploadCloud, FileSpreadsheet, Sparkles
 } from 'lucide-react';
 
-// CACHE MEMORI: Biar data langsung nongol instan pas pindah menu
+// CACHE MEMORI: Tampil instan saat berpindah menu
 let cachedProjects = null;
+
+// Helper untuk mengambil ID unik user login saat ini
+const getCurrentUserKey = () => {
+  try {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
+      const u = JSON.parse(userDataStr);
+      return u.id ? `user_${u.id}` : (u.email ? `email_${u.email}` : (u.role || 'guest'));
+    }
+  } catch {}
+  return 'guest_user';
+};
 
 export default function ProjectList() {
   const navigate = useNavigate();
   
-  // Ambil dari cache memori atau sessionStorage duluan biar nggak nunggu loading
+  // State proyek berbasis cache
   const [projects, setProjects] = useState(() => {
     if (cachedProjects && cachedProjects.length > 0) return cachedProjects;
     try {
@@ -37,6 +49,15 @@ export default function ProjectList() {
     document.title = "Prisma Group - Daftar Proyek";
   }, []);
   
+  // State daftar ID proyek yang sudah pernah dibuka oleh akun yang sedang login
+  const [viewedProjects, setViewedProjects] = useState(() => {
+    try {
+      const key = `viewed_projects_${getCurrentUserKey()}`;
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   // SEARCH & FILTER
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
@@ -71,6 +92,27 @@ export default function ProjectList() {
   const canViewFinance = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
+  // Deteksi status "NEW" (baru dibuat <= 3 hari & belum pernah diklik buka data oleh akun ini)
+  const isProjectNew = (proj) => {
+    if (!proj.created_at) return false;
+    const diffDays = (new Date() - new Date(proj.created_at)) / (1000 * 60 * 60 * 24);
+    const isRecent = diffDays <= 3;
+    const isAlreadyViewed = viewedProjects.includes(proj.id);
+    return isRecent && !isAlreadyViewed;
+  };
+
+  // Tandai proyek sebagai sudah dibaca untuk akun login saat ini, lalu navigasi
+  const handleOpenProjectData = (proj) => {
+    const userKey = getCurrentUserKey();
+    const updated = Array.from(new Set([...viewedProjects, proj.id]));
+    setViewedProjects(updated);
+    try {
+      localStorage.setItem(`viewed_projects_${userKey}`, JSON.stringify(updated));
+    } catch {}
+
+    navigate(`/projects/${proj.id}/data`, { state: proj });
+  };
+
   const fetchProjects = async (silent = false) => {
     if (!silent) setIsLoading(true);
     setErrorMsg('');
@@ -96,7 +138,6 @@ export default function ProjectList() {
       } catch { return false; }
     })();
 
-    // Kalo cache udah ada, ambil data terbaru diam-diam di background
     fetchProjects(hasCache);
 
     const handleClickOutside = (event) => {
@@ -133,7 +174,7 @@ export default function ProjectList() {
       await fetchProjects(false); 
       setIsEditMode(false); 
     } catch (error) {
-      alert('Beberapa proyek gagal dihapus. Pastikan nggak ada data laporan yang masih terikat.');
+      alert('Beberapa proyek gagal dihapus. Pastikan tidak ada data laporan yang masih terikat.');
       setStagedDeletions([]);
       await fetchProjects(false);
       setIsEditMode(false);
@@ -229,11 +270,12 @@ export default function ProjectList() {
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Project
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi kamu.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Kelola dan pantau seluruh data administrasi konstruksi Anda.</p>
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
+          {/* SEARCH INPUT */}
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -246,9 +288,19 @@ export default function ProjectList() {
             />
           </div>
 
+          {/* FILTER BUTTON: AKSEN UNGU */}
           <div className="relative" ref={filterRef}>
-            <button disabled={isLoading && projects.length === 0} onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
-              <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
+            <button 
+              disabled={isLoading && projects.length === 0} 
+              onClick={() => setShowFilter(!showFilter)} 
+              className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                showFilter || filters.status !== 'Semua' || (canViewFinance && filters.sumber_dana !== 'Semua') || filters.kategori !== 'Semua' 
+                  ? 'bg-purple-50 dark:bg-purple-500/10 border-purple-300 dark:border-purple-500/30 text-purple-600 dark:text-purple-400' 
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-600 dark:hover:text-purple-400 hover:border-purple-200 dark:hover:border-purple-500/30'
+              }`}
+            >
+              <Filter className="w-4 h-4 text-purple-500 dark:text-purple-400" /> 
+              <span className="hidden sm:inline">Filter</span>
             </button>
 
             {showFilter && (
@@ -294,23 +346,42 @@ export default function ProjectList() {
               {isEditMode ? (
                 <>
                   <button disabled={isLoading || isSavingEdit} onClick={handleBatalEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50">
-                    <X className="w-4 h-4" /> Batal
+                    <X className="w-4 h-4 text-slate-500" /> Batal
                   </button>
                   <button disabled={isLoading || isSavingEdit} onClick={handleSelesaiEdit} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700">
-                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
+                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />} 
                     {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
                   </button>
                 </>
               ) : (
-                <button disabled={isLoading && projects.length === 0} onClick={() => setIsEditMode(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50">
-                  <Edit3 className="w-4 h-4" />Edit
+                /* EDIT BUTTON: AKSEN BIRU */
+                <button 
+                  disabled={isLoading && projects.length === 0} 
+                  onClick={() => setIsEditMode(true)} 
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-blue-300 dark:hover:border-blue-500/40 shadow-sm text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50"
+                >
+                  <Edit3 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mode Edit
                 </button>
               )}
-              <button disabled={(isLoading && projects.length === 0) || isEditMode} onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Import Excel</span>
+
+              {/* IMPORT EXCEL: AKSEN HIJAU */ }
+              <button 
+                disabled={(isLoading && projects.length === 0) || isEditMode} 
+                onClick={() => setShowImportModal(true)} 
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-white" /> 
+                <span className="hidden sm:inline">Import Excel</span>
               </button>
-              <button disabled={(isLoading && projects.length === 0) || isEditMode} onClick={() => navigate('/projects/tambah')} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                <Plus className="w-4 h-4" /> <span>Proyek Baru</span>
+
+              {/* PROYEK BARU: AKSEN AMBER */ }
+              <button 
+                disabled={(isLoading && projects.length === 0) || isEditMode} 
+                onClick={() => navigate('/projects/tambah')} 
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" /> 
+                <span>Proyek Baru</span>
               </button>
             </div>
           )}
@@ -343,7 +414,7 @@ export default function ProjectList() {
 
       {errorMsg && (
         <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
-          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" /><span>{errorMsg}</span>
         </div>
       )}
 
@@ -355,23 +426,38 @@ export default function ProjectList() {
         </div>
       ) : (
         <>
-          {/* TAMPILAN MOBILE */}
+          {/* TAMPILAN MOBILE (KARTU) */}
           <div className="block md:hidden space-y-4">
             {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
               const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
               const isDelayed = displayStatus === 'Delayed';
+              const showNewBadge = isProjectNew(proj);
+
               return (
                 <div key={proj.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                       {proj.foto_sampul ? (
                         <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
                       ) : (
                         proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
                       )}
+                      
+                      {/* TITIK PULSE MERAH JIKA BARU DIBUAT & BELUM DILIHAT OLEH AKUN INI */}
+                      {showNewBadge && !isEditMode && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
+                      )}
                     </div>
+
                     <div className="flex-1 min-w-0 pr-2">
                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                         {/* BADGE NEW KHUSUS AKUN INI */}
+                         {showNewBadge && !isEditMode && (
+                           <span className="px-1.5 py-0.5 text-[8px] font-black bg-rose-500 text-white rounded uppercase tracking-wider animate-pulse flex items-center gap-0.5 shadow-sm">
+                             <Sparkles className="w-2.5 h-2.5" /> NEW
+                           </span>
+                         )}
+
                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
                            isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
                          }`}>{displayStatus}</span>
@@ -385,7 +471,7 @@ export default function ProjectList() {
                   
                   <div className="flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                      <span className="font-mono font-bold text-amber-600 dark:text-amber-500">SPK: {proj.kode_kontrak || '-'}</span>
-                     <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0"/> {proj.lokasi_wilayah || 'Lokasi belum diset'}</span>
+                     <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0 text-rose-500"/> {proj.lokasi_wilayah || 'Lokasi belum diset'}</span>
                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {proj.tanggal_mulai || '?'} - {proj.tanggal_selesai || '?'}</span>
                   </div>
                   
@@ -407,15 +493,21 @@ export default function ProjectList() {
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
                     {isEditMode ? (
                        <button onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
-                         <Trash2 className="w-4 h-4" /> Hapus
+                         <Trash2 className="w-4 h-4 text-rose-500 hover:text-white" /> Hapus
                        </button>
                     ) : (
                        <div className="flex gap-2 w-full">
-                         <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
-                           <Info className="w-4 h-4 shrink-0" /> Data
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); handleOpenProjectData(proj); }} 
+                           className="flex-1 px-3 py-2.5 justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600"
+                         >
+                           <Info className="w-4 h-4 shrink-0 text-amber-500" /> Data
                          </button>
-                         <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="flex-1 px-3 py-2.5 justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
-                           <CalendarDays className="w-4 h-4 shrink-0" /> Jadwal
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} 
+                           className="flex-1 px-3 py-2.5 justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600"
+                         >
+                           <CalendarDays className="w-4 h-4 shrink-0 text-blue-500" /> Jadwal
                          </button>
                        </div>
                     )}
@@ -425,7 +517,7 @@ export default function ProjectList() {
             }) : (
               <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl">
                 <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data nggak ditemukan.</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
               </div>
             )}
           </div>
@@ -446,18 +538,32 @@ export default function ProjectList() {
                   {visibleProjects.length > 0 ? visibleProjects.map((proj) => {
                     const displayStatus = (isGuest && proj.status === 'Delayed') ? 'Berjalan' : (proj.status || 'Persiapan');
                     const isDelayed = displayStatus === 'Delayed';
+                    const showNewBadge = isProjectNew(proj);
+
                     return (
                       <tr key={proj.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
                         <td className="p-4 align-top flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                             {proj.foto_sampul ? (
                               <img src={getImageUrl(proj.foto_sampul)} alt="Banner" className="w-full h-full object-cover" />
                             ) : (
                               proj.nama_proyek ? proj.nama_proyek.charAt(0).toUpperCase() : '-'
                             )}
+                            
+                            {/* INDIKATOR TITIK NEW PADA AVATAR */}
+                            {showNewBadge && !isEditMode && (
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                               {/* BADGE TEKS NEW (HILANG SETELAH DIKLIK BUKA DATA OLEH AKUN INI) */}
+                               {showNewBadge && !isEditMode && (
+                                 <span className="px-1.5 py-0.5 text-[8px] font-black bg-rose-500 text-white rounded uppercase tracking-wider animate-pulse flex items-center gap-0.5 shadow-sm">
+                                   <Sparkles className="w-2.5 h-2.5" /> NEW
+                                 </span>
+                               )}
+
                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${
                                  isDelayed ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
                                }`}>{displayStatus}</span>
@@ -470,7 +576,7 @@ export default function ProjectList() {
                             </div>
                             <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{proj.nama_proyek}</div>
                             <div className="text-[10px] text-amber-600 dark:text-amber-500/90 font-mono mt-1 font-bold">{proj.kode_kontrak || '-'}</div>
-                            <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/>{proj.lokasi_wilayah || 'Lokasi belum diset'}</div>
+                            <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5 text-rose-500"/>{proj.lokasi_wilayah || 'Lokasi belum diset'}</div>
                           </div>
                         </td>
                         <td className="p-4 align-top space-y-2">
@@ -507,17 +613,26 @@ export default function ProjectList() {
                         <td className="p-4 align-middle text-center">
                           {isEditMode ? (
                              <div className="flex flex-col gap-2">
-                               <button onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
-                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
+                               <button 
+                                 onClick={(e) => confirmDelete(e, proj.id, proj.nama_proyek)} 
+                                 className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in"
+                               >
+                                 <Trash2 className="w-3.5 h-3.5 text-rose-500 group-hover:text-white" /> Hapus
                                </button>
                              </div>
                           ) : (
                              <div className="flex flex-col gap-2">
-                               <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${proj.id}/data`); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
-                                 <Info className="w-3.5 h-3.5" /> Buka Data
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); handleOpenProjectData(proj); }} 
+                                 className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
+                               >
+                                 <Info className="w-3.5 h-3.5 text-amber-500" /> Buka Data
                                </button>
-                               <button onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/20 text-slate-700 dark:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
-                                 <CalendarDays className="w-3.5 h-3.5" /> Buka Jadwal
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); navigate(`/schedules/${proj.id}/data`, { state: proj }); }} 
+                                 className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
+                               >
+                                 <CalendarDays className="w-3.5 h-3.5 text-blue-500" /> Buka Jadwal
                                </button>
                              </div>
                           )}
@@ -528,8 +643,8 @@ export default function ProjectList() {
                     <tr>
                       <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
                         <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                        <p className="text-sm font-medium">Data nggak ditemukan.</p>
-                        <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau nggak cocok sama filter pencarian.</p>
+                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada proyek atau tidak cocok dengan filter pencarian.</p>
                       </td>
                     </tr>
                   )}
@@ -560,7 +675,7 @@ export default function ProjectList() {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Proyek?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Kamu bakal nandain proyek <strong>{deleteConfig.name}</strong> buat dihapus. Tekan "Eksekusi Hapus" kalo udah selesai milih.
+              Anda akan menandai proyek <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
@@ -593,7 +708,7 @@ export default function ProjectList() {
              <div className="flex gap-3 mt-6">
                 <button disabled={isImporting} onClick={() => {setShowImportModal(false); setImportFile(null)}} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs disabled:opacity-50">Batal</button>
                 <button disabled={!importFile || isImporting} onClick={handleImportFile} className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isImporting ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>} 
+                  {isImporting ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />} 
                   {isImporting ? 'Mengimpor...' : 'Mulai Import'}
                 </button>
              </div>

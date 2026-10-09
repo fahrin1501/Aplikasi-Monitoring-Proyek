@@ -4,16 +4,28 @@ import api from '../../api';
 import { 
   Search, Eye, Plus, FileSpreadsheet, Calendar, MapPin, 
   UserCheck, ListTodo, Users, 
-  Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2, FileBox, Info
+  Wrench, X, Loader2, AlertTriangle, CheckCircle2, Clock, Filter, Edit3, Trash2, FileBox, Info, Sparkles
 } from 'lucide-react';
 
-// CACHE MEMORI: Data laporan langsung muncul instan pas buka tab
+// CACHE MEMORI: Data laporan langsung muncul instan saat buka tab
 let cachedLaporan = null;
+
+// Helper untuk mengambil ID unik user login saat ini
+const getCurrentUserKey = () => {
+  try {
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
+      const u = JSON.parse(userDataStr);
+      return u.id ? `user_${u.id}` : (u.email ? `email_${u.email}` : (u.role || 'guest'));
+    }
+  } catch {}
+  return 'guest_user';
+};
 
 export default function LaporanList() {
   const navigate = useNavigate();
   
-  // Baca cache memori atau sessionStorage duluan biar langsung render dalam 0ms
+  // Baca cache memori atau sessionStorage duluan agar render dalam 0ms
   const [laporanList, setLaporanList] = useState(() => {
     if (cachedLaporan && cachedLaporan.length > 0) return cachedLaporan;
     try {
@@ -35,6 +47,15 @@ export default function LaporanList() {
   useEffect(() => {
     document.title = "Prisma Group - Daftar Laporan";
   }, []);
+
+  // State daftar ID laporan yang sudah pernah dibuka oleh akun yang login saat ini
+  const [viewedReports, setViewedReports] = useState(() => {
+    try {
+      const key = `viewed_reports_${getCurrentUserKey()}`;
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   
   // SEARCH & FILTER
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +85,28 @@ export default function LaporanList() {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
+  // Deteksi status "NEW" (dibuat <= 3 hari & belum pernah dibuka oleh akun ini)
+  const isReportNew = (lap) => {
+    const createdAt = lap.originalData?.created_at || lap.created_at;
+    if (!createdAt) return false;
+    const diffDays = (new Date() - new Date(createdAt)) / (1000 * 60 * 60 * 24);
+    const isRecent = diffDays <= 3;
+    const isAlreadyViewed = viewedReports.includes(lap.id);
+    return isRecent && !isAlreadyViewed;
+  };
+
+  // Tandai laporan sudah dibaca untuk akun ini, lalu buka detailnya
+  const handleOpenReportData = (laporan) => {
+    const userKey = getCurrentUserKey();
+    const updated = Array.from(new Set([...viewedReports, laporan.id]));
+    setViewedReports(updated);
+    try {
+      localStorage.setItem(`viewed_reports_${userKey}`, JSON.stringify(updated));
+    } catch {}
+
+    navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } });
+  };
+
   const fetchLaporan = async (silent = false) => {
     if (!silent) setIsLoading(true);
     setErrorMsg('');
@@ -73,7 +116,6 @@ export default function LaporanList() {
       const formattedData = response.data.data.map(l => {
         const formatTgl = l.tanggal.replace(/-/g, '');
         const formatId = l.id.toString().padStart(3, '0');
-        const isNewReport = (new Date() - new Date(l.created_at)) / (1000 * 60 * 60 * 24) <= 3;
         
         return {
           id: l.id,
@@ -87,7 +129,7 @@ export default function LaporanList() {
           personil: l.personnels || [],
           peralatan: l.equipments || [],
           cuaca: l.cuaca || '-', 
-          isNew: isNewReport,
+          created_at: l.created_at,
           originalData: l 
         };
       });
@@ -111,7 +153,6 @@ export default function LaporanList() {
       } catch { return false; }
     })();
 
-    // Ambil data terbaru diam-diam di background
     fetchLaporan(hasCache);
 
     const handleClickOutside = (event) => {
@@ -231,11 +272,12 @@ export default function LaporanList() {
           <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
             Daftar Laporan
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian kamu.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Monitor dan kelola entri laporan pengawasan harian Anda.</p>
         </div>
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
+          {/* SEARCH INPUT */}
           <div className="relative flex-1 md:flex-none min-w-[140px] shadow-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -248,13 +290,19 @@ export default function LaporanList() {
             />
           </div>
 
+          {/* FILTER BUTTON (AKSEN UNGU) */}
           <div className="relative" ref={filterRef}>
             <button 
               disabled={isLoading && laporanList.length === 0}
               onClick={() => setShowFilter(!showFilter)} 
-              className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 text-amber-600 dark:text-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+              className={`flex items-center gap-2 p-2.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                showFilter || filters.status !== 'Semua' || filters.startDate || filters.endDate 
+                  ? 'bg-purple-50 dark:bg-purple-500/10 border-purple-300 dark:border-purple-500/30 text-purple-600 dark:text-purple-400' 
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-600 dark:hover:text-purple-400 hover:border-purple-200 dark:hover:border-purple-500/30'
+              }`}
             >
-              <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Filter</span>
+              <Filter className="w-4 h-4 text-purple-500 dark:text-purple-400" /> 
+              <span className="hidden sm:inline">Filter</span>
             </button>
 
             {showFilter && (
@@ -316,20 +364,30 @@ export default function LaporanList() {
               {isEditMode ? (
                 <>
                   <button onClick={handleBatalEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap border border-slate-300 dark:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <X className="w-4 h-4" /> Batal
+                    <X className="w-4 h-4 text-slate-500" /> Batal
                   </button>
                   <button onClick={handleSelesaiEdit} disabled={isSavingEdit || isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50 border border-rose-700 disabled:cursor-not-allowed">
-                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} 
+                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />} 
                     {isSavingEdit ? 'Menyimpan...' : 'Eksekusi Hapus'}
                   </button>
                 </>
               ) : (
-                <button onClick={() => setIsEditMode(true)} disabled={isLoading && laporanList.length === 0} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-sm text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Edit3 className="w-4 h-4" />Edit
+                /* EDIT BUTTON (AKSEN BIRU) */
+                <button 
+                  onClick={() => setIsEditMode(true)} 
+                  disabled={isLoading && laporanList.length === 0} 
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 md:py-2 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-slate-700/80 hover:border-blue-300 dark:hover:border-blue-500/40 shadow-sm text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold rounded-xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Edit3 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mode Edit
                 </button>
               )}
 
-              <button onClick={() => navigate('/laporan/input')} disabled={isEditMode || (isLoading && laporanList.length === 0)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              {/* BUAT LAPORAN (AKSEN AMBER) */}
+              <button 
+                onClick={() => navigate('/laporan/input')} 
+                disabled={isEditMode || (isLoading && laporanList.length === 0)} 
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold text-xs px-3.5 py-2.5 md:py-2 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Plus className="w-4 h-4" /> <span>Buat Laporan</span>
               </button>
             </div>
@@ -357,7 +415,7 @@ export default function LaporanList() {
 
       {errorMsg && (
         <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium animate-fade-in">
-          <AlertTriangle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span>
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" /><span>{errorMsg}</span>
         </div>
       )}
 
@@ -369,24 +427,36 @@ export default function LaporanList() {
         </div>
       ) : (
         <>
-          {/* TAMPILAN MOBILE */}
+          {/* TAMPILAN MOBILE (KARTU) */}
           <div className="block md:hidden space-y-4">
             {visibleLaporan.length > 0 ? (
               visibleLaporan.map((laporan) => {
                 const totalPersonil = hitungTotal(laporan.personil);
                 const totalAlat = hitungTotal(laporan.peralatan);
                 const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
+                const showNewBadge = isReportNew(laporan);
 
                 return (
                   <div key={laporan.id} className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 rounded-2xl shadow-sm flex flex-col gap-4 relative">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                         <FileSpreadsheet className="w-6 h-6 text-amber-500" />
-                        {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>}
+                        
+                        {/* TITIK MERAH NEW PADA AVATAR UNTUK AKUN INI */}
+                        {showNewBadge && !isEditMode && (
+                          <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
+                        )}
                       </div>
                       
                       <div className="flex-1 min-w-0 pr-2">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          {/* BADGE NEW KHUSUS AKUN INI */}
+                          {showNewBadge && !isEditMode && (
+                            <span className="px-1.5 py-0.5 text-[8px] font-black bg-rose-500 text-white rounded uppercase tracking-wider animate-pulse flex items-center gap-0.5 shadow-sm">
+                              <Sparkles className="w-2.5 h-2.5" /> NEW
+                            </span>
+                          )}
+
                           <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
                             {getStatusText(finalStatus)}
                           </span>
@@ -399,8 +469,8 @@ export default function LaporanList() {
                     </div>
 
                     <div className="flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                      <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 shrink-0"/> {laporan.namaPengawas}</span>
-                      <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0"/> <span className="line-clamp-1">{laporan.lokasi}</span></span>
+                      <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-blue-500 shrink-0"/> {laporan.namaPengawas}</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0"/> <span className="line-clamp-1">{laporan.lokasi}</span></span>
                       <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /> {laporan.tanggalPengawasan}</span>
                     </div>
 
@@ -436,11 +506,14 @@ export default function LaporanList() {
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-1">
                       {isEditMode ? (
                         <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2.5 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200">
-                          <Trash2 className="w-4 h-4" /> Hapus
+                          <Trash2 className="w-4 h-4 text-rose-500 hover:text-white" /> Hapus
                         </button>
                       ) : (
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2.5 w-full justify-center bg-slate-50 dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600">
-                          <Eye className="w-4 h-4" /> Buka Data Laporan
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleOpenReportData(laporan); }} 
+                          className="px-3.5 py-2.5 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600"
+                        >
+                          <Eye className="w-4 h-4 text-amber-500" /> Buka Data Laporan
                         </button>
                       )}
                     </div>
@@ -450,7 +523,7 @@ export default function LaporanList() {
             ) : (
               <div className="p-8 text-center bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm">
                 <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data nggak ditemukan.</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Data tidak ditemukan.</p>
               </div>
             )}
           </div>
@@ -473,6 +546,7 @@ export default function LaporanList() {
                       const totalPersonil = hitungTotal(laporan.personil);
                       const totalAlat = hitungTotal(laporan.peralatan);
                       const finalStatus = (isGuest && laporan.status === 'rejected') ? 'pending' : laporan.status;
+                      const showNewBadge = isReportNew(laporan);
 
                       return (
                         <tr key={laporan.id} className={`transition-all group ${isEditMode ? 'hover:bg-rose-50/30 dark:hover:bg-rose-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
@@ -480,11 +554,22 @@ export default function LaporanList() {
                           <td className="p-4 align-top flex items-start gap-3">
                             <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-bold text-slate-500 shrink-0 overflow-hidden shadow-sm relative">
                               <FileSpreadsheet className="w-5 h-5 text-amber-500" />
-                              {laporan.isNew && !isEditMode && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-800 animate-pulse"></span>}
+                              
+                              {/* TITIK MERAH NEW PADA AVATAR UNTUK AKUN INI */}
+                              {showNewBadge && !isEditMode && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-800 animate-pulse"></span>
+                              )}
                             </div>
                             
                             <div>
                               <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                {/* BADGE TEKS NEW (HILANG SETELAH DIKLIK BUKA DATA OLEH AKUN INI) */}
+                                {showNewBadge && !isEditMode && (
+                                  <span className="px-1.5 py-0.5 text-[8px] font-black bg-rose-500 text-white rounded uppercase tracking-wider animate-pulse flex items-center gap-0.5 shadow-sm">
+                                    <Sparkles className="w-2.5 h-2.5" /> NEW
+                                  </span>
+                                )}
+
                                 <span className={`px-2 py-0.5 text-[9px] font-bold rounded border inline-block ${getStatusStyles(finalStatus)}`}>
                                   {getStatusText(finalStatus)}
                                 </span>
@@ -493,7 +578,7 @@ export default function LaporanList() {
                                 </span>
                               </div>
                               <div className="font-bold text-slate-800 dark:text-white text-[13px] leading-snug line-clamp-2 pr-4">{laporan.namaProyek}</div>
-                              <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5"/><span className="line-clamp-1">{laporan.lokasi}</span></div>
+                              <div className="flex items-center mt-1 text-[10px] text-slate-500"><MapPin className="w-3 h-3 mr-0.5 text-rose-500"/><span className="line-clamp-1">{laporan.lokasi}</span></div>
                             </div>
                           </td>
 
@@ -538,13 +623,19 @@ export default function LaporanList() {
                           <td className="p-4 align-middle">
                             {isEditMode ? (
                               <div className="flex flex-col gap-2">
-                                <button onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in">
-                                  <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                <button 
+                                  onClick={(e) => confirmDelete(e, laporan.id, laporan.nomorLaporan)} 
+                                  className="px-3.5 py-2 w-full justify-center bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-400 dark:border-rose-500/20 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-rose-200 animate-fade-in"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500 group-hover:text-white" /> Hapus
                                 </button>
                               </div>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); navigate(`/laporan/${laporan.id}`, { state: { laporan: laporan.originalData } }); }} className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-500/20 text-slate-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in">
-                                <Eye className="w-3.5 h-3.5" /> Buka Data
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleOpenReportData(laporan); }} 
+                                className="px-3.5 py-2 w-full justify-center bg-white dark:bg-slate-700/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-600 animate-fade-in"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-amber-500" /> Buka Data
                               </button>
                             )}
                           </td>
@@ -555,8 +646,8 @@ export default function LaporanList() {
                     <tr>
                       <td colSpan="4" className="p-8 text-center text-slate-500 dark:text-slate-400">
                         <FileBox className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                        <p className="text-sm font-medium">Data nggak ditemukan.</p>
-                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau nggak cocok sama filter pencarian.</p>
+                        <p className="text-sm font-medium">Data tidak ditemukan.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Belum ada laporan atau tidak cocok dengan filter pencarian.</p>
                       </td>
                     </tr>
                   )}
@@ -586,7 +677,7 @@ export default function LaporanList() {
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Hapus Laporan?</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Kamu bakal nandain laporan <strong>{deleteConfig.name}</strong> buat dihapus. Tekan "Eksekusi Hapus" kalo udah selesai milih.
+              Anda akan menandai laporan <strong>{deleteConfig.name}</strong> untuk dihapus. Tekan "Eksekusi Hapus" jika sudah selesai memilih.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfig({ show: false, id: null, name: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs">Batal</button>
