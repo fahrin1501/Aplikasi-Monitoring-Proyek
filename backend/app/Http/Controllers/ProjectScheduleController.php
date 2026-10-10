@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Project;
+use App\Models\RabCategory;
+use App\Models\RabItem;
 use Throwable;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -12,6 +14,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\KurvaExport;
 use App\Services\ProjectProgressService;
 use App\Services\ProjectCacheService;
+use App\Services\RabService;
 
 class ProjectScheduleController extends Controller
 {
@@ -22,16 +25,46 @@ class ProjectScheduleController extends Controller
         $this->progressService = $progressService;
     }
 
+    // AUTO HEALER UNTUK DATA MANUAL LAMA YANG BELUM MEMILIKI ID RAB
+    private function autoHealLegacyManualItems($projectId)
+    {
+        $orphanedActivities = DB::table('daily_report_activities')
+            ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+            ->where('daily_reports.project_id', $projectId)
+            ->whereNull('daily_report_activities.rab_item_id')
+            ->select('daily_report_activities.id', 'daily_report_activities.uraian', 'daily_report_activities.satuan')
+            ->get();
+
+        if ($orphanedActivities->count() > 0) {
+            $category = RabCategory::firstOrCreate(
+                ['project_id' => $projectId, 'nama_kategori' => 'PEKERJAAN TAMBAHAN (ADDENDUM)'],
+                ['kode_divisi' => 'ADD']
+            );
+
+            foreach ($orphanedActivities as $act) {
+                $item = RabItem::firstOrCreate(
+                    ['rab_category_id' => $category->id, 'uraian_pekerjaan' => $act->uraian],
+                    ['kode_pekerjaan' => '-', 'satuan' => $act->satuan ?? 'Ls', 'volume' => 0, 'harga_satuan' => 0, 'total_harga' => 0, 'is_subheader' => false]
+                );
+                DB::table('daily_report_activities')->where('id', $act->id)->update(['rab_item_id' => $item->id]);
+            }
+            ProjectCacheService::clearProjectCache($projectId);
+            RabService::clearCache($projectId);
+        }
+    }
+
     public function getSchedules($projectId)
     {
         try {
+            $this->autoHealLegacyManualItems($projectId);
+
             $data = ProjectCacheService::rememberSchedule($projectId, function () use ($projectId) {
                 $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
                 // 1. Ambil Grand Total RAB dari Service
                 $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-                // 2. Ambil Seluruh Kategori & Item RAB (Otomatis mencakup Pekerjaan Tambahan dari DB)
+                // 2. Ambil Seluruh Kategori & Item RAB (Termasuk Addendum)
                 $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
                 $categoryIds = $rabCategories->pluck('id')->toArray();
 
@@ -106,7 +139,7 @@ class ProjectScheduleController extends Controller
                     $minggu = $r->minggu_ke ?? 0;
                     $persen = (float) $r->total_persen;
 
-                    if ($itemId) { // Hanya proses item yang memiliki ID Valid
+                    if ($itemId) {
                         if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                         $matrix_actual[$itemId][$minggu] = $persen;
 
@@ -215,6 +248,8 @@ class ProjectScheduleController extends Controller
 
     private function prepareExportData($projectId, $request)
     {
+        $this->autoHealLegacyManualItems($projectId);
+
         $projectInfo = DB::table('projects')->where('id', $projectId)->first();
         $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 

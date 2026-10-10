@@ -23,8 +23,37 @@ class RabController extends Controller
         $this->rabService = $rabService;
     }
 
+    // AUTO HEALER UNTUK DATA MANUAL LAMA YANG BELUM MEMILIKI ID RAB
+    private function autoHealLegacyManualItems($projectId)
+    {
+        $orphanedActivities = DB::table('daily_report_activities')
+            ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+            ->where('daily_reports.project_id', $projectId)
+            ->whereNull('daily_report_activities.rab_item_id')
+            ->select('daily_report_activities.id', 'daily_report_activities.uraian', 'daily_report_activities.satuan')
+            ->get();
+
+        if ($orphanedActivities->count() > 0) {
+            $category = RabCategory::firstOrCreate(
+                ['project_id' => $projectId, 'nama_kategori' => 'PEKERJAAN TAMBAHAN (ADDENDUM)'],
+                ['kode_divisi' => 'ADD']
+            );
+
+            foreach ($orphanedActivities as $act) {
+                $item = RabItem::firstOrCreate(
+                    ['rab_category_id' => $category->id, 'uraian_pekerjaan' => $act->uraian],
+                    ['kode_pekerjaan' => '-', 'satuan' => $act->satuan ?? 'Ls', 'volume' => 0, 'harga_satuan' => 0, 'total_harga' => 0, 'is_subheader' => false]
+                );
+                DB::table('daily_report_activities')->where('id', $act->id)->update(['rab_item_id' => $item->id]);
+            }
+            \App\Services\ProjectCacheService::clearProjectCache($projectId);
+            RabService::clearCache($projectId);
+        }
+    }
+
     public function index($projectId)
     {
+        $this->autoHealLegacyManualItems($projectId);
         $rabData = $this->rabService->getRabWithProgress($projectId);
 
         return response()->json([
@@ -129,6 +158,7 @@ class RabController extends Controller
         $category = RabCategory::find($item->rab_category_id);
         if ($category) {
             RabService::clearCache($category->project_id);
+            \App\Services\ProjectCacheService::clearProjectCache($category->project_id);
         }
 
         return response()->json(['status' => 'success', 'message' => 'Diupdate.']);
@@ -150,6 +180,8 @@ class RabController extends Controller
 
     public function exportRabData($id)
     {
+        $this->autoHealLegacyManualItems($id);
+
         return Cache::remember(RabService::getSummaryCacheKey($id), RabService::TTL, function () use ($id) {
             $project = Project::findOrFail($id);
             $rabs = RabCategory::with('items')->where('project_id', $id)->get();

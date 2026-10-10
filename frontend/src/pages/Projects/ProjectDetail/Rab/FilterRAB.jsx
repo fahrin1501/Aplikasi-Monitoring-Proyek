@@ -41,15 +41,18 @@ export default function FilterRAB({ rabs, activeDivisi, setActiveDivisi, searchQ
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* TOMBOL TOGGLE ADDENDUM KHUSUS ADMIN */}
-          {isAdmin && hasAddendum && (
+          {/* TOMBOL TOGGLE ADDENDUM KHUSUS ADMIN - SELALU MUNCUL */}
+          {isAdmin && (
             <button 
-              disabled={isLoading}
+              disabled={isLoading || !hasAddendum}
               onClick={() => setShowAddendum(!showAddendum)}
-              className={`flex items-center justify-center gap-1.5 p-2.5 md:px-3 md:py-2.5 rounded-xl text-[11px] font-bold border transition-all shadow-sm disabled:opacity-50 ${
-                showAddendum 
-                ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400' 
-                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+              title={!hasAddendum ? 'Belum ada pekerjaan tambahan di input dari laporan harian' : 'Tampilkan / Sembunyikan Pekerjaan Tambahan'}
+              className={`flex items-center justify-center gap-1.5 p-2.5 md:px-3 md:py-2.5 rounded-xl text-[11px] font-bold border transition-all shadow-sm ${
+                !hasAddendum 
+                ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700'
+                : showAddendum 
+                  ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400' 
+                  : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
               {showAddendum ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
