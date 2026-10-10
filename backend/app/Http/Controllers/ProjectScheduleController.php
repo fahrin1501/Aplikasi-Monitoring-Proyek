@@ -25,7 +25,6 @@ class ProjectScheduleController extends Controller
         $this->progressService = $progressService;
     }
 
-    // AUTO HEALER UNTUK DATA MANUAL LAMA YANG BELUM MEMILIKI ID RAB
     private function autoHealLegacyManualItems($projectId)
     {
         $orphanedActivities = DB::table('daily_report_activities')
@@ -60,11 +59,8 @@ class ProjectScheduleController extends Controller
 
             $data = ProjectCacheService::rememberSchedule($projectId, function () use ($projectId) {
                 $projectInfo = DB::table('projects')->where('id', $projectId)->first();
-
-                // 1. Ambil Grand Total RAB dari Service
                 $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-                // 2. Ambil Seluruh Kategori & Item RAB (Termasuk Addendum)
                 $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
                 $categoryIds = $rabCategories->pluck('id')->toArray();
 
@@ -76,30 +72,18 @@ class ProjectScheduleController extends Controller
                 $rabData = [];
                 foreach ($rabCategories as $cat) {
                     $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
-                        $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
-                            ? ($item->total_harga / $grandTotalRAB) * 100
-                            : 0;
+                        $bobot = ($grandTotalRAB > 0 && !$item->is_subheader) ? ($item->total_harga / $grandTotalRAB) * 100 : 0;
                         $item->bobot = round($bobot, 2);
                         return $item;
                     })->values();
 
                     if ($items->count() > 0) {
-                        $rabData[] = [
-                            'id' => $cat->id,
-                            'nama_kategori' => $cat->nama_kategori,
-                            'kode_divisi' => $cat->kode_divisi ?? null,
-                            'items' => $items
-                        ];
+                        $rabData[] = ['id' => $cat->id, 'nama_kategori' => $cat->nama_kategori, 'kode_divisi' => $cat->kode_divisi ?? null, 'items' => $items];
                     }
                 }
 
-                // 3. Ambil Jadwal Mingguan
-                $schedules = DB::table('project_schedules')
-                    ->where('project_id', $projectId)
-                    ->orderBy('minggu_ke', 'asc')
-                    ->get();
+                $schedules = DB::table('project_schedules')->where('project_id', $projectId)->orderBy('minggu_ke', 'asc')->get();
 
-                // 4. Data Aktual & Realisasi Harian
                 $matrix_actual = [];
                 $weekly_actual = [];
                 $cumulative_actual = [];
@@ -108,30 +92,16 @@ class ProjectScheduleController extends Controller
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
                     ->where('daily_reports.status', 'approved')
-                    ->select(
-                        'daily_reports.id as report_id',
-                        'daily_report_activities.id as activity_id',
-                        'daily_report_activities.uraian as uraian_laporan',
-                        'daily_report_activities.rab_item_id',
-                        'daily_reports.minggu_ke',
-                        'daily_reports.tanggal as tgl_input',
-                        'daily_report_activities.volume as volume_laporan',
-                        'daily_report_activities.persentase as bobot_realisasi',
-                        'daily_reports.status as status_laporan'
-                    )
+                    ->select('daily_reports.id as report_id', 'daily_report_activities.id as activity_id', 'daily_report_activities.uraian as uraian_laporan', 'daily_report_activities.rab_item_id', 'daily_reports.minggu_ke', 'daily_reports.tanggal as tgl_input', 'daily_report_activities.volume as volume_laporan', 'daily_report_activities.persentase as bobot_realisasi', 'daily_reports.status as status_laporan')
                     ->get();
 
                 $aggregatedActuals = DB::table('daily_report_activities')
                     ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                     ->where('daily_reports.project_id', $projectId)
                     ->where('daily_reports.status', 'approved')
-                    ->select(
-                        'daily_report_activities.rab_item_id',
-                        'daily_reports.minggu_ke',
-                        DB::raw('SUM(daily_report_activities.persentase) as total_persen')
-                    )
+                    ->select('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke', DB::raw('SUM(daily_report_activities.persentase) as total_persen'))
                     ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
-                    ->having('total_persen', '>', 0)
+                    // ->having('total_persen', '>', 0) // DIHAPUS AGAR ITEM 0% TETAP MUNCUL
                     ->get();
 
                 foreach ($aggregatedActuals as $r) {
@@ -152,26 +122,15 @@ class ProjectScheduleController extends Controller
                 }
 
                 return [
-                    'project_info' => $projectInfo,
-                    'grand_total_rab' => (float) $grandTotalRAB,
-                    'rab_data' => $rabData,
-                    'schedules' => $schedules,
-                    'matrix_actual' => $matrix_actual,
-                    'weekly_actual' => $weekly_actual,
-                    'cumulative_actual' => $cumulative_actual,
-                    'realizations' => $rawRealizations
+                    'project_info' => $projectInfo, 'grand_total_rab' => (float) $grandTotalRAB, 'rab_data' => $rabData,
+                    'schedules' => $schedules, 'matrix_actual' => $matrix_actual, 'weekly_actual' => $weekly_actual,
+                    'cumulative_actual' => $cumulative_actual, 'realizations' => $rawRealizations
                 ];
             });
 
-            return response()->json([
-                'status' => 'success',
-                'data' => $data
-            ]);
+            return response()->json(['status' => 'success', 'data' => $data]);
         } catch (Throwable $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Backend Crash: ' . $e->getMessage() . ' | Line: ' . $e->getLine()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Backend Crash: ' . $e->getMessage() . ' | Line: ' . $e->getLine()], 500);
         }
     }
 
@@ -187,42 +146,27 @@ class ProjectScheduleController extends Controller
                 DB::table('project_schedules')->where('project_id', $projectId)->delete();
             } else {
                 foreach ($weeks as $week) {
-                    DB::table('project_schedules')
-                        ->where('project_id', $projectId)
-                        ->where('minggu_ke', $week['minggu_ke'])
-                        ->delete();
+                    DB::table('project_schedules')->where('project_id', $projectId)->where('minggu_ke', $week['minggu_ke'])->delete();
                 }
             }
 
             $insertData = [];
             $now = now();
-
             foreach ($weeks as $week) {
                 $insertData[] = [
-                    'project_id' => $projectId,
-                    'minggu_ke' => $week['minggu_ke'],
-                    'bulan' => $week['bulan'] ?? null,
-                    'tanggal_awal' => $week['tanggal_awal'] ?? null,
-                    'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
-                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0),
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'project_id' => $projectId, 'minggu_ke' => $week['minggu_ke'], 'bulan' => $week['bulan'] ?? null,
+                    'tanggal_awal' => $week['tanggal_awal'] ?? null, 'tanggal_akhir' => $week['tanggal_akhir'] ?? null,
+                    'target_kumulatif' => (float) ($week['target_kumulatif'] ?? 0), 'created_at' => $now, 'updated_at' => $now,
                 ];
             }
 
-            if (!empty($insertData)) {
-                DB::table('project_schedules')->insert($insertData);
-            }
+            if (!empty($insertData)) DB::table('project_schedules')->insert($insertData);
 
             $project = Project::find($projectId);
-            if ($project && $project->status === 'Perencanaan') {
-                $project->update(['status' => 'Persiapan']);
-            }
+            if ($project && $project->status === 'Perencanaan') $project->update(['status' => 'Persiapan']);
 
             DB::commit();
-
             ProjectCacheService::clearProjectCache($projectId);
-
             return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan (Plan) berhasil disimpan!']);
         } catch (Throwable $e) {
             DB::rollBack();
@@ -236,9 +180,7 @@ class ProjectScheduleController extends Controller
             DB::beginTransaction();
             DB::table('project_schedules')->where('project_id', $projectId)->delete();
             DB::commit();
-
             ProjectCacheService::clearProjectCache($projectId);
-
             return response()->json(['status' => 'success', 'message' => 'Seluruh Jadwal Matriks berhasil dikosongkan.']);
         } catch (Throwable $e) {
             DB::rollBack();
@@ -253,10 +195,7 @@ class ProjectScheduleController extends Controller
         $projectInfo = DB::table('projects')->where('id', $projectId)->first();
         $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-        $schedules = DB::table('project_schedules')
-            ->where('project_id', $projectId)
-            ->orderBy('minggu_ke', 'asc')
-            ->get();
+        $schedules = DB::table('project_schedules')->where('project_id', $projectId)->orderBy('minggu_ke', 'asc')->get();
 
         $matrix_actual = [];
         $weekly_actual = [];
@@ -267,13 +206,9 @@ class ProjectScheduleController extends Controller
                 ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
                 ->where('daily_reports.project_id', $projectId)
                 ->where('daily_reports.status', 'approved')
-                ->select(
-                    'daily_report_activities.rab_item_id',
-                    'daily_reports.minggu_ke',
-                    DB::raw('SUM(daily_report_activities.persentase) as total_persen')
-                )
+                ->select('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke', DB::raw('SUM(daily_report_activities.persentase) as total_persen'))
                 ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
-                ->having('total_persen', '>', 0)
+                // ->having('total_persen', '>', 0) // DIHAPUS AGAR ITEM 0% TETAP TEREKSPOR
                 ->get();
 
             foreach ($aggregatedActuals as $r) {
@@ -284,56 +219,35 @@ class ProjectScheduleController extends Controller
                 if ($itemId) {
                     if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                     $matrix_actual[$itemId][$minggu] = $persen;
-
                     if (!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
                     $weekly_actual[$minggu] += $persen;
-
                     if (!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
                     $cumulative_actual[$itemId] += $persen;
                 }
             }
         } catch (Throwable $th) {}
 
-        // Mengambil SELURUH data RAB agar format ekspor persis seperti di Tabel UI
         $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
         $categoryIds = $rabCategories->pluck('id')->toArray();
 
         $rabItems = collect([]);
-        if (!empty($categoryIds)) {
-            $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
-        }
+        if (!empty($categoryIds)) $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
 
         $rabData = [];
         foreach ($rabCategories as $cat) {
             $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
-                $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
-                    ? ($item->total_harga / $grandTotalRAB) * 100
-                    : 0;
+                $bobot = ($grandTotalRAB > 0 && !$item->is_subheader) ? ($item->total_harga / $grandTotalRAB) * 100 : 0;
                 $item->bobot = round($bobot, 2);
                 return $item;
             })->values();
 
-            if ($items->count() > 0) {
-                $rabData[] = [
-                    'id' => $cat->id,
-                    'nama_kategori' => $cat->nama_kategori,
-                    'kode_divisi' => $cat->kode_divisi ?? null,
-                    'items' => $items
-                ];
-            }
+            if ($items->count() > 0) $rabData[] = ['id' => $cat->id, 'nama_kategori' => $cat->nama_kategori, 'kode_divisi' => $cat->kode_divisi ?? null, 'items' => $items];
         }
 
         return [
-            'project' => $projectInfo,
-            'rabData' => $rabData,
-            'localWeeks' => $schedules,
-            'matrix_actual' => $matrix_actual,
-            'weekly_actual' => $weekly_actual,
-            'cumulative_actual' => $cumulative_actual,
-            'grandTotalRAB' => $grandTotalRAB,
-            'startDate' => $request->start_date,
-            'endDate' => $request->end_date,
-            'viewMode' => $request->view_mode
+            'project' => $projectInfo, 'rabData' => $rabData, 'localWeeks' => $schedules, 'matrix_actual' => $matrix_actual,
+            'weekly_actual' => $weekly_actual, 'cumulative_actual' => $cumulative_actual, 'grandTotalRAB' => $grandTotalRAB,
+            'startDate' => $request->start_date, 'endDate' => $request->end_date, 'viewMode' => $request->view_mode
         ];
     }
 
@@ -352,15 +266,10 @@ class ProjectScheduleController extends Controller
         try {
             $exportData = $this->prepareExportData($projectId, $request);
             $safeName = preg_replace('/[^A-Za-z0-9\-]/', '_', $exportData['project']->nama_proyek ?? 'Proyek');
-
             $export = new KurvaExport($exportData);
             return Excel::download($export, "KurvaS_Matriks_{$safeName}.xlsx");
         } catch (Throwable $e) {
-            \Log::error("Gagal Export Excel: " . $e->getMessage() . " di " . $e->getFile() . ":" . $e->getLine());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal export Excel: ' . $e->getMessage() . ' di baris ' . $e->getLine()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal export Excel: ' . $e->getMessage() . ' di baris ' . $e->getLine()], 500);
         }
     }
 }

@@ -7,7 +7,6 @@ export default function ScheduleWorkData({
   handleWeekCumulativeChange, openWeekModal, handleRemoveWeek, onRefresh
 }) {
   const [detailModal, setDetailModal] = useState({ show: false, item: null, weekNum: null, targetPlan: 0, realizations: [] });
-  
   const [inlineEditId, setInlineEditId] = useState(null);
   const [inlineEditData, setInlineEditData] = useState({ volume: '', persentase: '' });
   const [isSavingInline, setIsSavingInline] = useState(false);
@@ -25,10 +24,10 @@ export default function ScheduleWorkData({
   let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
   const cumulativeActualMap = scheduleData?.cumulative_actual || {};
 
-  // Hanya memfilter kategori/divisi yang memiliki item dengan progress > 0
+  // PERBAIKAN: Menampilkan item jika memiliki history pengisian (bukan sekadar > 0)
   safeRabData = safeRabData.map(cat => {
     const items = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
-    const filteredItems = items.filter(item => getSafeFloat(cumulativeActualMap[item.id]) > 0);
+    const filteredItems = items.filter(item => cumulativeActualMap[item.id] !== undefined);
     return { ...cat, items: filteredItems };
   }).filter(cat => cat.items.length > 0);
 
@@ -36,7 +35,6 @@ export default function ScheduleWorkData({
     const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
     const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
     
-    // Semua pekerjaan sekarang sudah memiliki rab_item_id
     const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
 
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
@@ -51,13 +49,7 @@ export default function ScheduleWorkData({
   const saveInlineEdit = async (activityId) => {
     setIsSavingInline(true);
     try {
-      await api.put(`/daily-report-activities/${activityId}`, {
-        volume: inlineEditData.volume,
-        persentase: inlineEditData.persentase
-      });
-      const updated = detailModal.realizations.map(r => r.activity_id === activityId ? { ...r, volume_laporan: inlineEditData.volume, bobot_realisasi: inlineEditData.persentase } : r);
-      setDetailModal({ ...detailModal, realizations: updated });
-      setInlineEditId(null);
+      await api.put(`/daily-report-activities/${activityId}`, { volume: inlineEditData.volume, persentase: inlineEditData.persentase });
       if (onRefresh) onRefresh();
     } catch(e) {
       alert("Gagal mengupdate data realisasi.");
@@ -70,19 +62,11 @@ export default function ScheduleWorkData({
 
   return (
     <>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}
-      `}</style>
+      <style>{`.custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; } .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #f59e0b; cursor: pointer;}`}</style>
       
-      {/* KONTANER TABEL: SESUAI TINGGI SCREEN TANPA GAP KOSONG BERLEBIH */}
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm flex flex-col relative z-0 backdrop-blur-sm transition-all animate-fade-in w-full max-h-[calc(100vh-250px)] overflow-hidden">
         <div className="overflow-auto custom-scrollbar flex-1 w-full relative">
           <table className="w-full text-left border-collapse min-w-max text-xs">
-            
             <thead className="sticky top-0 z-30 shadow-sm">
               <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="p-2.5 w-[75px] text-center border-r border-slate-200 dark:border-slate-700/60">Kode</th>
@@ -95,12 +79,8 @@ export default function ScheduleWorkData({
                       <span>M-{w}</span>
                       {isEditMode && canCreateData && (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openWeekModal(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-blue-500 dark:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Atur Tanggal">
-                            <CalendarDays className="w-3 h-3" />
-                          </button>
-                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 dark:text-rose-400 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Hapus Minggu Ini">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <button onClick={() => openWeekModal(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-blue-500 dark:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Atur Tanggal"><CalendarDays className="w-3 h-3" /></button>
+                          <button onClick={() => handleRemoveWeek(w)} className="p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-rose-500 dark:text-rose-400 rounded hover:bg-rose-50 dark:hover:bg-slate-700 shadow-sm transition-colors" title="Hapus Minggu Ini"><Trash2 className="w-3 h-3" /></button>
                         </div>
                       )}
                     </div>
@@ -110,12 +90,10 @@ export default function ScheduleWorkData({
                 {isEditMode && canCreateData && (
                   <th className="p-2 w-[75px] text-center border-r border-slate-200 dark:border-slate-700/60 align-middle">
                      <button onClick={() => openWeekModal()} className="w-full py-1.5 flex flex-col items-center justify-center gap-1 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-500/50 shadow-sm">
-                       <Plus className="w-3.5 h-3.5" />
-                       <span className="text-[9px] font-bold">Baru</span>
+                       <Plus className="w-3.5 h-3.5" /> <span className="text-[9px] font-bold">Baru</span>
                      </button>
                   </th>
                 )}
-
                 <th className="p-2.5 w-[90px] text-right">Kumulatif</th>
               </tr>
             </thead>
@@ -128,7 +106,7 @@ export default function ScheduleWorkData({
                       <Inbox className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs mb-1">Belum Ada Realisasi Pekerjaan</h4>
                       <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
-                        Daftar uraian pekerjaan otomatis muncul di tabel matriks ini bila <strong>Laporan Harian</strong> di menu daftar laporan telah disetujui (*Approved*).
+                        Daftar uraian pekerjaan otomatis muncul di tabel matriks ini bila <strong>Laporan Harian</strong> telah disetujui (*Approved*).
                       </p>
                     </div>
                   </td>
@@ -159,9 +137,12 @@ export default function ScheduleWorkData({
 
                             {weeksArray.map(w => {
                               const totalActual = getSafeFloat(scheduleData?.matrix_actual?.[item.id]?.[w]);
+                              // PERBAIKAN: Tombol muncul jika data ada di database, meskipun nilainya 0
+                              const isExist = scheduleData?.matrix_actual?.[item.id]?.[w] !== undefined;
+                              
                               return (
                                 <td key={w} className="p-1.5 text-center border-r border-slate-200 dark:border-slate-700/60 relative">
-                                  {totalActual > 0 ? (
+                                  {isExist ? (
                                     <button 
                                       onClick={() => handleOpenCellDetail({ ...item, kategori_nama: cat.nama_kategori }, w)}
                                       title="Klik untuk lihat rincian laporan & Edit"
@@ -176,12 +157,10 @@ export default function ScheduleWorkData({
                               );
                             })}
 
-                            {isEditMode && canCreateData && (
-                              <td className="p-1.5 border-r border-slate-200 dark:border-slate-700/60 bg-emerald-50/5 dark:bg-emerald-900/5"></td>
-                            )}
+                            {isEditMode && canCreateData && <td className="p-1.5 border-r border-slate-200 dark:border-slate-700/60 bg-emerald-50/5 dark:bg-emerald-900/5"></td>}
 
                             <td className="p-2 text-right font-mono text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
-                              {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '-'}
+                              {itemCumulative > 0 ? `${itemCumulative.toFixed(2)}%` : '0.00%'}
                             </td>
                           </tr>
                         );
@@ -191,7 +170,7 @@ export default function ScheduleWorkData({
                 })
               )}
             </tbody>
-
+            {/* TFOOT DIBIARKAN SAMA SEPERTI SEBELUMNYA */}
             <tfoot className="sticky bottom-0 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
               <tr className="bg-emerald-50 dark:bg-emerald-500/5 border-t-2 border-emerald-200 dark:border-emerald-500/20">
                 <td colSpan="3" className="p-2.5 text-right font-extrabold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] border-r border-emerald-200 dark:border-emerald-500/20 sticky left-0 z-40 bg-emerald-50 dark:bg-emerald-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -199,22 +178,13 @@ export default function ScheduleWorkData({
                 </td>
                 {weeksArray.map(w => {
                   const weekActualSum = getSafeFloat(scheduleData?.weekly_actual?.[w]);
-                  return (
-                    <td key={w} className="p-2 text-center border-r border-emerald-200 dark:border-emerald-500/20 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                      {weekActualSum > 0 ? weekActualSum.toFixed(2) : '-'}
-                    </td>
-                  );
+                  return <td key={w} className="p-2 text-center border-r border-emerald-200 dark:border-emerald-500/20 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{weekActualSum > 0 ? weekActualSum.toFixed(2) : '-'}</td>;
                 })}
-
-                {isEditMode && canCreateData && (
-                  <td className="border-r border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-900/10"></td>
-                )}
-
+                {isEditMode && canCreateData && <td className="border-r border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-900/10"></td>}
                 <td className="p-2.5 text-right font-mono text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
                   {getSafeFloat(Object.values(scheduleData?.weekly_actual || {}).reduce((sum, val) => sum + getSafeFloat(val), 0)).toFixed(2)}%
                 </td>
               </tr>
-
               <tr className="bg-blue-50 dark:bg-blue-500/5 border-t border-blue-200 dark:border-blue-500/20">
                 <td colSpan="3" className="p-2 text-right font-extrabold text-blue-600 dark:text-blue-400 uppercase text-[10px] border-r border-blue-200 dark:border-blue-500/20 sticky left-0 z-40 bg-blue-50 dark:bg-blue-900/90 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                   Target Kumulatif Mingguan
@@ -222,31 +192,17 @@ export default function ScheduleWorkData({
                 {weeksArray.map(w => {
                   const existingTarget = getSafeFloat(safeLocalWeeks.find(week => parseInt(week.minggu_ke) === w)?.target_kumulatif);
                   const displayCumulative = isEditMode ? existingTarget : existingTarget.toFixed(2);
-
                   return (
                     <td key={w} className="p-1.5 text-center border-r border-blue-200 dark:border-blue-500/20">
                       {isEditMode ? (
                         <div className="flex items-center justify-center">
-                          <input 
-                            type="text" 
-                            value={displayCumulative}
-                            onChange={(e) => handleWeekCumulativeChange(w, e.target.value)}
-                            className="w-12 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-md px-1 py-0.5 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-[10px]"
-                          />
+                          <input type="text" value={displayCumulative} onChange={(e) => handleWeekCumulativeChange(w, e.target.value)} className="w-12 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-500/50 rounded-md px-1 py-0.5 text-center font-mono font-extrabold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-[10px]"/>
                         </div>
-                      ) : (
-                        <span className="font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400">
-                          {existingTarget > 0 ? existingTarget.toFixed(2) : '-'}
-                        </span>
-                      )}
+                      ) : <span className="font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400">{existingTarget > 0 ? existingTarget.toFixed(2) : '-'}</span>}
                     </td>
                   );
                 })}
-
-                {isEditMode && canCreateData && (
-                  <td className="border-r border-blue-200 dark:border-blue-500/20 bg-blue-50/20 dark:bg-blue-900/10"></td>
-                )}
-
+                {isEditMode && canCreateData && <td className="border-r border-blue-200 dark:border-blue-500/20 bg-blue-50/20 dark:bg-blue-900/10"></td>}
                 <td className="p-2 text-right font-mono text-[10px] font-extrabold text-blue-700 dark:text-blue-400">-</td>
               </tr>
             </tfoot>
@@ -254,24 +210,14 @@ export default function ScheduleWorkData({
         </div>
       </div>
 
-      {/* KETERANGAN MATRIKS DI BAWAH TABEL */}
       <div className="mt-2.5 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 rounded-xl py-2 px-3 text-xs flex flex-wrap items-center gap-3 shadow-sm shrink-0">
-        <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-[11px]">
-          <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Keterangan Matriks:
-        </span>
+        <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-[11px]"><Info className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Keterangan Matriks:</span>
         <div className="flex gap-x-4 gap-y-1.5 flex-wrap text-slate-500 dark:text-slate-400 text-[11px]">
-          <span className="flex items-center gap-1.5">
-            <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 font-bold">0.00</span> 
-            Aktual Laporan Harian (Bisa di-klik)
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/30 font-bold">0.00</span> 
-            Target Kumulatif Rencana
-          </span>
+          <span className="flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/30 font-bold">0.00</span> Aktual Laporan Harian (Bisa di-klik)</span>
+          <span className="flex items-center gap-1.5"><span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/30 font-bold">0.00</span> Target Kumulatif Rencana</span>
         </div>
       </div>
 
-      {/* MODAL RINCIAN AKTIVITAS */}
       {detailModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
@@ -311,18 +257,10 @@ export default function ScheduleWorkData({
                                {r.uraian_laporan || detailModal.item?.uraian_pekerjaan || '-'}
                              </td>
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
-                               {isEditing ? (
-                                 <input type="number" step="any" className="w-full text-center border border-blue-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none" value={inlineEditData.volume} onChange={(e)=>setInlineEditData({...inlineEditData, volume: e.target.value})} />
-                               ) : (
-                                 <span className="font-mono font-bold">{getSafeFloat(r.volume_laporan)} {detailModal.item?.satuan || ''}</span>
-                               )}
+                               {isEditing ? <input type="number" step="any" className="w-full text-center border border-blue-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none" value={inlineEditData.volume} onChange={(e)=>setInlineEditData({...inlineEditData, volume: e.target.value})} /> : <span className="font-mono font-bold">{getSafeFloat(r.volume_laporan)} {detailModal.item?.satuan || ''}</span>}
                              </td>
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
-                               {isEditing ? (
-                                 <input type="number" step="any" className="w-full text-center border border-emerald-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none text-emerald-600 font-bold" value={inlineEditData.persentase} onChange={(e)=>setInlineEditData({...inlineEditData, persentase: e.target.value})} />
-                               ) : (
-                                 <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</span>
-                               )}
+                               {isEditing ? <input type="number" step="any" className="w-full text-center border border-emerald-400 rounded p-1 text-xs dark:bg-slate-800 focus:outline-none text-emerald-600 font-bold" value={inlineEditData.persentase} onChange={(e)=>setInlineEditData({...inlineEditData, persentase: e.target.value})} /> : <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{getSafeFloat(r.bobot_realisasi).toFixed(2)}%</span>}
                              </td>
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
                                {r.status_laporan === 'approved' ? <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/30 shadow-sm"><CheckCircle2 className="w-3 h-3"/> Disetujui</span> : <span className="text-slate-400 text-[10px]">Pending</span>}
@@ -332,20 +270,10 @@ export default function ScheduleWorkData({
                                  {isEditing ? (
                                    <div className="flex gap-1.5 justify-center">
                                      {isSavingInline ? <Loader2 className="w-5 h-5 text-emerald-500 animate-spin"/> : (
-                                       <>
-                                         <button onClick={() => saveInlineEdit(r.activity_id)} className="p-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 shadow-sm"><Check className="w-3.5 h-3.5"/></button>
-                                         <button onClick={() => setInlineEditId(null)} className="p-1.5 bg-rose-500 text-white rounded-md hover:bg-rose-600 shadow-sm"><X className="w-3.5 h-3.5"/></button>
-                                       </>
+                                       <><button onClick={() => saveInlineEdit(r.activity_id)} className="p-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 shadow-sm"><Check className="w-3.5 h-3.5"/></button><button onClick={() => setInlineEditId(null)} className="p-1.5 bg-rose-500 text-white rounded-md hover:bg-rose-600 shadow-sm"><X className="w-3.5 h-3.5"/></button></>
                                      )}
                                    </div>
-                                 ) : (
-                                   <button 
-                                     onClick={() => startInlineEdit(r)}
-                                     className="flex items-center justify-center gap-1.5 w-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-sm"
-                                   >
-                                     <Edit3 className="w-3 h-3" /> Edit
-                                   </button>
-                                 )}
+                                 ) : <button onClick={() => startInlineEdit(r)} className="flex items-center justify-center gap-1.5 w-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors shadow-sm"><Edit3 className="w-3 h-3" /> Edit</button>}
                                </td>
                              )}
                            </tr>
