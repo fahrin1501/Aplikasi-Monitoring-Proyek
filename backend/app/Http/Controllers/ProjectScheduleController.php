@@ -43,7 +43,15 @@ class ProjectScheduleController extends Controller
 
                 $rabData = [];
                 foreach ($rabCategories as $cat) {
-                    $items = collect($rabItems)->where('rab_category_id', $cat->id)->values();
+                    // Beri nilai bobot pada tiap item agar sinkron
+                    $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
+                        $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
+                            ? ($item->total_harga / $grandTotalRAB) * 100
+                            : 0;
+                        $item->bobot = round($bobot, 2);
+                        return $item;
+                    })->values();
+
                     if ($items->count() > 0) {
                         $rabData[] = [
                             'id' => $cat->id,
@@ -65,6 +73,7 @@ class ProjectScheduleController extends Controller
                 $matrix_actual = [];
                 $weekly_actual = [];
                 $cumulative_actual = [];
+                $hasManual = false; // <--- DETEKSI PEKERJAAN MANUAL
 
                 try {
                     $rawRealizations = DB::table('daily_report_activities')
@@ -102,6 +111,10 @@ class ProjectScheduleController extends Controller
                         $minggu = $r->minggu_ke ?? 0;
                         $persen = (float) $r->total_persen;
 
+                        if (!$r->rab_item_id) {
+                            $hasManual = true; // <--- TANDAI JIKA ADA ITEM MANUAL DI DB
+                        }
+
                         if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                         $matrix_actual[$itemId][$minggu] = $persen;
 
@@ -112,6 +125,37 @@ class ProjectScheduleController extends Controller
                         $cumulative_actual[$itemId] += $persen;
                     }
                 } catch (Throwable $th) {}
+
+                // 5. INJECT KATEGORI MANUAL JIKA DITEMUKAN
+                if ($hasManual) {
+                    // Ambil uraian manual yang pernah diinput untuk dijadikan nama item
+                    $manualUraians = DB::table('daily_report_activities')
+                        ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                        ->where('daily_reports.project_id', $projectId)
+                        ->where('daily_reports.status', 'approved')
+                        ->whereNull('daily_report_activities.rab_item_id')
+                        ->select('daily_report_activities.uraian')
+                        ->distinct()
+                        ->pluck('uraian')
+                        ->toArray();
+
+                    $uraianText = !empty($manualUraians) ? implode(' / ', $manualUraians) : 'Pekerjaan Input Manual';
+
+                    // Tambahkan blok kategori baru ke paling bawah RAB (Khusus Tampilan Kurva)
+                    $rabData[] = [
+                        'id' => 'cat-manual',
+                        'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR KONTRAK)',
+                        'kode_divisi' => 'EXT',
+                        'items' => collect([(object)[
+                            'id' => 'manual',
+                            'kode_pekerjaan' => '-',
+                            'uraian_pekerjaan' => 'Manual: ' . $uraianText,
+                            'is_manual' => true,
+                            'bobot' => 0, // Set 0 karena tidak ada di kontrak awal
+                            'total_harga' => 0
+                        ]])
+                    ];
+                }
 
                 return [
                     'project_info' => $projectInfo,
