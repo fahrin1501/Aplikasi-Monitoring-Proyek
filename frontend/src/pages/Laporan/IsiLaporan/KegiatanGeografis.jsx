@@ -27,6 +27,10 @@ export default function KegiatanGeografis({
     if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
     const volNum = parseFloat(volume);
     if (isNaN(volNum) || volNum <= 0) return '';
+    
+    // Jika pekerjaan manual (Addendum) yang nilai kontraknya Rp0, jadikan bobotnya 0.00
+    if (parseFloat(rabItem.total_harga) === 0 || !rabItem.total_harga) return '0.00';
+
     const targetVolume = parseFloat(rabItem.volume);
     if (isNaN(targetVolume) || targetVolume <= 0) return '';
 
@@ -123,7 +127,7 @@ export default function KegiatanGeografis({
                 if (foundRab) {
                     currentVal = { value: item.rab_item_id.toString(), label: `${foundRab.uraian_pekerjaan || foundRab.uraian} (${foundRab.kategori || foundRab.kategori_nama})` };
                     
-                    if (grandTotalRab > 0) {
+                    if (grandTotalRab > 0 && parseFloat(foundRab.total_harga) > 0) {
                         const targetVol = parseFloat(foundRab.volume || 0);
                         const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
                         const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
@@ -136,7 +140,7 @@ export default function KegiatanGeografis({
                         sisaBobotInfo = `${sisaBobot.toFixed(2)}%`;
                     }
                 }
-              } else if (item.rab_item_id === null && item.uraian) {
+              } else if (item.rab_item_id === null && item.uraian !== undefined) {
                 currentVal = { value: 'manual', label: '+ Pekerjaan Tambah/Kurang (Input Manual)' };
               }
 
@@ -198,7 +202,13 @@ export default function KegiatanGeografis({
                   )}
 
                   {(!item.rab_item_id) && (
-                    <textarea rows="2" placeholder="Ketik manual uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...editForm.activities]; newK[index].uraian = e.target.value; setEditForm({...editForm, activities: newK}); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors mt-2" />
+                    <textarea 
+                      rows="2" 
+                      placeholder="Ketik manual uraian pekerjaan..." 
+                      value={item.uraian} 
+                      onChange={(e) => { const newK = [...editForm.activities]; newK[index].uraian = e.target.value; setEditForm({...editForm, activities: newK}); }} 
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner transition-colors mt-2" 
+                    />
                   )}
                 </div>
                 
@@ -215,7 +225,7 @@ export default function KegiatanGeografis({
                 <div className="md:col-span-12 lg:col-span-4 border border-slate-200 dark:border-slate-700/60 p-3.5 rounded-xl bg-white dark:bg-slate-800/80 flex flex-col justify-center shadow-sm relative z-0">
                   <div className="grid grid-cols-12 gap-3 w-full items-end">
                     
-                    {/* --- KOLOM VOLUME & LABEL SISA --- */}
+                    {/* --- KOLOM VOLUME --- */}
                     <div className="col-span-12 sm:col-span-5">
                       <div className="flex justify-between items-end mb-2">
                         <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Volume <span className="text-rose-500">*</span></label>
@@ -236,14 +246,22 @@ export default function KegiatanGeografis({
                       />
                     </div>
 
+                    {/* --- KOLOM SATUAN --- */}
                     <div className="col-span-12 sm:col-span-3">
                       <div className="flex justify-between items-end mb-2">
                         <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block text-center w-full">Sat</label>
                       </div>
-                      <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...editForm.activities]; newK[index].satuan = e.target.value; setEditForm({...editForm, activities: newK}); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
+                      <input 
+                        type="text" 
+                        placeholder="m3" 
+                        value={item.satuan} 
+                        onChange={(e) => { const newK = [...editForm.activities]; newK[index].satuan = e.target.value; setEditForm({...editForm, activities: newK}); }} 
+                        className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} 
+                        readOnly={!!item.rab_item_id} 
+                      />
                     </div>
 
-                    {/* --- KOLOM PERSEN & LABEL SISA --- */}
+                    {/* --- KOLOM PERSEN --- */}
                     <div className="col-span-12 sm:col-span-4 relative group">
                       <div className="flex justify-between items-end mb-2">
                         <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Persen %</label>
@@ -258,15 +276,12 @@ export default function KegiatanGeografis({
                         step="any" 
                         placeholder="0.0" 
                         value={item.persentase} 
-                        onChange={(e) => { const newK = [...editForm.activities]; newK[index].persentase = e.target.value; setEditForm({...editForm, activities: newK}); }} 
-                        className={`w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent' : 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-600'}`} 
-                        readOnly={!!item.rab_item_id}
+                        readOnly
+                        className="w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none shadow-inner transition-colors bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent" 
                       />
-                      {item.rab_item_id && (
-                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                              Otomatis terhitung
-                          </div>
-                      )}
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                          Otomatis terhitung
+                      </div>
                     </div>
                   </div>
                 </div>

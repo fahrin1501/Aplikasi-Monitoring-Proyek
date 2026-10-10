@@ -25,26 +25,19 @@ export default function ScheduleWorkData({
   let safeRabData = Array.isArray(rawRabData) ? rawRabData : (rawRabData ? Object.values(rawRabData) : []);
   const cumulativeActualMap = scheduleData?.cumulative_actual || {};
 
+  // Hanya memfilter kategori/divisi yang memiliki item dengan progress > 0
   safeRabData = safeRabData.map(cat => {
     const items = Array.isArray(cat?.items) ? cat.items : (cat?.items ? Object.values(cat.items) : []);
     const filteredItems = items.filter(item => getSafeFloat(cumulativeActualMap[item.id]) > 0);
     return { ...cat, items: filteredItems };
   }).filter(cat => cat.items.length > 0);
 
-  if (getSafeFloat(cumulativeActualMap['manual']) > 0) {
-    safeRabData.push({
-      id: 'cat-manual', nama_kategori: 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)', kode_divisi: 'EXT',
-      items: [{ id: 'manual', kode_pekerjaan: '-', uraian_pekerjaan: 'Pekerjaan Input Manual', is_manual: true }]
-    });
-  }
-
   const handleOpenCellDetail = (item, weekNum) => {
     const targetVal = getSafeFloat(safeLocalWeeks.find(w => parseInt(w.minggu_ke) === weekNum)?.target_kumulatif);
     const safeRealizations = Array.isArray(scheduleData?.realizations) ? scheduleData.realizations : (scheduleData?.realizations ? Object.values(scheduleData.realizations) : []);
     
-    let dailyRealizations = [];
-    if (item.id === 'manual') dailyRealizations = safeRealizations.filter(r => r.rab_item_id === null && parseInt(r.minggu_ke) === weekNum);
-    else dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
+    // Semua pekerjaan sekarang sudah memiliki rab_item_id
+    const dailyRealizations = safeRealizations.filter(r => r.rab_item_id === item.id && parseInt(r.minggu_ke) === weekNum);
 
     setDetailModal({ show: true, item, weekNum, targetPlan: targetVal, realizations: dailyRealizations });
     setInlineEditId(null);
@@ -74,7 +67,6 @@ export default function ScheduleWorkData({
   };
 
   const extraCols = isEditMode && canCreateData ? 4 : 3;
-  const bobotMaksimalModal = detailModal.item?.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(detailModal.item?.total_harga || 0) / grandTotalRAB) * 100) : 0);
 
   return (
     <>
@@ -152,7 +144,7 @@ export default function ScheduleWorkData({
                       </tr>
                       
                       {safeItems.map(item => {
-                        const bobotStandar = item.is_manual ? 0 : (grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0);
+                        const bobotStandar = grandTotalRAB > 0 ? getSafeFloat((Number(item.total_harga || 0) / grandTotalRAB) * 100) : 0;
                         const itemCumulative = getSafeFloat(scheduleData?.cumulative_actual?.[item.id]);
 
                         return (
@@ -162,7 +154,7 @@ export default function ScheduleWorkData({
                               <div className="line-clamp-2" title={item.uraian_pekerjaan}>{item.uraian_pekerjaan}</div>
                             </td>
                             <td className="p-2 text-center font-mono text-[10px] font-extrabold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-700/60 bg-blue-50/30 dark:bg-blue-900/10">
-                              {item.is_manual ? '-' : `${bobotStandar.toFixed(2)}%`}
+                              {`${bobotStandar.toFixed(2)}%`}
                             </td>
 
                             {weeksArray.map(w => {
@@ -302,7 +294,6 @@ export default function ScheduleWorkData({
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-12">Hari</th>
                          <th className="p-3 border-r border-slate-200 dark:border-slate-700/60 w-32">Tanggal Laporan</th>
                          <th className="p-3 border-r border-slate-200 dark:border-slate-700/60">Uraian Pekerjaan</th>
-                         <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-20 text-blue-600 dark:text-blue-400">Bobot</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Volume</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Aktual (%)</th>
                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 w-24">Status</th>
@@ -318,9 +309,6 @@ export default function ScheduleWorkData({
                              <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 font-medium">{new Date(r.tgl_input).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</td>
                              <td className="p-3 border-r border-slate-200 dark:border-slate-700/60 leading-relaxed font-semibold">
                                {r.uraian_laporan || detailModal.item?.uraian_pekerjaan || '-'}
-                             </td>
-                             <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60 font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">
-                               {detailModal.item?.is_manual ? '-' : `${bobotMaksimalModal.toFixed(2)}%`}
                              </td>
                              <td className="p-3 text-center border-r border-slate-200 dark:border-slate-700/60">
                                {isEditing ? (

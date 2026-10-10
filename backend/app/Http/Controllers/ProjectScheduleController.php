@@ -11,7 +11,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\KurvaExport;
 use App\Services\ProjectProgressService;
-use App\Services\ProjectCacheService; // SERVICE CACHE
+use App\Services\ProjectCacheService;
 
 class ProjectScheduleController extends Controller
 {
@@ -25,14 +25,13 @@ class ProjectScheduleController extends Controller
     public function getSchedules($projectId)
     {
         try {
-            // Data diambil instan dari Cache jika sudah ada di memori
             $data = ProjectCacheService::rememberSchedule($projectId, function () use ($projectId) {
                 $projectInfo = DB::table('projects')->where('id', $projectId)->first();
 
                 // 1. Ambil Grand Total RAB dari Service
                 $grandTotalRAB = $this->progressService->calculateTotalProjectValue($projectId);
 
-                // 2. Ambil Seluruh Kategori & Item RAB
+                // 2. Ambil Seluruh Kategori & Item RAB (Otomatis mencakup Pekerjaan Tambahan dari DB)
                 $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
                 $categoryIds = $rabCategories->pluck('id')->toArray();
 
@@ -43,7 +42,6 @@ class ProjectScheduleController extends Controller
 
                 $rabData = [];
                 foreach ($rabCategories as $cat) {
-                    // Beri nilai bobot pada tiap item agar sinkron
                     $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
                         $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
                             ? ($item->total_harga / $grandTotalRAB) * 100
@@ -69,52 +67,46 @@ class ProjectScheduleController extends Controller
                     ->get();
 
                 // 4. Data Aktual & Realisasi Harian
-                $rawRealizations = collect([]);
                 $matrix_actual = [];
                 $weekly_actual = [];
                 $cumulative_actual = [];
-                $hasManual = false; // <--- DETEKSI PEKERJAAN MANUAL
 
-                try {
-                    $rawRealizations = DB::table('daily_report_activities')
-                        ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                        ->where('daily_reports.project_id', $projectId)
-                        ->where('daily_reports.status', 'approved')
-                        ->select(
-                            'daily_reports.id as report_id',
-                            'daily_report_activities.id as activity_id',
-                            'daily_report_activities.uraian as uraian_laporan',
-                            'daily_report_activities.rab_item_id',
-                            'daily_reports.minggu_ke',
-                            'daily_reports.tanggal as tgl_input',
-                            'daily_report_activities.volume as volume_laporan',
-                            'daily_report_activities.persentase as bobot_realisasi',
-                            'daily_reports.status as status_laporan'
-                        )
-                        ->get();
+                $rawRealizations = DB::table('daily_report_activities')
+                    ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                    ->where('daily_reports.project_id', $projectId)
+                    ->where('daily_reports.status', 'approved')
+                    ->select(
+                        'daily_reports.id as report_id',
+                        'daily_report_activities.id as activity_id',
+                        'daily_report_activities.uraian as uraian_laporan',
+                        'daily_report_activities.rab_item_id',
+                        'daily_reports.minggu_ke',
+                        'daily_reports.tanggal as tgl_input',
+                        'daily_report_activities.volume as volume_laporan',
+                        'daily_report_activities.persentase as bobot_realisasi',
+                        'daily_reports.status as status_laporan'
+                    )
+                    ->get();
 
-                    $aggregatedActuals = DB::table('daily_report_activities')
-                        ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                        ->where('daily_reports.project_id', $projectId)
-                        ->where('daily_reports.status', 'approved')
-                        ->select(
-                            'daily_report_activities.rab_item_id',
-                            'daily_reports.minggu_ke',
-                            DB::raw('SUM(daily_report_activities.persentase) as total_persen')
-                        )
-                        ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
-                        ->having('total_persen', '>', 0)
-                        ->get();
+                $aggregatedActuals = DB::table('daily_report_activities')
+                    ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
+                    ->where('daily_reports.project_id', $projectId)
+                    ->where('daily_reports.status', 'approved')
+                    ->select(
+                        'daily_report_activities.rab_item_id',
+                        'daily_reports.minggu_ke',
+                        DB::raw('SUM(daily_report_activities.persentase) as total_persen')
+                    )
+                    ->groupBy('daily_report_activities.rab_item_id', 'daily_reports.minggu_ke')
+                    ->having('total_persen', '>', 0)
+                    ->get();
 
-                    foreach ($aggregatedActuals as $r) {
-                        $itemId = $r->rab_item_id ?? 'manual';
-                        $minggu = $r->minggu_ke ?? 0;
-                        $persen = (float) $r->total_persen;
+                foreach ($aggregatedActuals as $r) {
+                    $itemId = $r->rab_item_id;
+                    $minggu = $r->minggu_ke ?? 0;
+                    $persen = (float) $r->total_persen;
 
-                        if (!$r->rab_item_id) {
-                            $hasManual = true; // <--- TANDAI JIKA ADA ITEM MANUAL DI DB
-                        }
-
+                    if ($itemId) { // Hanya proses item yang memiliki ID Valid
                         if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
                         $matrix_actual[$itemId][$minggu] = $persen;
 
@@ -124,37 +116,6 @@ class ProjectScheduleController extends Controller
                         if (!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
                         $cumulative_actual[$itemId] += $persen;
                     }
-                } catch (Throwable $th) {}
-
-                // 5. INJECT KATEGORI MANUAL JIKA DITEMUKAN
-                if ($hasManual) {
-                    // Ambil uraian manual yang pernah diinput untuk dijadikan nama item
-                    $manualUraians = DB::table('daily_report_activities')
-                        ->join('daily_reports', 'daily_report_activities.daily_report_id', '=', 'daily_reports.id')
-                        ->where('daily_reports.project_id', $projectId)
-                        ->where('daily_reports.status', 'approved')
-                        ->whereNull('daily_report_activities.rab_item_id')
-                        ->select('daily_report_activities.uraian')
-                        ->distinct()
-                        ->pluck('uraian')
-                        ->toArray();
-
-                    $uraianText = !empty($manualUraians) ? implode(' / ', $manualUraians) : 'Pekerjaan Input Manual';
-
-                    // Tambahkan blok kategori baru ke paling bawah RAB (Khusus Tampilan Kurva)
-                    $rabData[] = [
-                        'id' => 'cat-manual',
-                        'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR KONTRAK)',
-                        'kode_divisi' => 'EXT',
-                        'items' => collect([(object)[
-                            'id' => 'manual',
-                            'kode_pekerjaan' => '-',
-                            'uraian_pekerjaan' => 'Manual: ' . $uraianText,
-                            'is_manual' => true,
-                            'bobot' => 0, // Set 0 karena tidak ada di kontrak awal
-                            'total_harga' => 0
-                        ]])
-                    ];
                 }
 
                 return [
@@ -227,7 +188,6 @@ class ProjectScheduleController extends Controller
 
             DB::commit();
 
-            // Reset cache agar data jadwal terbaru langsung diambil ulang
             ProjectCacheService::clearProjectCache($projectId);
 
             return response()->json(['status' => 'success', 'message' => 'Jadwal Mingguan (Plan) berhasil disimpan!']);
@@ -244,7 +204,6 @@ class ProjectScheduleController extends Controller
             DB::table('project_schedules')->where('project_id', $projectId)->delete();
             DB::commit();
 
-            // Reset cache saat data dikosongkan
             ProjectCacheService::clearProjectCache($projectId);
 
             return response()->json(['status' => 'success', 'message' => 'Seluruh Jadwal Matriks berhasil dikosongkan.']);
@@ -267,8 +226,6 @@ class ProjectScheduleController extends Controller
         $matrix_actual = [];
         $weekly_actual = [];
         $cumulative_actual = [];
-        $reportedItemIds = [];
-        $hasManual = false;
 
         try {
             $aggregatedActuals = DB::table('daily_report_activities')
@@ -285,72 +242,50 @@ class ProjectScheduleController extends Controller
                 ->get();
 
             foreach ($aggregatedActuals as $r) {
-                $itemId = $r->rab_item_id ?? 'manual';
+                $itemId = $r->rab_item_id;
                 $minggu = $r->minggu_ke ?? 0;
                 $persen = (float) $r->total_persen;
 
-                if ($r->rab_item_id) {
-                    $reportedItemIds[] = $r->rab_item_id;
-                } else {
-                    $hasManual = true;
+                if ($itemId) {
+                    if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
+                    $matrix_actual[$itemId][$minggu] = $persen;
+
+                    if (!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
+                    $weekly_actual[$minggu] += $persen;
+
+                    if (!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
+                    $cumulative_actual[$itemId] += $persen;
                 }
-
-                if (!isset($matrix_actual[$itemId])) $matrix_actual[$itemId] = [];
-                $matrix_actual[$itemId][$minggu] = $persen;
-
-                if (!isset($weekly_actual[$minggu])) $weekly_actual[$minggu] = 0;
-                $weekly_actual[$minggu] += $persen;
-
-                if (!isset($cumulative_actual[$itemId])) $cumulative_actual[$itemId] = 0;
-                $cumulative_actual[$itemId] += $persen;
             }
-            $reportedItemIds = array_unique($reportedItemIds);
         } catch (Throwable $th) {}
 
-        $rabData = [];
-        if (!empty($reportedItemIds)) {
-            $rabCategories = DB::table('rab_categories')
-                ->where('project_id', $projectId)
-                ->whereIn('id', function ($query) use ($reportedItemIds) {
-                    $query->select('rab_category_id')->from('rab_items')->whereIn('id', $reportedItemIds);
-                })->get();
+        // Mengambil SELURUH data RAB agar format ekspor persis seperti di Tabel UI
+        $rabCategories = DB::table('rab_categories')->where('project_id', $projectId)->get();
+        $categoryIds = $rabCategories->pluck('id')->toArray();
 
-            $rabItems = DB::table('rab_items')->whereIn('id', $reportedItemIds)->get();
-
-            foreach ($rabCategories as $cat) {
-                $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
-                    $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
-                        ? ($item->total_harga / $grandTotalRAB) * 100
-                        : 0;
-                    $item->bobot = round($bobot, 2);
-                    return $item;
-                })->values();
-
-                if ($items->count() > 0) {
-                    $rabData[] = [
-                        'id' => $cat->id,
-                        'nama_kategori' => $cat->nama_kategori,
-                        'kode_divisi' => $cat->kode_divisi ?? null,
-                        'items' => $items
-                    ];
-                }
-            }
+        $rabItems = collect([]);
+        if (!empty($categoryIds)) {
+            $rabItems = DB::table('rab_items')->whereIn('rab_category_id', $categoryIds)->get();
         }
 
-        if ($hasManual) {
-            $rabData[] = [
-                'id' => 'cat-manual',
-                'nama_kategori' => 'PEKERJAAN TAMBAHAN (DI LUAR JADWAL/RAB)',
-                'kode_divisi' => 'EXT',
-                'items' => collect([(object)[
-                    'id' => 'manual',
-                    'kode_pekerjaan' => '-',
-                    'uraian_pekerjaan' => 'Pekerjaan Input Manual',
-                    'is_manual' => true,
-                    'bobot' => 0,
-                    'total_harga' => 0
-                ]])
-            ];
+        $rabData = [];
+        foreach ($rabCategories as $cat) {
+            $items = collect($rabItems)->where('rab_category_id', $cat->id)->map(function ($item) use ($grandTotalRAB) {
+                $bobot = ($grandTotalRAB > 0 && !$item->is_subheader)
+                    ? ($item->total_harga / $grandTotalRAB) * 100
+                    : 0;
+                $item->bobot = round($bobot, 2);
+                return $item;
+            })->values();
+
+            if ($items->count() > 0) {
+                $rabData[] = [
+                    'id' => $cat->id,
+                    'nama_kategori' => $cat->nama_kategori,
+                    'kode_divisi' => $cat->kode_divisi ?? null,
+                    'items' => $items
+                ];
+            }
         }
 
         return [

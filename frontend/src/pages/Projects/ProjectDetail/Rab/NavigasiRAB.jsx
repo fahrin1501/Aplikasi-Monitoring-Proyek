@@ -61,7 +61,6 @@ export default function NavigasiRAB({
         <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-x-auto custom-scrollbar z-30 transition-all shrink-0">
           {isEditMode ? (
             <>
-              {/* TOMBOL TAMBAH DIVISI */}
               <button 
                 disabled={isLoading} 
                 onClick={() => openCatModal()} 
@@ -71,7 +70,6 @@ export default function NavigasiRAB({
                 <span>Divisi Baru</span>
               </button>
 
-              {/* TOMBOL SELESAI EDIT */}
               <button 
                 disabled={isLoading} 
                 onClick={() => setIsEditMode(false)} 
@@ -85,7 +83,6 @@ export default function NavigasiRAB({
             <>
               {canEditData && (
                 <>
-                  {/* TOMBOL EDIT (BIRU) */}
                   <button 
                     disabled={isLoading} 
                     onClick={() => setIsEditMode(true)} 
@@ -95,14 +92,13 @@ export default function NavigasiRAB({
                     <span>Edit</span>
                   </button>
 
-                  {/* TOMBOL IMPORT (UNGU) */}
                   <button 
                     disabled={isLoading} 
                     onClick={() => setShowImportModal(true)} 
-                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-[10px] sm:text-[11px] font-medium rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] sm:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <UploadCloud className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" /> 
-                    <span>Import</span>
+                    <FileSpreadsheet className="w-3.5 h-3.5 shrink-0 text-white" /> 
+                    <span>Import Excel</span>
                   </button>
                 </>
               )}
@@ -111,7 +107,6 @@ export default function NavigasiRAB({
                 <>
                   <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
 
-                  {/* TOMBOL EXCEL (HIJAU) */}
                   <button 
                     disabled={isLoading} 
                     onClick={() => setExportModal({ show: true, type: 'excel' })} 
@@ -121,7 +116,6 @@ export default function NavigasiRAB({
                     <span>Excel</span>
                   </button>
 
-                  {/* TOMBOL PDF (MERAH) */}
                   <button 
                     disabled={isLoading} 
                     onClick={() => setExportModal({ show: true, type: 'pdf' })} 
@@ -166,7 +160,6 @@ export default function NavigasiRAB({
             <span>Peta GIS</span>
           </button>
         </div>
-
       </div>
     </div>
   );

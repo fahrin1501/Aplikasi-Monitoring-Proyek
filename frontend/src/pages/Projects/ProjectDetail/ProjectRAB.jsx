@@ -9,6 +9,9 @@ import FilterRAB from './Rab/FilterRAB';
 import TabelRAB from './Rab/TabelRAB';
 import ModalRAB from './Rab/ModalRAB';
 
+// CACHE MEMORI: Simpan data RAB agar instan (0 detik) saat kembali dibuka
+let cachedRABDetails = {};
+
 export default function ProjectRAB() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -25,19 +28,27 @@ export default function ProjectRAB() {
   }, []);
   const isGuest = userRole === 'Tamu';
 
-  // Mengambil state awal dari navigasi agar data tidak kosong saat loading
-  const initialProject = location.state || { id: id, nama_proyek: 'Memuat Data...' };
-  const [projectData, setProjectData] = useState(initialProject);
+  // Ambil data awal dari memory cache atau router state
+  const getInitialData = () => {
+    if (cachedRABDetails[id]) return cachedRABDetails[id];
+    return { projectData: location.state || { id: id, nama_proyek: 'Memuat Data...' }, rabs: [], realisasi: {} };
+  };
+  const initialCache = getInitialData();
+
+  const [projectData, setProjectData] = useState(initialCache.projectData);
+  const [rabs, setRabs] = useState(initialCache.rabs);
+  const [realisasiKegiatan, setRealisasiKegiatan] = useState(initialCache.realisasi);
   
-  const [rabs, setRabs] = useState([]);
-  const [realisasiKegiatan, setRealisasiKegiatan] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
+  // Jika cache sudah ada, matikan layar loading
+  const hasCachedFullData = Boolean(cachedRABDetails[id] && cachedRABDetails[id].rabs.length > 0);
+  const [isLoading, setIsLoading] = useState(!hasCachedFullData);
   const [isSaving, setIsSaving] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDivisi, setActiveDivisi] = useState('Semua');
 
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showAddendum, setShowAddendum] = useState(false); // STATE: Toggle Addendum
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [catForm, setCatForm] = useState({ id: null, kode_divisi: '', nama_kategori: '' });
@@ -54,8 +65,10 @@ export default function ProjectRAB() {
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
-  const fetchData = async () => {
+  // Fetch data (berjalan di background (silent) jika cache sudah ada)
+  const fetchData = async (silent = false) => {
     if (isGuest) { setIsLoading(false); return; }
+    if (!silent) setIsLoading(true);
     try {
       const [projRes, rabRes, reportRes] = await Promise.all([
         api.get(`/projects/${id}`),
@@ -80,37 +93,37 @@ export default function ProjectRAB() {
         }
       });
       setRealisasiKegiatan(realisasiMap);
+      
+      // Simpan ke Cache
+      cachedRABDetails[id] = { projectData: projRes.data, rabs: rabRes.data.data, realisasi: realisasiMap };
     } catch (error) { console.error("Gagal memuat data:", error); } 
     finally { setIsLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [id, isGuest]);
+  useEffect(() => { fetchData(hasCachedFullData); }, [id, isGuest]);
 
-  // --- PERBAIKAN: Format Rupiah lengkap dengan ,00 ---
+  const clearCacheAndFetch = async () => {
+    delete cachedRABDetails[id];
+    await fetchData(true);
+  };
+
   const formatRupiah = (angka) => {
     return new Intl.NumberFormat('id-ID', { 
-      style: 'currency', 
-      currency: 'IDR', 
-      minimumFractionDigits: 2, // Memaksa agar selalu ada 2 angka di belakang koma (misal: ,00)
-      maximumFractionDigits: 2 
+      style: 'currency', currency: 'IDR', minimumFractionDigits: 2, maximumFractionDigits: 2 
     }).format(Number(angka) || 0);
   };
 
   const saveCategory = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
+    e.preventDefault(); setIsSaving(true);
     try {
       if (catForm.id) await api.put(`/rabs/categories/${catForm.id}`, { kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori });
       else await api.post(`/projects/${id}/rabs/categories`, { kode_divisi: catForm.kode_divisi, nama_kategori: catForm.nama_kategori });
-      await fetchData();
-      setShowCatModal(false);
-    } catch (error) { alert("Gagal menyimpan kategori."); } 
-    finally { setIsSaving(false); }
+      await clearCacheAndFetch(); setShowCatModal(false);
+    } catch (error) { alert("Gagal menyimpan kategori."); } finally { setIsSaving(false); }
   };
 
   const saveItem = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
+    e.preventDefault(); setIsSaving(true);
     try {
       const payload = {
         rab_category_id: itemForm.rab_category_id, kode_pekerjaan: itemForm.kode_pekerjaan, uraian_pekerjaan: itemForm.uraian_pekerjaan,
@@ -118,10 +131,8 @@ export default function ProjectRAB() {
       };
       if (itemForm.id) await api.put(`/rab-items/${itemForm.id}`, payload);
       else await api.post(`/rabs/categories/${itemForm.rab_category_id}/items`, payload);
-      await fetchData();
-      setShowItemModal(false);
-    } catch (error) { alert("Gagal menyimpan item."); } 
-    finally { setIsSaving(false); }
+      await clearCacheAndFetch(); setShowItemModal(false);
+    } catch (error) { alert("Gagal menyimpan item."); } finally { setIsSaving(false); }
   };
 
   const executeDelete = async () => {
@@ -129,10 +140,8 @@ export default function ProjectRAB() {
     try {
       if (deleteConfig.type === 'category') await api.delete(`/rabs/categories/${deleteConfig.id}`);
       else if (deleteConfig.type === 'item') await api.delete(`/rab-items/${deleteConfig.id}`);
-      await fetchData();
-      setDeleteConfig({ show: false, type: '', id: null, name: '' });
-    } catch (error) { alert("Gagal menghapus data. Data terikat dengan laporan harian."); } 
-    finally { setIsSaving(false); }
+      await clearCacheAndFetch(); setDeleteConfig({ show: false, type: '', id: null, name: '' });
+    } catch (error) { alert("Gagal menghapus data. Data terikat dengan laporan harian."); } finally { setIsSaving(false); }
   };
 
   const executeExport = async () => {
@@ -145,8 +154,7 @@ export default function ProjectRAB() {
       link.setAttribute('download', `RAB_${projectData.nama_proyek ? projectData.nama_proyek.replace(/[^a-zA-Z0-9]/g, '_') : 'Proyek'}.${ext}`);
       document.body.appendChild(link); link.click(); link.remove();
       setExportModal({ show: false, type: '' });
-    } catch (error) { alert(`Gagal mengunduh file.`); } 
-    finally { setIsExporting(false); }
+    } catch (error) { alert(`Gagal mengunduh file.`); } finally { setIsExporting(false); }
   };
 
   const handleImportRAB = async () => {
@@ -156,9 +164,8 @@ export default function ProjectRAB() {
     try {
       await api.post(`/projects/${id}/import-rab`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       alert('Data RAB berhasil di-import!');
-      setShowImportModal(false); setImportFile(null); fetchData(); 
-    } catch (error) { alert(`Gagal Import.`); } 
-    finally { setIsImporting(false); }
+      setShowImportModal(false); setImportFile(null); await clearCacheAndFetch(); 
+    } catch (error) { alert(`Gagal Import.`); } finally { setIsImporting(false); }
   };
 
   const { rabsWithRealization, filteredRabsView, grandTotalRencana, grandTotalRealisasi } = useMemo(() => {
@@ -181,15 +188,30 @@ export default function ProjectRAB() {
     });
 
     const query = searchQuery.toLowerCase();
-    const filteredRabsView = rabsWithRealization.map(divisi => {
+    
+    // Mapping Array Sementara
+    const filteredRabsViewUnsorted = rabsWithRealization.map(divisi => {
       if (activeDivisi !== 'Semua' && divisi.nama_kategori !== activeDivisi) return null;
       const filteredItems = divisi.items.filter(i => (i.uraian_pekerjaan && i.uraian_pekerjaan.toLowerCase().includes(query)) || (i.kode_pekerjaan && i.kode_pekerjaan.toLowerCase().includes(query)));
       if (query && filteredItems.length === 0 && !(divisi.nama_kategori?.toLowerCase().includes(query)) && !(divisi.kode_divisi?.toLowerCase().includes(query))) return null;
       return { ...divisi, items: query ? filteredItems : divisi.items };
     }).filter(Boolean);
 
-    return { rabsWithRealization, filteredRabsView, grandTotalRencana: gRencana, grandTotalRealisasi: gRealisasi };
-  }, [rabs, realisasiKegiatan, searchQuery, activeDivisi, projectData]);
+    // LOGIKA PENYEMBUNYIAN & URUTAN ADDENDUM
+    const ADDENDUM_NAME = 'PEKERJAAN TAMBAHAN (ADDENDUM)';
+    let finalView = [];
+    const normalRabs = filteredRabsViewUnsorted.filter(d => d.nama_kategori !== ADDENDUM_NAME);
+    const addendumRabs = filteredRabsViewUnsorted.filter(d => d.nama_kategori === ADDENDUM_NAME);
+
+    // Jika showAddendum True, letakkan Addendum di posisi paling bawah
+    if (showAddendum) {
+        finalView = [...normalRabs, ...addendumRabs];
+    } else {
+        finalView = normalRabs;
+    }
+
+    return { rabsWithRealization, filteredRabsView: finalView, grandTotalRencana: gRencana, grandTotalRealisasi: gRealisasi };
+  }, [rabs, realisasiKegiatan, searchQuery, activeDivisi, projectData, showAddendum]);
 
   if (isGuest) {
     return (
@@ -242,6 +264,7 @@ export default function ProjectRAB() {
         rabs={rabs} activeDivisi={activeDivisi} setActiveDivisi={setActiveDivisi} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
         isLoading={isLoading}
+        showAddendum={showAddendum} setShowAddendum={setShowAddendum} userRole={userRole}
       />
       
       <TabelRAB 

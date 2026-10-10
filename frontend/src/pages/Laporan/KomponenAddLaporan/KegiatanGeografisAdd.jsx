@@ -31,6 +31,10 @@ export default function KegiatanGeografisAdd({
     if (!rabItem || !volume || !grandTotalRab || grandTotalRab <= 0) return '';
     const volNum = parseFloat(volume);
     if (isNaN(volNum) || volNum <= 0) return '';
+    
+    // Jika ini adalah pekerjaan Addendum/Manual yang otomatis terdaftar tapi belum ada harga kontraknya
+    if (parseFloat(rabItem.total_harga) === 0 || !rabItem.total_harga) return '0.00';
+
     const targetVolume = parseFloat(rabItem.volume);
     if (isNaN(targetVolume) || targetVolume <= 0) return '';
 
@@ -90,8 +94,7 @@ export default function KegiatanGeografisAdd({
             if (foundRab) {
                 currentVal = { value: item.rab_item_id.toString(), label: `${foundRab.uraian_pekerjaan || foundRab.uraian} (${foundRab.kategori || foundRab.kategori_nama})` };
                 
-                // Hitung Sisa Volume & Bobot
-                if (grandTotalRab > 0) {
+                if (grandTotalRab > 0 && parseFloat(foundRab.total_harga) > 0) {
                     const targetVol = parseFloat(foundRab.volume || 0);
                     const targetBobot = (parseFloat(foundRab.total_harga || 0) / grandTotalRab) * 100;
                     const accumBobot = parseFloat(cumulativeActuals?.[item.rab_item_id] || 0);
@@ -104,7 +107,7 @@ export default function KegiatanGeografisAdd({
                     sisaBobotInfo = `${sisaBobot.toFixed(2)}%`;
                 }
             }
-          } else if (item.rab_item_id === null && item.uraian) {
+          } else if (item.rab_item_id === null && item.uraian !== undefined) {
             currentVal = { value: 'manual', label: '+ Pekerjaan Manual / Baru' };
           }
 
@@ -158,7 +161,17 @@ export default function KegiatanGeografisAdd({
                 ) : (
                   <div className="text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-500/10 p-2 rounded-lg border border-rose-200 dark:border-rose-500/20 mb-2">Pilih proyek & tunggu RAB dimuat.</div>
                 )}
-                {(!item.rab_item_id) && <textarea rows="2" placeholder="Ketik manual uraian pekerjaan..." value={item.uraian} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none mt-2 shadow-inner transition-colors" />}
+                
+                {/* Input manual uraian muncul saat pilih "Pekerjaan Manual / Baru" */}
+                {(!item.rab_item_id) && (
+                  <textarea 
+                    rows="2" 
+                    placeholder="Ketik manual uraian pekerjaan tambahan..." 
+                    value={item.uraian} 
+                    onChange={(e) => { const newK = [...kegiatanItems]; newK[index].uraian = e.target.value; setKegiatanItems(newK); }} 
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none mt-2 shadow-inner transition-colors" 
+                  />
+                )}
               </div>
 
               <div className="col-span-12 sm:col-span-6 bg-white dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm relative z-0">
@@ -190,12 +203,22 @@ export default function KegiatanGeografisAdd({
                       className="w-full bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-300 dark:border-emerald-600 rounded-lg px-2 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner text-center transition-colors" 
                     />
                   </div>
+                  
                   <div className="col-span-12 sm:col-span-3">
                     <div className="flex justify-between items-center mb-2">
                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Satuan</label>
                     </div>
-                    <input type="text" placeholder="M3" value={item.satuan} onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} readOnly={!!item.rab_item_id} />
+                    {/* Jika manual, Satuan bisa diinput. Jika RAB, Satuan dibaca dari DB */}
+                    <input 
+                      type="text" 
+                      placeholder="Contoh: Ls, m3..." 
+                      value={item.satuan} 
+                      onChange={(e) => { const newK = [...kegiatanItems]; newK[index].satuan = e.target.value; setKegiatanItems(newK); }} 
+                      className={`w-full border rounded-lg px-1 py-2 text-[11px] font-bold text-slate-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 cursor-not-allowed border-transparent' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600'}`} 
+                      readOnly={!!item.rab_item_id} 
+                    />
                   </div>
+
                   <div className="col-span-12 sm:col-span-4 relative group">
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Persen %</label>
@@ -205,20 +228,18 @@ export default function KegiatanGeografisAdd({
                         </span>
                       )}
                     </div>
+                    {/* Persentase selalu dibekukan (Read Only) untuk menghindari pengisian persentase palsu */}
                     <input 
                       type="number" 
                       step="any" 
                       placeholder="0.00" 
                       value={item.persentase} 
-                      onChange={(e) => { const newK = [...kegiatanItems]; newK[index].persentase = e.target.value; setKegiatanItems(newK); }} 
-                      className={`w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-colors ${item.rab_item_id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent' : 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-600'}`} 
-                      readOnly={!!item.rab_item_id}
+                      readOnly
+                      className="w-full border rounded-lg px-2 py-2 text-xs font-bold text-center focus:outline-none shadow-inner transition-colors bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-not-allowed border-transparent" 
                     />
-                    {item.rab_item_id && (
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            Otomatis terhitung
-                        </div>
-                    )}
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                        Otomatis terhitung dari RAB
+                    </div>
                   </div>
                 </div>
               </div>

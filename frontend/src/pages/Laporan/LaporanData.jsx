@@ -12,16 +12,32 @@ import KegiatanGeografis from './IsiLaporan/KegiatanGeografis';
 import { PersonilCard, PeralatanCard } from './IsiLaporan/PersonilAlatLaporan';
 import { FotoCard, DokumenCard } from './IsiLaporan/LampiranDokumentasi';
 
+// CACHE MEMORI: Simpan data laporan agar instan saat dibuka kedua kalinya
+let cachedReportDetails = {};
+
 export default function LaporanData() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams(); 
 
-  const initialData = location.state?.laporan;
+  // Ambil data awal dari memory cache, sessionStorage, atau router state
+  const getInitialReport = () => {
+    if (cachedReportDetails[id]) return cachedReportDetails[id];
+    try {
+      const saved = sessionStorage.getItem(`cached_report_detail_${id}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return location.state?.laporan || null;
+  };
+
+  const initialData = getInitialReport();
   const reportId = id || initialData?.id || initialData?.originalData?.id;
 
-  const [reportData, setReportData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState(initialData);
+  
+  // Jika data sudah ada di cache, jangan tampilkan layar loading penuh
+  const hasCachedFullData = Boolean(reportData && reportData.tanggal);
+  const [isLoading, setIsLoading] = useState(!hasCachedFullData);
   
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,12 +73,17 @@ export default function LaporanData() {
   const canVerify = ['Administrator', 'Direktur', 'Team Leader', 'Owner / PPK'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  const fetchReport = async () => {
+  const fetchReport = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await api.get(`/daily-reports/${reportId}`);
       const data = res.data.data;
+      
       setReportData(data);
+      cachedReportDetails[reportId] = data;
+      try { sessionStorage.setItem(`cached_report_detail_${reportId}`, JSON.stringify(data)); } catch {}
 
+      // Tarik data Schedule/RAB secara background untuk persiapan Edit Mode
       if (data.project_id) {
          setIsLoadingRab(true);
          const schedRes = await api.get(`/projects/${data.project_id}/schedules`);
@@ -94,7 +115,10 @@ export default function LaporanData() {
   };
 
   useEffect(() => {
-    if (reportId) fetchReport();
+    if (reportId) {
+      const hasData = hasCachedFullData || Boolean(cachedReportDetails[reportId]);
+      fetchReport(hasData);
+    }
   }, [reportId]);
 
   const toggleEditMode = () => {
@@ -156,6 +180,11 @@ export default function LaporanData() {
     }
   };
 
+  const handleClearCache = () => {
+    delete cachedReportDetails[reportId];
+    try { sessionStorage.removeItem(`cached_report_detail_${reportId}`); } catch {}
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
@@ -186,7 +215,8 @@ export default function LaporanData() {
 
       await api.put(`/daily-reports/${reportId}`, payload);
       setIsEditMode(false);
-      fetchReport(); 
+      handleClearCache();
+      fetchReport(true); 
       alert("Draf Perubahan berhasil disimpan! (Status laporan kembali menjadi Pending)");
     } catch (error) {
       alert("Gagal menyimpan perubahan. Periksa koneksi.");
@@ -201,7 +231,8 @@ export default function LaporanData() {
     try {
       await api.put(`/daily-reports/${reportId}/verify`);
       alert("Laporan berhasil disetujui!");
-      fetchReport(); 
+      handleClearCache();
+      fetchReport(true); 
     } catch (error) {
       alert("Terjadi kesalahan saat memverifikasi laporan.");
     }
@@ -213,7 +244,8 @@ export default function LaporanData() {
     try {
       await api.put(`/daily-reports/${reportId}/reject`);
       alert("Laporan berhasil ditolak dan dikembalikan!");
-      fetchReport(); 
+      handleClearCache();
+      fetchReport(true); 
     } catch (error) {
       alert("Terjadi kesalahan saat menolak laporan.");
     }
@@ -297,20 +329,29 @@ export default function LaporanData() {
     e.target.value = null;
     try {
       await api.post(`/daily-reports/${reportId}/attachments`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      fetchReport();
+      handleClearCache();
+      fetchReport(true);
     } catch (error) { alert("Gagal mengunggah file."); }
   };
 
   const handleDeleteFile = async (fileId) => {
     if (!window.confirm("Yakin ingin menghapus file ini?")) return;
-    try { await api.delete(`/daily-report-attachments/${fileId}`); fetchReport(); } catch (error) { alert("Gagal menghapus file."); }
+    try { 
+      await api.delete(`/daily-report-attachments/${fileId}`); 
+      handleClearCache();
+      fetchReport(true); 
+    } catch (error) { alert("Gagal menghapus file."); }
   };
 
   const handleDeleteReport = async () => {
-    try { await api.delete(`/daily-reports/${reportId}`); alert("Laporan berhasil dihapus permanen."); navigate('/laporan'); } catch (error) { alert("Gagal menghapus laporan."); }
+    try { 
+      await api.delete(`/daily-reports/${reportId}`); 
+      handleClearCache();
+      alert("Laporan berhasil dihapus permanen."); 
+      navigate('/laporan'); 
+    } catch (error) { alert("Gagal menghapus laporan."); }
   };
 
-  // Bersihkan format angka nol berlebih (.0000)
   const formatCleanNumber = (val) => {
     if (val === null || val === undefined || val === '') return 0;
     const num = parseFloat(val);
@@ -367,7 +408,7 @@ export default function LaporanData() {
     return path.startsWith('http') ? path : `${BASE_URL}/${path.replace(/^\//, '')}`;
   };
 
-  if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /></div>;
+  if (isLoading && !hasCachedFullData) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /></div>;
   if (!reportData) return <div className="p-10 text-center dark:text-white">Data Tidak Ditemukan.</div>;
 
   const displayStatus = (isGuest && reportData.status === 'rejected') ? 'pending' : (reportData.status || 'pending');
@@ -571,7 +612,7 @@ export default function LaporanData() {
                className="w-full flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-inner custom-scrollbar transition-colors"
              />
            ) : (
-             <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed shadow-sm flex-1 custom-scrollbar overflow-y-auto">
+             <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed flex-1 mt-3 shadow-sm font-medium">
                {reportData.catatan || 'Tidak ada catatan tambahan.'}
              </div>
            )}

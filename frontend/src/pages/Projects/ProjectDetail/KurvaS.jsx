@@ -11,6 +11,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 import ScheduleWorkData from './Kurva_s/ScheduleWorkData';
 
+// CACHE MEMORI: Simpan data kurva s agar instan saat diklik kembali (0 delay)
+let cachedScheduleDetails = {};
+
 export default function KurvaS({ selectedProject }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,9 +34,18 @@ export default function KurvaS({ selectedProject }) {
   const canCreateData = ['Administrator', 'Team Leader', 'Pengawas Lapangan'].includes(userRole);
   const isGuest = userRole === 'Tamu';
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [scheduleData, setScheduleData] = useState(null);
-  const [grandTotalRAB, setGrandTotalRAB] = useState(0);
+  // Ambil data dari cache memory jika sudah ada
+  const getInitialSchedule = () => {
+    if (cachedScheduleDetails[projectId]) return cachedScheduleDetails[projectId];
+    return null;
+  };
+  const initialCache = getInitialSchedule();
+
+  const [scheduleData, setScheduleData] = useState(initialCache);
+  const [grandTotalRAB, setGrandTotalRAB] = useState(initialCache?.grand_total_rab || 0);
+  
+  const hasCachedFullData = Boolean(initialCache);
+  const [isLoading, setIsLoading] = useState(!hasCachedFullData);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,7 +110,7 @@ export default function KurvaS({ selectedProject }) {
 
       await api.post(`/projects/${projectId}/schedules`, { full_sync: true, weeks: payload });
       alert("Jadwal Pertama Berhasil Disimpan!");
-      fetchSchedule();
+      clearCacheAndFetch();
     } catch (error) {
       alert("Gagal menyimpan jadwal.");
     } finally {
@@ -132,13 +144,15 @@ export default function KurvaS({ selectedProject }) {
     return dateStr;
   };
 
-  const fetchSchedule = async () => {
-    setIsLoading(true);
+  const fetchSchedule = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await api.get(`/projects/${projectId}/schedules`);
       const data = res.data?.data;
+      
       setScheduleData(data);
       setGrandTotalRAB(data?.grand_total_rab || 0);
+      cachedScheduleDetails[projectId] = data;
 
       if (data?.project_info) {
         setProjectBounds({
@@ -168,9 +182,16 @@ export default function KurvaS({ selectedProject }) {
     }
   };
 
-  useEffect(() => { if (projectId) fetchSchedule(); }, [projectId]);
+  const clearCacheAndFetch = () => {
+    delete cachedScheduleDetails[projectId];
+    fetchSchedule(false);
+  };
 
-  const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(); };
+  useEffect(() => { 
+    if (projectId) fetchSchedule(hasCachedFullData); 
+  }, [projectId]);
+
+  const handleBatalEdit = () => { setIsEditMode(false); fetchSchedule(true); };
 
   const handleWeekCumulativeChange = (weekNum, value) => {
     const val = value.replace(',', '.');
@@ -222,7 +243,7 @@ export default function KurvaS({ selectedProject }) {
       await api.post(`/projects/${projectId}/schedules`, { full_sync: true, weeks: payloadWeeks });
       alert("Target Jadwal Berhasil Disimpan!");
       setIsEditMode(false);
-      fetchSchedule();
+      clearCacheAndFetch();
     } catch (error) {
       alert("Gagal menyimpan perubahan jadwal.");
     } finally {
@@ -448,7 +469,7 @@ export default function KurvaS({ selectedProject }) {
       if (type === 'pdf') {
         const chartElement = document.getElementById('chart-area');
         if (!chartElement) return alert("Area grafik tidak ditemukan!");
-        const canvas = await html2canvas(chartElement, { scale: 1.5, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(chartElement, { scale: 2.5, backgroundColor: '#ffffff' });
         base64Image = canvas.toDataURL('image/jpeg', 0.8);
       }
 
@@ -518,7 +539,7 @@ export default function KurvaS({ selectedProject }) {
         {/* CONTAINER KEDUA BOKS */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           
-          {/* BOKS KIRI: KONTROL AKSI & EKSPOR (DENGAN WARNA MASING-MASING) */}
+          {/* BOKS KIRI: KONTROL AKSI & EKSPOR */}
           <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-slate-800/80 px-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm overflow-visible z-30 transition-all shrink-0">
             {!isEditMode && (
               <div className="relative" ref={filterRef}>
@@ -583,12 +604,10 @@ export default function KurvaS({ selectedProject }) {
             {!isGuest && !isEditMode && !isScheduleEmpty && (
               <>
                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700/80 mx-0.5 shrink-0"></div>
-                {/* EXCEL: HIJAU */}
                 <button onClick={() => setExportModal({ show: true, type: 'excel' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
                   {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-emerald-500" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />} 
                   <span>Excel</span>
                 </button>
-                {/* PDF: MERAH */}
                 <button onClick={() => setExportModal({ show: true, type: 'pdf' })} disabled={isLoading || isExportingExcel || isExportingPdf} className="flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] sm:text-[11px] font-medium rounded-lg whitespace-nowrap">
                   {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-rose-500" /> : <Download className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />} 
                   <span>PDF</span>
@@ -625,7 +644,7 @@ export default function KurvaS({ selectedProject }) {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && !hasCachedFullData ? (
         <div className="flex flex-col items-center justify-center min-h-[40vh] w-full bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm animate-fade-in"><Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-4" /><p className="text-sm font-medium text-slate-500 dark:text-slate-400">Memproses Dashboard S-Curve...</p></div>
       ) : isScheduleEmpty ? (
         <div className="animate-fade-in space-y-4">
@@ -710,7 +729,7 @@ export default function KurvaS({ selectedProject }) {
           <ScheduleWorkData 
             scheduleData={scheduleData} localWeeks={localWeeks} isEditMode={isEditMode}
             canCreateData={canCreateData} grandTotalRAB={grandTotalRAB} handleWeekCumulativeChange={handleWeekCumulativeChange}
-            openWeekModal={openWeekModal} handleRemoveWeek={handleRemoveWeek} onRefresh={fetchSchedule}
+            openWeekModal={openWeekModal} handleRemoveWeek={handleRemoveWeek} onRefresh={clearCacheAndFetch}
           />
         </div>
       )}
@@ -730,12 +749,14 @@ export default function KurvaS({ selectedProject }) {
         </div>
       )}
 
+      {/* MODAL SIMPAN SCHEDULE */}
       {saveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-700"><div className="w-14 h-14 bg-amber-50 dark:bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-500/20"><Save className="w-6 h-6 text-amber-600 dark:text-amber-500" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Simpan Perubahan?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Target rencana mingguan akan diperbarui dan diterapkan langsung ke database S-Curve.</p><div className="flex gap-3"><button onClick={() => setSaveModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs shadow-sm">Batal</button><button onClick={handleSaveSchedule} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 text-xs transition-colors"><CheckCircle2 className="w-4 h-4" /> Ya, Simpan</button></div></div>
         </div>
       )}
 
+      {/* MODAL EXPORT PDF/EXCEL */}
       {exportModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in z-50">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6"><div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${exportModal.type === 'excel' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-200' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 border border-rose-200'}`}><Download className="w-6 h-6" /></div><h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Ekspor Laporan Penuh?</h3><p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">Sistem akan memotret grafik di rentang <strong>{formatIndoDate(startDateFilter)} s/d {formatIndoDate(endDateFilter)}</strong> dan menggabungkannya bersama <strong>Tabel Matriks Schedule</strong> ke dalam format <strong className="uppercase">{exportModal.type}</strong>.</p><div className="flex gap-3"><button disabled={isExportingExcel || isExportingPdf} onClick={() => setExportModal({ show: false, type: '' })} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button><button disabled={isExportingExcel || isExportingPdf} onClick={executeExport} className={`flex-1 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex justify-center items-center gap-2 transition-all ${exportModal.type === 'excel' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}>{isExportingExcel || isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>} Proses</button></div></div>

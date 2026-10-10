@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\DailyReport;
 use App\Models\DailyReportAttachment;
+use App\Models\RabCategory;
+use App\Models\RabItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +25,39 @@ class DailyReportController extends Controller
     public function __construct(ProjectProgressService $progressService)
     {
         $this->progressService = $progressService;
+    }
+
+    // =========================================================================
+    // HELPER: Auto-Create RAB untuk Pekerjaan Manual
+    // =========================================================================
+    private function resolveManualRabItem($projectId, $uraian, $satuan)
+    {
+        $category = RabCategory::firstOrCreate(
+            [
+                'project_id' => $projectId,
+                'nama_kategori' => 'PEKERJAAN TAMBAHAN (ADDENDUM)'
+            ],
+            [
+                'kode_divisi' => 'ADD'
+            ]
+        );
+
+        $item = RabItem::firstOrCreate(
+            [
+                'rab_category_id' => $category->id,
+                'uraian_pekerjaan' => $uraian
+            ],
+            [
+                'kode_pekerjaan' => '-',
+                'satuan' => !empty($satuan) ? $satuan : 'Ls',
+                'volume' => 0,          // Default 0 karena belum ada nilai kontrak
+                'harga_satuan' => 0,    // Default 0
+                'total_harga' => 0,
+                'is_subheader' => false
+            ]
+        );
+
+        return $item->id;
     }
 
     private function syncProjectStatus($projectId)
@@ -124,22 +159,33 @@ class DailyReportController extends Controller
                 if (!empty($item['uraian'])) {
                     $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
                     $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
+                    $satuan = !empty($item['satuan']) ? $item['satuan'] : null;
+                    $rabItemId = !empty($item['rab_item_id']) ? $item['rab_item_id'] : null;
 
-                    if (!empty($item['rab_item_id']) && $volume > 0) {
-                        $persentase = $this->progressService->calculateItemProgress(
-                            $item['rab_item_id'],
-                            $volume,
-                            $totalProjectValue
-                        );
+                    // 1. OTOMATIS BUAT/AMBIL ID RAB JIKA INPUT MANUAL
+                    if (empty($rabItemId)) {
+                        $rabItemId = $this->resolveManualRabItem($projectId, $item['uraian'], $satuan);
+                    }
+
+                    // 2. JANGAN OVERRIDE PERSENTASE JIKA HARGA RAB NYA MASIH 0 (Pekerjaan baru)
+                    if ($rabItemId && $volume > 0) {
+                        $checkRab = RabItem::find($rabItemId);
+                        if ($checkRab && $checkRab->total_harga > 0) {
+                            $persentase = $this->progressService->calculateItemProgress(
+                                $rabItemId,
+                                $volume,
+                                $totalProjectValue
+                            );
+                        }
                     }
 
                     $report->activities()->create([
-                        'rab_item_id' => !empty($item['rab_item_id']) ? $item['rab_item_id'] : null,
+                        'rab_item_id' => $rabItemId,
                         'uraian' => $item['uraian'],
                         'sta_awal' => $item['sta_awal'] ?? null,
                         'sta_akhir' => $item['sta_akhir'] ?? null,
                         'volume' => $volume,
-                        'satuan' => !empty($item['satuan']) ? $item['satuan'] : null,
+                        'satuan' => $satuan,
                         'persentase' => $persentase,
                     ]);
                 }
@@ -178,7 +224,6 @@ class DailyReportController extends Controller
 
             DB::commit();
 
-            // Bersihkan Cache RAB & Kurva S
             RabService::clearCache($projectId);
 
             return response()->json(['status' => 'success', 'message' => 'Laporan Harian Berhasil Disimpan!']);
@@ -216,22 +261,33 @@ class DailyReportController extends Controller
                     if (!empty($item['uraian'])) {
                         $volume = (isset($item['volume']) && $item['volume'] !== '') ? (float) $item['volume'] : null;
                         $persentase = (isset($item['persentase']) && $item['persentase'] !== '') ? $item['persentase'] : null;
+                        $satuan = !empty($item['satuan']) ? $item['satuan'] : null;
+                        $rabItemId = !empty($item['rab_item_id']) ? $item['rab_item_id'] : null;
 
-                        if (!empty($item['rab_item_id']) && $volume > 0) {
-                            $persentase = $this->progressService->calculateItemProgress(
-                                $item['rab_item_id'],
-                                $volume,
-                                $totalProjectValue
-                            );
+                        // 1. OTOMATIS BUAT/AMBIL ID RAB JIKA INPUT MANUAL
+                        if (empty($rabItemId)) {
+                            $rabItemId = $this->resolveManualRabItem($report->project_id, $item['uraian'], $satuan);
+                        }
+
+                        // 2. JANGAN OVERRIDE PERSENTASE JIKA HARGA RAB MASIH 0
+                        if ($rabItemId && $volume > 0) {
+                            $checkRab = RabItem::find($rabItemId);
+                            if ($checkRab && $checkRab->total_harga > 0) {
+                                $persentase = $this->progressService->calculateItemProgress(
+                                    $rabItemId,
+                                    $volume,
+                                    $totalProjectValue
+                                );
+                            }
                         }
 
                         $report->activities()->create([
-                            'rab_item_id' => $item['rab_item_id'] ?? null,
+                            'rab_item_id' => $rabItemId,
                             'uraian' => $item['uraian'],
                             'sta_awal' => $item['sta_awal'] ?? null,
                             'sta_akhir' => $item['sta_akhir'] ?? null,
                             'volume' => $volume,
-                            'satuan' => $item['satuan'] ?? null,
+                            'satuan' => $satuan,
                             'persentase' => $persentase,
                         ]);
                     }
@@ -263,7 +319,6 @@ class DailyReportController extends Controller
 
             DB::commit();
 
-            // Bersihkan Cache RAB & Kurva S
             RabService::clearCache($report->project_id);
 
             return response()->json(['status' => 'success', 'message' => 'Laporan berhasil diperbarui dan status kembali Pending.']);
@@ -283,12 +338,15 @@ class DailyReportController extends Controller
             $persentase = $request->persentase;
 
             if ($request->has('volume') && $activity->rab_item_id) {
-                $totalProjectValue = $this->progressService->calculateTotalProjectValue($report->project_id);
-                $persentase = $this->progressService->calculateItemProgress(
-                    $activity->rab_item_id,
-                    $request->volume,
-                    $totalProjectValue
-                );
+                $checkRab = RabItem::find($activity->rab_item_id);
+                if ($checkRab && $checkRab->total_harga > 0) {
+                    $totalProjectValue = $this->progressService->calculateTotalProjectValue($report->project_id);
+                    $persentase = $this->progressService->calculateItemProgress(
+                        $activity->rab_item_id,
+                        $request->volume,
+                        $totalProjectValue
+                    );
+                }
             }
 
             $activity->update([
@@ -302,7 +360,6 @@ class DailyReportController extends Controller
 
             DB::commit();
 
-            // Bersihkan Cache jika ada report terkait
             if ($report) {
                 RabService::clearCache($report->project_id);
             }
@@ -370,7 +427,6 @@ class DailyReportController extends Controller
 
             DB::commit();
 
-            // Bersihkan Cache
             RabService::clearCache($projectId);
 
             return response()->json(['status' => 'success', 'message' => 'Laporan berhasil dihapus secara permanen']);
@@ -387,7 +443,6 @@ class DailyReportController extends Controller
             $report->update(['status' => 'approved', 'verified_at' => now()]);
             $this->syncProjectStatus($report->project_id);
 
-            // Bersihkan Cache agar angka realisasi baru segera muncul di Kurva S & RAB
             RabService::clearCache($report->project_id);
 
             return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan berhasil disetujui & diverifikasi!']);
@@ -403,7 +458,6 @@ class DailyReportController extends Controller
             $report->update(['status' => 'rejected', 'verified_at' => null]);
             $this->syncProjectStatus($report->project_id);
 
-            // Bersihkan Cache
             RabService::clearCache($report->project_id);
 
             return response()->json(['status' => 'success', 'message' => 'Laporan Lapangan dikembalikan (Ditolak)!']);

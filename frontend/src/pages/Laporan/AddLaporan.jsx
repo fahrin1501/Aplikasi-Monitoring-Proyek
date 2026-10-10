@@ -71,8 +71,8 @@ export default function AddLaporan() {
           id: item.id, 
           uraian: item.uraian_pekerjaan, 
           satuan: item.satuan, 
-          volume: item.volume, // Tambahkan volume untuk rumus persentase
-          total_harga: item.total_harga, // Tambahkan harga untuk rumus persentase
+          volume: item.volume, 
+          total_harga: item.total_harga, 
           kategori_nama: kat.nama_kategori 
         });
       }));
@@ -135,6 +135,8 @@ export default function AddLaporan() {
       const cuacaGabungan = cuacaItems.map(c => c.keterangan ? `${c.kondisi} (${c.keterangan})` : c.kondisi).join(' | ');
       payload.append('cuaca', cuacaGabungan);
       payload.append('kondisi_cuaca', JSON.stringify(cuacaItems));
+      
+      // Kirim Array kegiatan langsung (semua parameter manual dan RAB dicampur dalam satu array JSON)
       payload.append('kegiatan', JSON.stringify(kegiatanItems));
       payload.append('personil', JSON.stringify(personilItems));
       payload.append('peralatan', JSON.stringify(peralatanItems));
@@ -299,7 +301,7 @@ export default function AddLaporan() {
               optionsMingguLain={optionsMingguLain} 
               unscheduledRabOptions={unscheduledRabOptions}
               grandTotalRab={scheduleData?.grand_total_rab} 
-              cumulativeActuals={scheduleData?.cumulative_actual} // <--- TAMBAHKAN BARIS INI
+              cumulativeActuals={scheduleData?.cumulative_actual}
             />
 
             {/* PERSONIL & ALAT */}
